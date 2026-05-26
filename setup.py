@@ -15,7 +15,8 @@ REQUIRED = ['astropy',
             'numpy',
             'matplotlib',
             'scikit-learn',
-            'joblib'
+            'joblib',
+            'imageio'
             ]
 
 
