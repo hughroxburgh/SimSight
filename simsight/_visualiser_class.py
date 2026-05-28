@@ -6,7 +6,6 @@ import matplotlib.colors as mcolors
 import imageio
 import io
 from tqdm import tqdm
-from time import time
 
 from ._utils import _Get_Colours
 

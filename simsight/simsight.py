@@ -1,29 +1,14 @@
-import numpy as np
-import matplotlib.pyplot as plt
-
 from tqdm import tqdm
 import multiprocessing
 from joblib import Parallel, delayed
 import warnings
 warnings.filterwarnings('ignore')
 
-import healpy as hp
 from time import time
-from scipy.spatial import cKDTree
-from glob import glob
-import os
-import pickle
-from copy import deepcopy
+import numpy as np
 
 from .sims import load_sim
-from ._sightline_class import Sightline
 from ._visualiser_class import VisualSim
-from ._galfinder_class import GalaxyFinder
-from ._inference_class import Inference
-from ._point_find import Points_In_Sightline, Halos_In_Sightline
-from ._compute import Compute_Sightline, Calc_Ray_Density, Calc_Ray_DM
-from ._utils import _Get_Colours
-
 
 class SightlineSim():
 
@@ -55,6 +40,9 @@ class SightlineSim():
         """
         Generates desired number of Sightline objects with either random or healpix direction distribution.
         """
+
+        import healpy as hp
+        from ._sightline_class import Sightline
 
         if n_sightlines == 1:
             if origin is None:
@@ -120,6 +108,8 @@ class SightlineSim():
     # ------------- Find points / halos in given sightlines ------------- #
 
     def _snapshot_points_in_sightlines(self,sightlines,snapshot,tree,radii,coarse_radius,giant_idx,giant_pts,giant_radii,parallel=False):
+
+        from ._point_find import Points_In_Sightline
         
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
@@ -132,6 +122,8 @@ class SightlineSim():
 
 
     def find_halos_in_sightlines(self,sightlines,parallel=False,snaps=None):
+
+        from ._point_find import Halos_In_Sightline
 
         snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, snaps] if v is not None)
 
@@ -159,6 +151,10 @@ class SightlineSim():
 
     def load_sightlines(self,save_path,percent=100):
 
+        import pickle
+        import os
+        from glob import glob
+
         if os.path.exists(save_path):
             files = sorted(glob(f'{save_path}/*.pkl'))
             if len(files) > 0:
@@ -184,8 +180,7 @@ class SightlineSim():
 
     def _choose_function(self,f):
 
-        # mapping = {'Density': {'func': CalcRayDensity, 'fields': ['Coordinates','Density','Masses']},
-        #            'DM' : {'func': CalcRayDM, 'fields': ['Coordinates','Density','ElectronAbundance','StarFormationRate','Masses']}}
+        from ._compute import Calc_Ray_Density, Calc_Ray_DM
 
         mapping = {'Density': {'func': Calc_Ray_Density, 
                                'fields': ['Coordinates','Density','Masses','SmoothingLength']},
@@ -198,6 +193,8 @@ class SightlineSim():
     
 
     def _snapshot_compute_sightlines(self, sightlines, data, func, snapshot,parallel=False):
+
+        from ._compute import Compute_Sightline
         
         if parallel:
             results = Parallel(n_jobs=self.num_cores, backend='threading')(
@@ -218,6 +215,9 @@ class SightlineSim():
             
     def run_single_sightline(self,redshift,origin=None,direction_vector=None,functype='DM',
                              delete_data=True,save_path=None,plot_sightline=False):
+        
+        from ._compute import Compute_Sightline
+        from ._point_find import Points_In_Sightline
         
         # -- Select function to calculate and corresponding data fields needed -- #
         func,fields = self._choose_function(functype)
@@ -285,6 +285,8 @@ class SightlineSim():
         """
         Run full loop over chosen number of sightlines.
         """
+
+        from scipy.spatial import cKDTree
 
         # -- Select function to calculate and corresponding data fields needed -- #
         func,fields = self._choose_function(functype)
@@ -407,6 +409,8 @@ class SightlineSim():
 
     def observe_halos_in_sightlines(self,sightlines,grid_path,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],snaps=None,parallel=False):
 
+        from ._galfinder_class import GalaxyFinder
+
         snaps_required = min(v for v in [sightlines[0].sub_Snapshots[sightlines[0].subsightline_reached(grid=False,halos=True)-1]+1, snaps] if v is not None)
 
         for snap in range(snaps_required):
@@ -424,6 +428,8 @@ class SightlineSim():
                     sl.observe_halos(galfinder,grid_path,filters)
 
     def infer_halos_in_sightlines(self,sightlines,snaps=None,parallel=False):
+
+        from ._inference_class import Inference
 
         snaps_required = min(v for v in [sightlines[0].sub_Snapshots[sightlines[0].subsightline_reached(grid=False,observed=True)-1]+1, snaps] if v is not None)
 
@@ -454,6 +460,8 @@ class SightlineSim():
 
 
     def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',igm_background='smooth_truth',density_smooth_kernel=1000):
+
+        from ._inference_class import Inference
 
         filters = None
         if halo_params == 'inferred':
