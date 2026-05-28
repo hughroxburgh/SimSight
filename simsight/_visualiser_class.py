@@ -1,10 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-import healpy as hp
 import matplotlib.colors as mcolors
-import imageio
-import io
+
 from tqdm import tqdm
 
 from ._utils import _Get_Colours
@@ -96,6 +94,8 @@ class VisualSim():
 
     def fullsky_image(self,sightlines,functype='DM',cmap=None,colour='dodgerblue',cutoff=99.5,redshift=None,gif_path=None,environment='total',modelled=False):
 
+        import healpy as hp
+
         if cmap is None:
             colors = ["black", colour, "white"]
             cmap = mcolors.LinearSegmentedColormap.from_list("black_colour_white", colors)
@@ -141,6 +141,10 @@ class VisualSim():
                         badcolor="lightgray",cmap=cmap,max=maxval,min=0)
 
             if gif_path is not None:
+                
+                import imageio
+                import io
+
                 buf = io.BytesIO()
                 plt.savefig(buf, format='png', dpi=100)
                 buf.seek(0)
@@ -193,6 +197,10 @@ class VisualSim():
                 ax.set_xlim(xlims[0],xlims[1])
 
             if gif_path is not None:
+                
+                import imageio
+                import io
+
                 buf = io.BytesIO()
                 fig.savefig(buf, format='png', dpi=100)
                 buf.seek(0)
@@ -324,6 +332,10 @@ class VisualSim():
                 ax.legend()
 
             if gif_path is not None:
+                
+                import imageio
+                import io
+                
                 buf = io.BytesIO()
                 fig.savefig(buf, format='png', dpi=100)
                 buf.seek(0)

@@ -7,11 +7,9 @@ warnings.filterwarnings('ignore')
 from time import time
 import numpy as np
 
-print('Made it to A!')
-
 from .sims import load_sim
 
-print('Made it to B!')
+print('Made it to A!')
 
 from ._visualiser_class import VisualSim
 
