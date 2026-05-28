@@ -1,14 +1,20 @@
+print('Made it to A!')
+
 from tqdm import tqdm
 import multiprocessing
 from joblib import Parallel, delayed
 import warnings
 warnings.filterwarnings('ignore')
 
+print('Made it to B!')
+
 from time import time
 import numpy as np
 
 from .sims import load_sim
 from ._visualiser_class import VisualSim
+
+print('Made it to C!')
 
 class SightlineSim():
 
