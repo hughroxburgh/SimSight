@@ -2,8 +2,6 @@ import numpy as np
 from numba import njit,prange
 from time import time
 
-from ._sightline_class import Sightline
-
 # -- If finding points without a KDTree -- #
 
 def _Points_Inside_Cylinder(points, origin, transformation_matrix, length, radius):

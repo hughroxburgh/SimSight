@@ -8,8 +8,6 @@ from tqdm import tqdm
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 
-from ._sph_compute import Find_Intersection_Intervals, Build_Sparse_Weights, Calculate_Field, Nearest_Particle
-
 class SIMBA_SightlineSim():
     def __init__(self,data_path,fsps_path=None):
 
@@ -214,6 +212,8 @@ class SIMBA_SightlineSim():
 
     
     def process_data(self,transformed_points,data,length):
+
+        from ._sph_compute import Find_Intersection_Intervals, Build_Sparse_Weights, Calculate_Field, Nearest_Particle
 
         t_res = 10 #ckpc
 

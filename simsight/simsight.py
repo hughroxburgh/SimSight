@@ -8,12 +8,7 @@ from time import time
 import numpy as np
 
 from .sims import load_sim
-
-print('Made it to A!')
-
 from ._visualiser_class import VisualSim
-
-print('Made it to C!')
 
 class SightlineSim():
 
@@ -46,7 +41,6 @@ class SightlineSim():
         Generates desired number of Sightline objects with either random or healpix direction distribution.
         """
 
-        import healpy as hp
         from ._sightline_class import Sightline
 
         if n_sightlines == 1:
@@ -65,6 +59,9 @@ class SightlineSim():
                 directions /= np.linalg.norm(directions)
 
             elif method == 'fullsky':
+                
+                import healpy as hp
+
                 nside = np.sqrt(n_sightlines/12)
                 nside = np.round(nside).astype(int)
                 n = hp.nside2npix(nside)

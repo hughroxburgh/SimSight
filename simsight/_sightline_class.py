@@ -571,7 +571,6 @@ class Sightline():
 
             return sl
 
-
     # ------------- Sightline information readout / plotting ------------- #
 
     def readout_subsightlines(self,number=None):
@@ -787,7 +786,6 @@ class Sightline():
 
     # ------------- Computation / environment partitioning ------------- #
 
-
     def assign_to_halos(self,method='sphere',particle_ids=None,snapshot=None,sim=None):
         """
         Assign grid cells to halos. Either through spherical r200c check, or through halo membership.
@@ -850,7 +848,6 @@ class Sightline():
                     self.sub_HaloAssignment[i][inside_array] = halo['ID']
                     self.sub_CellConditions[i][inside_array] = 1
 
-
     def subsightline_reached(self,grid=True,halos=False,assigned=False,observed=False,modelled=False):
 
         checks = []                 
@@ -890,7 +887,6 @@ class Sightline():
         full_grid = np.nansum(np.concatenate([sl for sl in self.sub_Grid[:num_sub_sightlines]]))
 
         return z_at_value(cosmo.comoving_distance, full_grid*u.kpc).value
-    
 
     def extract_compute(self, cosmo, redshift=None, environment='total',modelled=False):
         """
@@ -955,7 +951,7 @@ class Sightline():
 
     # ------------- Observing / Modelling Sightline ------------- #
 
-    def _initialise_modelled(self,halos='observed'):
+    def _initialise_modelled(self):
 
         mod = Sightline(origin=self.origin,
                     direction_vector=self.direction_vector,
