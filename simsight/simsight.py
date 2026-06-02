@@ -291,13 +291,13 @@ class SightlineSim():
         giant_pts = data['Coordinates'][giant_idx]
         giant_radii = radii[giant_idx]
 
+        ts = time()
         if findtype == 'tree':
                 
             from scipy.spatial import cKDTree
 
             #  -- Generate KDTree of all points in simulation -- #
             print(f"    generating KDTree",end='\r')
-            ts = time()
             tree = cKDTree(data['Coordinates'])
             print(f"    generating KDTree -- Done ({time()-ts:.1f}s)")
 
