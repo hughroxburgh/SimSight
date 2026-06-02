@@ -307,7 +307,9 @@ class SightlineSim():
 
             print(f"    generating voxelgrid",end='\r')
             voxel_size = coarse_radius
-            ijk        = np.floor(data['Coordinates'] / voxel_size).astype(np.int32)
+            normal_idx = np.where(radii <= coarse_radius)[0]
+
+            ijk         = np.floor(data['Coordinates'][normal_idx] / voxel_size).astype(np.int32)
             grid_size = int(np.ceil(self.sim.box_size / voxel_size))
 
             flat = (ijk[:, 0] * grid_size * grid_size +
@@ -316,7 +318,6 @@ class SightlineSim():
             
             order       = np.argsort(flat, kind='stable')
             sorted_flat = flat[order]
-            normal_idx = np.where(radii <= coarse_radius)[0]
             sorted_idx  = normal_idx[order]
 
             boundaries  = np.concatenate([[0],
