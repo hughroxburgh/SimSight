@@ -69,7 +69,10 @@ def _Points_Subset(limits, points):
 
 # -- For finding points using a KDTree --# 
 
-def _Points_Near_Ray(tree, ray_origin, ray_length, ray_direction, radii, coarse_radius,giant_idx,giant_pts,giant_radii):
+def _Points_Near_Ray_Tree(tree, 
+                          ray_origin, ray_length, ray_direction, 
+                          radii, coarse_radius,
+                          giant_idx,giant_pts,giant_radii):
     """
     Find all points whose radius includes overlaps with a ray.
     """
@@ -107,10 +110,65 @@ def _Points_Near_Ray(tree, ray_origin, ray_length, ray_direction, radii, coarse_
     return candidates_idx[mask]
 
 
+# -- For finding points using a VoxelGrid --# 
+
+def _Points_Near_Ray_Voxel(architecture, 
+                           ray_origin, ray_length, ray_direction,
+                            radii,voxel_size,
+                            giant_idx, giant_pts, giant_radii):
+    """
+    Find all points whose radius overlaps with a ray, using a voxel grid.
+    """
+
+    voxels = architecture['voxels']  # dict mapping flat voxel keys to arrays of point indices
+    coords = architecture['coords']  # (N,3) array of point coordinates
+    grid_size = architecture['grid_size']  # number of voxels along each axis
+
+    # -- Walk the ray, collecting candidate voxels -- #
+    nsteps = max(int(ray_length / voxel_size * 1.5), 2)
+    ray_points = np.linspace(ray_origin, ray_origin + ray_length * ray_direction, nsteps)
+    ray_ijk = np.floor(ray_points / voxel_size).astype(np.int32)  # (nsteps, 3)
+
+    # -- Compute flat keys for all 27 neighbours of every ray step at once -- #
+    offsets = np.array([(di, dj, dk)
+                     for di in (-1, 0, 1)
+                     for dj in (-1, 0, 1)
+                     for dk in (-1, 0, 1)], dtype=np.int32)
+    nb_ijk    = (ray_ijk[:, None, :] + offsets[None, :, :]).reshape(-1, 3)
+    flat_keys = (nb_ijk[:, 0].astype(np.int64) * grid_size * grid_size +
+                 nb_ijk[:, 1].astype(np.int64) * grid_size +
+                 nb_ijk[:, 2].astype(np.int64))
+
+    # -- Collect candidate indices from occupied voxels -- #
+    arrays = [voxels[k] for k in np.unique(flat_keys) if k in voxels]
+    candidates_idx = np.unique(np.concatenate(arrays)) if arrays else np.array([], dtype=np.int64)
+
+    # -- Add giants, tested individually -- #
+    if len(giant_idx) > 0:
+        p_vec    = giant_pts - ray_origin
+        t        = np.clip(p_vec @ ray_direction, 0, ray_length)
+        dist_sq  = np.sum((p_vec - t[:, np.newaxis] * ray_direction)**2, axis=1)
+        giant_hits = giant_idx[dist_sq <= giant_radii**2]
+        candidates_idx = np.union1d(candidates_idx, giant_hits)
+
+    if len(candidates_idx) == 0:
+        return np.array([], dtype=np.int64)
+
+    # -- Refine using individual radii -- #
+    pts     = coords[candidates_idx]
+    r       = radii[candidates_idx]
+    p_vec   = pts - ray_origin
+    t       = np.clip(p_vec @ ray_direction, 0, ray_length)
+    dist_sq = np.sum((p_vec - t[:, np.newaxis] * ray_direction)**2, axis=1)
+    mask    = dist_sq <= r**2
+
+    return candidates_idx[mask]
+
+
 
 # --- Overarching Function -- #
 
-def Points_In_Sightline(sightline,snapshot,tree_or_points,radii,coarse_radius,giant_idx=None,giant_pts=None,giant_radii=None,treebased=True):
+def Points_In_Sightline(sightline,snapshot,architecture,radii,coarse_radius,findtype,giant_idx=None,giant_pts=None,giant_radii=None):
     
     # -- Iterate over sub sightlines, checking for those which coincide with the given snapshot number -- #
     for i in range(sightline.num_sub_sightlines):
@@ -120,8 +178,13 @@ def Points_In_Sightline(sightline,snapshot,tree_or_points,radii,coarse_radius,gi
                 continue
 
             # -- Select between KDTree / Not -- #
-            if treebased:
-                cylinder_idx = _Points_Near_Ray(tree_or_points,sightline.sub_Origins[i],sightline.sub_Lengths[i],sightline.direction_vector,
+            if findtype == 'tree':
+                cylinder_idx = _Points_Near_Ray_Tree(architecture,sightline.sub_Origins[i],sightline.sub_Lengths[i],sightline.direction_vector,
+                                                radii,coarse_radius,giant_idx,giant_pts,giant_radii)
+                sightline.sub_PointsIdx[i] = cylinder_idx
+
+            elif findtype == 'voxel':
+                cylinder_idx = _Points_Near_Ray_Voxel(architecture,sightline.sub_Origins[i],sightline.sub_Lengths[i],sightline.direction_vector,
                                                 radii,coarse_radius,giant_idx,giant_pts,giant_radii)
                 sightline.sub_PointsIdx[i] = cylinder_idx
 
@@ -133,12 +196,12 @@ def Points_In_Sightline(sightline,snapshot,tree_or_points,radii,coarse_radius,gi
 
                 ts = time()
                 print('    points subset',end='\r')
-                points_idx = _Points_Subset(limits,tree_or_points)
+                points_idx = _Points_Subset(limits,architecture)
                 print(f'    points subset -- Done ({time()-ts:.1f}s)')
 
                 ts = time()
                 print('    points inside cylinder',end='\r')
-                inside = _Points_Inside_Cylinder(tree_or_points[points_idx],SL.origin,
+                inside = _Points_Inside_Cylinder(architecture[points_idx],SL.origin,
                                               SL.transformation_matrix,
                                               SL.length,coarse_radius)
                 print(f'    points inside cylinder -- Done ({time()-ts:.1f}s)')

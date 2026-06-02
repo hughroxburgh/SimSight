@@ -109,18 +109,19 @@ class SightlineSim():
 
     # ------------- Find points / halos in given sightlines ------------- #
 
-    def _snapshot_points_in_sightlines(self,sightlines,snapshot,tree,radii,coarse_radius,giant_idx,giant_pts,giant_radii,parallel=False):
+    def _snapshot_points_in_sightlines(self,sightlines,snapshot,architecture,radii,coarse_radius,findtype,
+                                       giant_idx,giant_pts,giant_radii,parallel=False):
 
         from ._point_find import Points_In_Sightline
         
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                delayed(Points_In_Sightline)(sl, snapshot, tree,radii,coarse_radius,giant_idx,giant_pts,giant_radii,treebased=True)
+                delayed(Points_In_Sightline)(sl, snapshot, architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
                 for sl in tqdm(sightlines, desc="    finding points in sightlines")
             )
         else:
             for sl in tqdm(sightlines, desc="    finding points in sightlines"):
-                Points_In_Sightline(sl,snapshot,tree,radii,coarse_radius,giant_idx,giant_pts,giant_radii,treebased=True)
+                Points_In_Sightline(sl,snapshot,architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
 
 
     def find_halos_in_sightlines(self,sightlines,parallel=False,snaps=None):
@@ -254,7 +255,7 @@ class SightlineSim():
             radii = self.sim.radius_mapping(data)
             coarse_radius = np.percentile(radii,99.9)
 
-            Points_In_Sightline(sightline,snap,data['Coordinates'],radii,coarse_radius,treebased=False)
+            Points_In_Sightline(sightline,snap,data['Coordinates'],radii,coarse_radius,findtype='cylinder')
 
             if (snap == 0) & (plot_sightline):
                 self.Vis.plot3d()
@@ -280,15 +281,66 @@ class SightlineSim():
         else:
             return sightline, data 
 
+    def _finder_architecture(self,data,findtype,percentile=99.9):
 
-    def run_many_sightlines(self,n_sightlines,redshift,method='random',origin=None,functype='DM',
+        # -- Define particle radii and the maximum radius to search within -- #
+        radii = self.sim.radius_mapping(data)
+        coarse_radius = np.percentile(radii,percentile)
+        giant_bool = radii > coarse_radius
+        giant_idx = np.where(giant_bool)[0]
+        giant_pts = data['Coordinates'][giant_idx]
+        giant_radii = radii[giant_idx]
+
+        if findtype == 'tree':
+                
+            from scipy.spatial import cKDTree
+
+            #  -- Generate KDTree of all points in simulation -- #
+            print(f"    generating KDTree",end='\r')
+            ts = time()
+            tree = cKDTree(data['Coordinates'])
+            print(f"    generating KDTree -- Done ({time()-ts:.1f}s)")
+
+            return tree, radii, coarse_radius, giant_idx, giant_pts, giant_radii
+
+        elif findtype == 'voxel':
+
+            print(f"    generating voxelgrid",end='\r')
+            voxel_size = coarse_radius
+            ijk        = np.floor(data['Coordinates'] / voxel_size).astype(np.int32)
+            grid_size = int(np.ceil(self.sim.box_size / voxel_size))
+
+            flat = (ijk[:, 0] * grid_size * grid_size +
+                    ijk[:, 1] * grid_size +
+                    ijk[:, 2])
+            
+            order       = np.argsort(flat, kind='stable')
+            sorted_flat = flat[order]
+            normal_idx = np.where(radii <= coarse_radius)[0]
+            sorted_idx  = normal_idx[order]
+
+            boundaries  = np.concatenate([[0],
+                            np.where(np.diff(sorted_flat))[0] + 1,
+                            [len(sorted_flat)]])
+            unique_flat = sorted_flat[boundaries[:-1]]
+
+            # Dict of flat_key → global particle indices
+            voxels = {k: sorted_idx[s:e]
+                    for k, s, e in zip(unique_flat, boundaries[:-1], boundaries[1:])}
+
+            print(f"    generating voxelgrid -- Done ({time()-ts:.1f}s)")
+
+            return {'voxels':voxels,
+                    'coords':data['Coordinates'],
+                    'grid_size':grid_size}, radii, coarse_radius, giant_idx, giant_pts, giant_radii
+
+    def run_many_sightlines(self,n_sightlines,redshift,method='random',origin=None,
+                            functype='DM',findtype='tree',
                             parallel_slgen=False,parallel_findpts=False,parallel_compute=False,
                             delete_data=True,save_path=None,plot_sightlines=False):
         """
         Run full loop over chosen number of sightlines.
         """
-
-        from scipy.spatial import cKDTree
 
         # -- Select function to calculate and corresponding data fields needed -- #
         func,fields = self._choose_function(functype)
@@ -337,27 +389,17 @@ class SightlineSim():
             data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum)
             print(f"    loading {self.sim.name} snapshot {trueSnapNum} data -- Done ({time()-ts:.1f}s)")
 
-            # -- Define particle radii and the maximum radius to search within -- #
-            radii = self.sim.radius_mapping(data)
-            coarse_radius = np.percentile(radii,99.9)
-            giant_idx = np.where(radii > coarse_radius)[0]
-            giant_pts = data['Coordinates'][giant_idx]
-            giant_radii = radii[giant_idx]
-
                         # rEffs = (3/(4*np.pi)*data['Masses']/data['Density'])**(1/3)
                         # del(data['Masses'])
 
-            #  -- Generate KDTree of all points in simulation -- #
-            print(f"    generating KDTree",end='\r')
-            ts = time()
-            tree = cKDTree(data['Coordinates'])
-            print(f"    generating KDTree -- Done ({time()-ts:.1f}s)")
+            architecture, radii, coarse_radius, giant_idx, giant_pts, giant_radii = self._finder_architecture(data,findtype)
 
             # -- Allocate point idx to each sub sightline -- #
-            self._snapshot_points_in_sightlines(sightlines,snap,tree,radii,coarse_radius,giant_idx,giant_pts,giant_radii,parallel_findpts)
+            self._snapshot_points_in_sightlines(sightlines,snap,architecture,radii,coarse_radius,findtype,
+                                                giant_idx,giant_pts,giant_radii,parallel_findpts)
 
             if delete_data:
-                del(tree)
+                del(architecture)
             
             if (snap == 0) & (plot_sightlines):
                 self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=data['Coordinates'],n_subsightlines=1)
@@ -373,7 +415,7 @@ class SightlineSim():
         if delete_data:
             return sightlines
         else:
-            return sightlines, data, tree 
+            return sightlines, data, architecture 
 
 
     # ------------- Post computation ------------- #
