@@ -166,11 +166,6 @@ class TNG_SightlineSim():
         if 'StellarInitialMass' in data:
             data['StellarInitialMass'] /= self.hub
 
-        # -- Downcast float64 → float32 -- #
-        for key in data:
-            if data[key].dtype == np.float64:
-                data[key] = data[key].astype(np.float32)
-
         return data
     
 
