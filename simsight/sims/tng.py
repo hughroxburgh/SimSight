@@ -3,6 +3,8 @@ import numpy as np
 from time import time
 from astropy.cosmology import FlatLambdaCDM
 from tqdm import tqdm
+import h5py
+from pathlib import Path
 
 from ._arepo_compute import Find_Line_Elements
 
@@ -66,45 +68,110 @@ class TNG_SightlineSim():
                                 1.09756433e+01, 1.19802133e+01, 1.49891732e+01, 2.00464910e+01])
     
 
-    def load_data(self,particle_type,fields,snapNum):
+    def _load_chunks_efficient(self, snap_num, part_type, true_fields):
+        """
+        Two-pass HDF5 loader. Pre-allocates output arrays then fills
+        directly, avoiding the concatenation memory spike.
+        """
+        import h5py
 
-        fieldTransfer = {'Coordinates':'Coordinates',
-                         'Density':'Density',
-                         'ElectronAbundance':'ElectronAbundance',
-                         'StarFormationRate':'StarFormationRate',
-                         'Masses': 'Masses',
-                         'SmoothingLength':'SmoothingLength',
-                         'ParticleIDs' : 'ParticleIDs',
-                         'Metallicity' : 'GFM_Metallicity',
-                         'StellarInitialMass' : 'GFM_InitialMass',     #Stars only
-                         'StellarFormationTime' : 'GFM_StellarFormationTime'} #Stars only
-        
-        truefields = [fieldTransfer[f] for f in fields]
+        pkey = f"PartType{part_type}"
 
-        data = il.snapshot.loadSubset(self.data_path,snapNum,particle_type,[f for f in truefields if f != 'SmoothingLength'])
+        # -- Get number of chunk files from first header -- #
+        with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, 0), 'r') as f:
+            n_chunks = int(f['Header'].attrs['NumFilesPerSnapshot'])
 
-        if len(fields) == 1:
-            d = {}
-            d[fields[0]] = data
-            data = d
-        else:
-            data = {f: data[fieldTransfer[f]] for f in fields if fieldTransfer[f] in data}
+        # -- Pass 1: accumulate total N and read dtypes/shapes -- #
+        total_n = 0
+        dtypes  = {}
+        ndims   = {}
 
-        if 'Coordinates' in fields:
-            data['Coordinates'] = data['Coordinates'].astype(np.float32)/self.hub
-        if 'Density' in fields:
-            data['Density'] = data['Density'] * self.hub**2
-        if 'Masses' in fields:
-            data['Masses'] = data['Masses'] / self.hub
-        if 'StellarInitialMass' in fields:
+        for chunk in range(n_chunks):
+            with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, chunk), 'r') as f:
+                if pkey not in f:
+                    continue
+                total_n += int(f['Header'].attrs['NumPart_ThisFile'][part_type])
+                for field in true_fields:
+                    if field not in dtypes and field in f[pkey]:
+                        ds            = f[pkey][field]
+                        dtypes[field] = ds.dtype
+                        ndims[field]  = ds.shape[1] if ds.ndim > 1 else None
+
+        if total_n == 0:
+            return {}
+
+        # -- Pre-allocate final arrays once -- #
+        data = {}
+        for field in true_fields:
+            if field not in dtypes:
+                continue
+            shape        = (total_n, ndims[field]) if ndims[field] else (total_n,)
+            data[field]  = np.empty(shape, dtype=dtypes[field])
+
+        # -- Pass 2: fill directly into pre-allocated arrays -- #
+        offset = 0
+        for chunk in range(n_chunks):
+            with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, chunk), 'r') as f:
+                if pkey not in f:
+                    continue
+                n = int(f['Header'].attrs['NumPart_ThisFile'][part_type])
+                if n == 0:
+                    continue
+                for field in true_fields:
+                    if field in data and field in f[pkey]:
+                        data[field][offset:offset + n] = f[pkey][field][:]
+                offset += n
+
+        return data
+
+
+    def load_data(self, particle_type, fields, snapNum,method='custom'):
+
+        fieldTransfer = {'Coordinates':          'Coordinates',
+                        'Density':              'Density',
+                        'ElectronAbundance':    'ElectronAbundance',
+                        'StarFormationRate':    'StarFormationRate',
+                        'Masses':               'Masses',
+                        'SmoothingLength':      'SmoothingLength',
+                        'ParticleIDs':          'ParticleIDs',
+                        'Metallicity':          'GFM_Metallicity',
+                        'StellarInitialMass':   'GFM_InitialMass',
+                        'StellarFormationTime': 'GFM_StellarFormationTime'}
+
+        # SmoothingLength is not in HDF5 for moving-mesh sims — skip it
+        truefields = [fieldTransfer[f] for f in fields
+                    if fieldTransfer[f] != 'SmoothingLength']
+
+        if method == 'custom':
+            raw  = self._load_chunks_efficient(snapNum, particle_type, truefields)
+        elif method == 'illustris':
+            raw = il.snapshot.loadSubset(self.data_path,snapNum,particle_type,truefields)
+
+        data = {f: raw[fieldTransfer[f]] for f in fields if fieldTransfer[f] in raw}
+
+        # -- Unit conversions -- #
+        if 'Coordinates' in data:
+            data['Coordinates']     = data['Coordinates'].astype(np.float32) / self.hub
+        if 'Density' in data:
+            data['Density']         = data['Density']         * self.hub**2
+        if 'Masses' in data:
+            data['Masses']          = data['Masses']          / self.hub
+        if 'StellarInitialMass' in data:
             data['StellarInitialMass'] = data['StellarInitialMass'] / self.hub
 
+        # -- Downcast float64 → float32 -- #
         for key in data:
             if data[key].dtype == np.float64:
                 data[key] = data[key].astype(np.float32)
 
         return data
     
+
+
+
+
+
+
     # def load_halos(self,snap_num):
 
     #     halos_full = il.groupcat.loadHalos(self.data_path,snap_num,fields=['GroupPos','Group_R_Crit200','GroupMassType','GroupFirstSub','GroupNsubs'])
