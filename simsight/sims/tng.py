@@ -92,32 +92,33 @@ class TNG_SightlineSim():
         dtypes  = {}
         ndims   = {}
 
-        for chunk in range(n_chunks):
-            with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, chunk), 'r') as f:
-                if pkey not in f:
-                    continue
-                total_n += int(f['Header'].attrs['NumPart_ThisFile'][part_type])
-                for field in true_fields:
-                    if field not in dtypes and field in f[pkey]:
-                        ds            = f[pkey][field]
-                        dtypes[field] = ds.dtype
-                        ndims[field]  = ds.shape[1] if ds.ndim > 1 else None
+        # -- Everything we need from the first file only -- #
+        dtypes = {}
+        ndims  = {}
+        with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, 0), 'r') as f:
+            n_chunks = int(f['Header'].attrs['NumFilesPerSnapshot'])
+            total_n  = int(f['Header'].attrs['NumPart_Total'][part_type])
+            for field in true_fields:
+                if field in f.get(pkey, {}):
+                    ds            = f[pkey][field]
+                    dtypes[field] = ds.dtype
+                    ndims[field]  = ds.shape[1] if ds.ndim > 1 else None
 
         if total_n == 0:
             return {}
 
-        # -- Pre-allocate as float32 for any float64 field -- #
-        # h5py will convert during read so float64 never fully lands in memory
+        # -- Pre-allocate final arrays once -- #
         data = {}
         for field in true_fields:
             if field not in dtypes:
                 continue
-            dtype = np.float32 if dtypes[field] == np.float64 else dtypes[field]
-            shape = (total_n, ndims[field]) if ndims[field] else (total_n,)
-            data[field] = np.empty(shape, dtype=dtype)
+            dtype        = np.float32 if dtypes[field] == np.float64 else dtypes[field]
+            shape        = (total_n, ndims[field]) if ndims[field] else (total_n,)
+            data[field]  = np.empty(shape, dtype=dtype)
 
+        # -- Pass 2: fill directly into pre-allocated arrays -- #
         offset = 0
-        for chunk in range(n_chunks):
+        for chunk in tqdm(range(n_chunks),desc='Loading data'):
             with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, chunk), 'r') as f:
                 if pkey not in f:
                     continue
