@@ -91,13 +91,17 @@ class TNG_SightlineSim():
             data = {f: data[fieldTransfer[f]] for f in fields if fieldTransfer[f] in data}
 
         if 'Coordinates' in fields:
-            data['Coordinates'] = data['Coordinates']/self.hub
+            data['Coordinates'] = data['Coordinates'].astype(np.float32)/self.hub
         if 'Density' in fields:
             data['Density'] = data['Density'] * self.hub**2
         if 'Masses' in fields:
             data['Masses'] = data['Masses'] / self.hub
         if 'StellarInitialMass' in fields:
             data['StellarInitialMass'] = data['StellarInitialMass'] / self.hub
+
+        for key in data:
+            if data[key].dtype == np.float64:
+                data[key] = data[key].astype(np.float32)
 
         return data
     
@@ -159,11 +163,11 @@ class TNG_SightlineSim():
             for i in tqdm(range(n),desc=f'Generating snap {snap_num} halos dict'):
                 halos.append({
                     'ID': i,
-                    'Pos': halos_full['GroupPos'][i] / self.hub,
-                    'Radius': halos_full['Group_R_Crit200'][i] / self.hub,
-                    'TotalMass': halos_full['Group_M_Crit200'][i] * 1e10 / self.hub,
-                    'GasMass': halos_full['GroupMassType'][i, 0] * 1e10 / self.hub,
-                    'StellarMass': halos_full['GroupMassType'][i, 4] * 1e10 / self.hub,
+                    'Pos': halos_full['GroupPos'][i].astype(np.float32) / self.hub,
+                    'Radius': halos_full['Group_R_Crit200'][i].astype(np.float32) / self.hub,
+                    'TotalMass': halos_full['Group_M_Crit200'][i].astype(np.float32) * 1e10 / self.hub,
+                    'GasMass': halos_full['GroupMassType'][i, 0].astype(np.float32) * 1e10 / self.hub,
+                    'StellarMass': halos_full['GroupMassType'][i, 4].astype(np.float32) * 1e10 / self.hub,
                     'NumStars': halos_full['GroupLenType'][i, 4]
                     # 'GalaxyIDs': np.arange(halos_full['GroupFirstSub'][i],
                     #                     halos_full['GroupFirstSub'][i] + halos_full['GroupNsubs'][i])
@@ -202,11 +206,11 @@ class TNG_SightlineSim():
 
         halo_dict = {
             'ID': halo_id,
-            'Pos': hf['GroupPos'][halo_id] / self.hub,
-            'Radius': hf['Group_R_Crit200'][halo_id] / self.hub,
-            'TotalMass': np.nansum(hf['GroupMassType'][halo_id]) * 1e10 / self.hub,
-            'GasMass': hf['GroupMassType'][halo_id, 0] * 1e10 / self.hub,
-            'StellarMass': hf['GroupMassType'][halo_id, 4] * 1e10 / self.hub,
+            'Pos': hf['GroupPos'][halo_id].astype(np.float32) / self.hub,
+            'Radius': hf['Group_R_Crit200'][halo_id].astype(np.float32) / self.hub,
+            'TotalMass': np.nansum(hf['GroupMassType'][halo_id]).astype(np.float32) * 1e10 / self.hub,
+            'GasMass': hf['GroupMassType'][halo_id, 0].astype(np.float32) * 1e10 / self.hub,
+            'StellarMass': hf['GroupMassType'][halo_id, 4].astype(np.float32) * 1e10 / self.hub,
             'NumStars': hf['GroupLenType'][halo_id, 4]
             # 'GalaxyIDs': np.arange(hf['GroupFirstSub'][halo_id],
             #                     hf['GroupFirstSub'][halo_id] + hf['GroupNsubs'][halo_id])
