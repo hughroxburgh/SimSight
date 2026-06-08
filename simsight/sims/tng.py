@@ -3,8 +3,6 @@ import numpy as np
 from time import time
 from astropy.cosmology import FlatLambdaCDM
 from tqdm import tqdm
-import h5py
-from pathlib import Path
 
 from ._arepo_compute import Find_Line_Elements
 
@@ -75,6 +73,14 @@ class TNG_SightlineSim():
         """
         import h5py
 
+        part_type_map = {'gas':        0,
+                 'dm':         1,
+                 'tracers':    3,
+                 'stars':      4,
+                 'blackholes': 5}
+
+        part_type = part_type_map.get(part_type, part_type)
+
         pkey = f"PartType{part_type}"
 
         # -- Get number of chunk files from first header -- #
@@ -100,15 +106,16 @@ class TNG_SightlineSim():
         if total_n == 0:
             return {}
 
-        # -- Pre-allocate final arrays once -- #
+        # -- Pre-allocate as float32 for any float64 field -- #
+        # h5py will convert during read so float64 never fully lands in memory
         data = {}
         for field in true_fields:
             if field not in dtypes:
                 continue
-            shape        = (total_n, ndims[field]) if ndims[field] else (total_n,)
-            data[field]  = np.empty(shape, dtype=dtypes[field])
+            dtype = np.float32 if dtypes[field] == np.float64 else dtypes[field]
+            shape = (total_n, ndims[field]) if ndims[field] else (total_n,)
+            data[field] = np.empty(shape, dtype=dtype)
 
-        # -- Pass 2: fill directly into pre-allocated arrays -- #
         offset = 0
         for chunk in range(n_chunks):
             with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, chunk), 'r') as f:
@@ -151,13 +158,13 @@ class TNG_SightlineSim():
 
         # -- Unit conversions -- #
         if 'Coordinates' in data:
-            data['Coordinates']     = data['Coordinates'].astype(np.float32) / self.hub
+            data['Coordinates']     /= self.hub
         if 'Density' in data:
-            data['Density']         = data['Density']         * self.hub**2
+            data['Density']         *= self.hub**2
         if 'Masses' in data:
-            data['Masses']          = data['Masses']          / self.hub
+            data['Masses']          /= self.hub
         if 'StellarInitialMass' in data:
-            data['StellarInitialMass'] = data['StellarInitialMass'] / self.hub
+            data['StellarInitialMass'] /= self.hub
 
         # -- Downcast float64 → float32 -- #
         for key in data:
