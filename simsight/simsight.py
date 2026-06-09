@@ -305,29 +305,39 @@ class SightlineSim():
 
         elif findtype == 'voxel':
 
+            from ._utils import _Counting_Sort
+
             print(f"    generating voxelgrid",end='\r')
             voxel_size = coarse_radius
-            normal_idx = np.where(radii <= coarse_radius)[0]
-
-            ijk         = np.floor(data['Coordinates'][normal_idx] / voxel_size).astype(np.int32)
             grid_size = int(np.ceil(self.sim.box_size / voxel_size))
 
-            flat = (ijk[:, 0] * grid_size * grid_size +
-                    ijk[:, 1] * grid_size +
-                    ijk[:, 2])
-            
-            order       = np.argsort(flat, kind='stable')
+            # -- Compute flat keys column by column — avoids storing full (N,3) ijk array -- #
+            flat  = (data['Coordinates'][:, 0] / voxel_size).astype(np.int32)
+            flat *= grid_size
+            tmp   = (data['Coordinates'][:, 1] / voxel_size).astype(np.int32)
+            flat += tmp * grid_size; del tmp
+            tmp   = (data['Coordinates'][:, 2] / voxel_size).astype(np.int32)
+            flat += tmp;             del tmp
+
+            # -- argsort: order[i] is directly the global particle index -- #
+            flat[giant_bool] = -1
+            order, offsets = _Counting_Sort(flat, grid_size**3)
             sorted_flat = flat[order]
-            sorted_idx  = normal_idx[order]
+            del flat
 
-            boundaries  = np.concatenate([[0],
-                            np.where(np.diff(sorted_flat))[0] + 1,
-                            [len(sorted_flat)]])
-            unique_flat = sorted_flat[boundaries[:-1]]
+            first_normal = int(np.searchsorted(sorted_flat, 0))
 
-            # Dict of flat_key → global particle indices
-            voxels = {k: sorted_idx[s:e]
-                    for k, s, e in zip(unique_flat, boundaries[:-1], boundaries[1:])}
+            boundaries   = np.concatenate([[first_normal],
+                                np.where(np.diff(sorted_flat[first_normal:]))[0] + 1 + first_normal,
+                                [len(sorted_flat)]])
+            
+            unique_flat  = sorted_flat[boundaries[:-1]]
+            del sorted_flat
+
+            voxels = {int(k): order[s:e].copy()
+                        for k, s, e in zip(unique_flat, boundaries[:-1], boundaries[1:])
+                        if k >= 0}
+            del order
 
             print(f"    generating voxelgrid -- Done ({time()-ts:.1f}s)")
 
@@ -336,7 +346,7 @@ class SightlineSim():
                     'grid_size':grid_size}, radii, coarse_radius, giant_idx, giant_pts, giant_radii
 
     def run_many_sightlines(self,n_sightlines,redshift,method='random',origin=None,
-                            functype='DM',findtype='tree',
+                            functype='DM',findtype='tree',load_method='custom',
                             parallel_slgen=False,parallel_findpts=False,parallel_compute=False,
                             delete_data=True,save_path=None,plot_sightlines=False):
         """
@@ -387,12 +397,10 @@ class SightlineSim():
             # -- Load data -- #
             print(f"    loading {self.sim.name} snapshot {trueSnapNum} data",end='\r')
             ts = time()
-            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum)
+            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
             print(f"    loading {self.sim.name} snapshot {trueSnapNum} data -- Done ({time()-ts:.1f}s)")
 
-                        # rEffs = (3/(4*np.pi)*data['Masses']/data['Density'])**(1/3)
-                        # del(data['Masses'])
-
+            # -- Point finding architecture -- #
             architecture, radii, coarse_radius, giant_idx, giant_pts, giant_radii = self._finder_architecture(data,findtype)
 
             # -- Allocate point idx to each sub sightline -- #
@@ -417,7 +425,6 @@ class SightlineSim():
             return sightlines
         else:
             return sightlines, data, architecture 
-
 
     # ------------- Post computation ------------- #
 

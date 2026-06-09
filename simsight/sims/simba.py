@@ -83,7 +83,7 @@ class SIMBA_SightlineSim():
 
         return sim
     
-    def load_data(self,particle_type,fields,snapNum):
+    def load_data(self,particle_type,fields,snapNum,method=None):
         """
         Load data.
         """

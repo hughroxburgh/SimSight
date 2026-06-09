@@ -17,3 +17,25 @@ def _Get_Colours(num):
         cmaplist = np.array([cmap(i) for i in range(cmap.N)])
         colours = cmaplist[np.linspace(30,len(cmaplist)-30,num).astype(int)]
     return colours
+
+
+@njit
+def _Counting_Sort(flat, n_voxels):
+    counts = np.zeros(n_voxels, dtype=np.int64)
+    for k in flat:
+        if k >= 0:
+            counts[k] += 1
+
+    offsets = np.zeros(n_voxels + 1, dtype=np.int64)
+    for i in range(n_voxels):
+        offsets[i + 1] = offsets[i] + counts[i]
+
+    order = np.empty(offsets[-1], dtype=np.int64)
+    pos   = offsets[:-1].copy()
+    for i in range(len(flat)):
+        k = flat[i]
+        if k >= 0:
+            order[pos[k]] = i
+            pos[k] += 1
+
+    return order, offsets

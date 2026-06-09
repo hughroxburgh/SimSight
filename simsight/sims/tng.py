@@ -154,6 +154,8 @@ class TNG_SightlineSim():
             raw  = self._load_chunks_efficient(snapNum, particle_type, truefields)
         elif method == 'illustris':
             raw = il.snapshot.loadSubset(self.data_path,snapNum,particle_type,truefields)
+            if len(truefields) == 1:
+                raw = {truefields[0]:raw}
 
         data = {f: raw[fieldTransfer[f]] for f in fields if fieldTransfer[f] in raw}
 
