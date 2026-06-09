@@ -84,28 +84,21 @@ class TNG_SightlineSim():
         pkey = f"PartType{part_type}"
 
         # -- Get number of chunk files from first header -- #
-        with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, 0), 'r') as f:
-            n_chunks = int(f['Header'].attrs['NumFilesPerSnapshot'])
-
-        # -- Pass 1: accumulate total N and read dtypes/shapes -- #
-        total_n = 0
         dtypes  = {}
         ndims   = {}
-
-        # -- Everything we need from the first file only -- #
-        dtypes = {}
-        ndims  = {}
         with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, 0), 'r') as f:
             n_chunks = int(f['Header'].attrs['NumFilesPerSnapshot'])
-            total_n  = int(f['Header'].attrs['NumPart_Total'][part_type])
             for field in true_fields:
                 if field in f.get(pkey, {}):
                     ds            = f[pkey][field]
                     dtypes[field] = ds.dtype
                     ndims[field]  = ds.shape[1] if ds.ndim > 1 else None
 
-        if total_n == 0:
-            return {}
+        # -- Pass 1: accumulate total N and read dtypes/shapes -- #
+        total_n = 0
+        for chunk in range(n_chunks):
+            with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, chunk), 'r') as f:
+                total_n += int(f['Header'].attrs['NumPart_ThisFile'][part_type])
 
         # -- Pre-allocate final arrays once -- #
         data = {}
