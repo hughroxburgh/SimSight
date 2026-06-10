@@ -317,11 +317,11 @@ class SightlineSim():
 
             # -- Compute flat keys column by column — avoids storing full (N,3) ijk array -- #
             flat  = (data['Coordinates'][:, 0] / voxel_size).astype(np.int32)
-            flat *= grid_size
+            flat *= grid_size * grid_size                              # i * grid_size²
             tmp   = (data['Coordinates'][:, 1] / voxel_size).astype(np.int32)
-            flat += tmp * grid_size; del tmp
+            flat += tmp * grid_size; del tmp                           # + j * grid_size
             tmp   = (data['Coordinates'][:, 2] / voxel_size).astype(np.int32)
-            flat += tmp;             del tmp
+            flat += tmp;             del tmp  
 
             # -- argsort: order[i] is directly the global particle index -- #
             flat[giant_bool] = -1
