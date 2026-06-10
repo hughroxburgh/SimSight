@@ -54,9 +54,9 @@ def _Is_Interactive():
 def _Progress_Print(msg,time_start):
 
     if _Is_Interactive():
-        print(f"{msg} -- Done ({clock()-time_start:.0f}s)")
+        print(f"{msg} -- Done ({clock()-time_start:.0f}s)",flush=True)
     else:
-        print(f" -- Done ({clock()-time_start:.0f}s)")
+        print(f" -- Done ({clock()-time_start:.0f}s)",flush=True)
 
 def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60):
     
@@ -84,3 +84,4 @@ def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60):
     
     elapsed = clock() - t_start
     print(f"[100%] {desc} ({total}/{total}, {elapsed:.1f}s total)", file=sys.stderr)
+    print('\n', file=sys.stderr)

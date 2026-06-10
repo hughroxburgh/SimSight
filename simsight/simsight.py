@@ -73,7 +73,7 @@ class SightlineSim():
                 if origin is None:
                     origin = np.random.rand(1,3).astype(np.float32)*self.sim.box_size
                 origins = np.tile(origin, (n_sightlines, 1)).astype(np.float32)
-                print(f'N HEALpix sightlines = {n_sightlines}, origin = {origin}')
+                print(f'N HEALpix sightlines = {n_sightlines}, origin = {origin}',flush=True)
 
             sightlines = []
             for i in range(n_sightlines):
@@ -118,10 +118,10 @@ class SightlineSim():
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
                 delayed(Points_In_Sightline)(sl, snapshot, architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
-                for sl in _Smart_Tqdm(sightlines, desc="    finding points in sightlines")
+                for sl in _Smart_Tqdm(sightlines, desc=f"    finding points in sightlines [snap {snapshot}]")
             )
         else:
-            for sl in _Smart_Tqdm(sightlines, desc="    finding points in sightlines"):
+            for sl in _Smart_Tqdm(sightlines, desc=f"    finding points in sightlines [snap {snapshot}]"):
                 Points_In_Sightline(sl,snapshot,architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
 
 
@@ -146,7 +146,7 @@ class SightlineSim():
                 for sightline in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines'):
                     Halos_In_Sightline(sightline,snap,halos,com,radii)
 
-            print('\n')
+            print('\n',flush=True)
 
             
 
@@ -169,7 +169,7 @@ class SightlineSim():
                         sightlines.append(pickle.load(f))
                 return sightlines
         else:
-            print('No sightlines saved in save_path.')
+            print('No sightlines saved in save_path.',flush=True)
             return None
                     
 
@@ -203,10 +203,10 @@ class SightlineSim():
         if parallel:
             results = Parallel(n_jobs=self.num_cores, backend='threading')(
                 delayed(Compute_Sightline)(sl, self.sim, data, func, snapshot)
-                for sl in _Smart_Tqdm(sightlines, desc="    computing snapshot sightlines")
+                for sl in _Smart_Tqdm(sightlines, desc=f"    computing snapshot sightlines [snap {snapshot}]")
             )
         else:
-            results = [Compute_Sightline(sl, self.sim, data, func, snapshot) for sl in _Smart_Tqdm(sightlines, desc="    computing snapshot sightlines")]
+            results = [Compute_Sightline(sl, self.sim, data, func, snapshot) for sl in _Smart_Tqdm(sightlines, desc=f"    computing snapshot sightlines [snap {snapshot}]")]
 
         for sl, sl_results in zip(sightlines, results):
             for sub_idx, compute, density, lengths, ids in sl_results:
@@ -241,14 +241,14 @@ class SightlineSim():
         start_snap = sightline.sub_Snapshots[idx]
 
         for snap in range(start_snap,snaps_required):
-            print('\n')
-            print(f'------Snapshot {snap}------')
+            print('\n',flush=True)
+            print(f'------Snapshot {snap}------',flush=True)
         
             trueSnapNum = self.sim._get_snap_num(snap)
 
             # -- Load data -- #
             msg = f"    loading {self.sim.name} snapshot {trueSnapNum} data"
-            print(msg,end='\r')
+            print(msg,end='\r',flush=True)
             ts = clock()
             data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum)
             _Progress_Print(msg,ts)
@@ -393,14 +393,14 @@ class SightlineSim():
 
         for snap in range(start_snap,snaps_required):
 
-            print('\n')
-            print(f'------Snapshot {snap}------')
+            print('\n',flush=True)
+            print(f'------Snapshot {snap}------',flush=True)
         
             trueSnapNum = self.sim._get_snap_num(snap)
 
             # -- Load data -- #
             msg = f"    loading {self.sim.name} snapshot {trueSnapNum} data"
-            print(msg,end='\r')
+            print(msg,end='\r',flush=True)
             ts = clock()
             data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
             _Progress_Print(msg,ts)
@@ -415,7 +415,7 @@ class SightlineSim():
             if _Is_Interactive():
                 msg = f"    finding points in sightlines"
                 ts = clock()
-                print(msg,end='\r')
+                print(msg,end='\r',flush=True)
             self._snapshot_points_in_sightlines(sightlines,snap,architecture,radii,coarse_radius,findtype,
                                                 giant_idx,giant_pts,giant_radii,parallel_findpts)
             if _Is_Interactive():
@@ -432,7 +432,7 @@ class SightlineSim():
             if _Is_Interactive():
                 msg = f"    computing snapshot sightlines"
                 ts = clock()
-                print(msg,end='\r')
+                print(msg,end='\r',flush=True)
             self._snapshot_compute_sightlines(sightlines,data,func,
                                               snap,parallel_compute)
             if _Is_Interactive():
@@ -444,7 +444,7 @@ class SightlineSim():
                 if _Is_Interactive():
                     msg = f"    saving sightlines to {save_path}"
                     ts = clock()
-                    print(msg,end='\r')
+                    print(msg,end='\r',flush=True)
                 self.save_sightlines(sightlines,save_path)
                 if _Is_Interactive():
                     _Progress_Print(msg,ts)
@@ -472,17 +472,17 @@ class SightlineSim():
 
             snaps_required = len(np.unique(sightlines[0].sub_BoxRedshifts))
 
-            print(f'Using halo particle membership (snapshots required: {snaps_required})')
+            print(f'Using halo particle membership (snapshots required: {snaps_required})',flush=True)
 
             for snap in range(snaps_required):
-                print('\n')
-                print(f'------Snapshot {snap}------')
+                print('\n',flush=True)
+                print(f'------Snapshot {snap}------',flush=True)
 
                 trueSnapNum = self.sim._get_snap_num(snap)
 
                 # -- Load data -- #
                 msg = f"    loading {self.sim.name} snapshot {trueSnapNum} data"
-                print(msg,end='\r')
+                print(msg,end='\r',flush=True)
                 ts = clock()
                 data = self.sim.load_data(particle_type='gas',fields=['ParticleIDs'],snapNum=trueSnapNum)
                 _Progress_Print(msg,ts)
@@ -499,17 +499,17 @@ class SightlineSim():
         snaps_required = min(v for v in [sightlines[0].sub_Snapshots[sightlines[0].subsightline_reached(grid=False,halos=True)-1]+1, snaps] if v is not None)
 
         for snap in range(snaps_required):
-            print('\n')
-            print(f'------Snapshot {snap}------')
+            print('\n',flush=True)
+            print(f'------Snapshot {snap}------',flush=True)
 
             galfinder = GalaxyFinder(snap, self.sim)
 
             if parallel:
                 sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                    delayed(sl.observe_halos)(galfinder,grid_path,filters) for sl in _Smart_Tqdm(sightlines,desc='Observing halos in sightlines')
+                    delayed(sl.observe_halos)(galfinder,grid_path,filters) for sl in _Smart_Tqdm(sightlines,desc=f'Observing halos in sightlines [snap {snap}]')
                     )
             else:
-                for sl in _Smart_Tqdm(sightlines, desc='Observing halos in sightlines'):
+                for sl in _Smart_Tqdm(sightlines, desc=f'Observing halos in sightline [snap {snap}]'):
                     sl.observe_halos(galfinder,grid_path,filters)
 
     def infer_halos_in_sightlines(self,sightlines,snaps=None,parallel=False):
@@ -532,15 +532,15 @@ class SightlineSim():
         inference = Inference(self.sim,filters=filters,load_kcorrect=True)
 
         for snap in range(snaps_required):
-            print('\n')
-            print(f'------Snapshot {snap}------')
+            print('\n',flush=True)
+            print(f'------Snapshot {snap}------',flush=True)
 
             if parallel:
                 sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                    delayed(sl.infer_halos)(inference,filters) for sl in _Smart_Tqdm(sightlines,desc='Inferring halos in sightlines')
+                    delayed(sl.infer_halos)(inference,filters) for sl in _Smart_Tqdm(sightlines,desc=f'Inferring halos in sightlines [snap {snap}]')
                     )
             else:
-                for sl in _Smart_Tqdm(sightlines, desc='Inferring halos in sightlines'):
+                for sl in _Smart_Tqdm(sightlines, desc=f'Inferring halos in sightlines [snap {snap}]'):
                     sl.infer_halos(inference,filters)
 
 
