@@ -83,6 +83,22 @@ class SIMBA_SightlineSim():
 
         return sim
     
+    def _load_electron_abundnace(self,snapFile):
+
+        HII     = readsnap(snapFile, 'GrackleHII',   'gas')  # mass fraction
+        HeII    = readsnap(snapFile, 'GrackleHeII',  'gas')  # mass fraction
+        HeIII   = readsnap(snapFile, 'GrackleHeIII', 'gas')
+
+        xH = 0.76
+
+        ElectronAbundance = (HII + HeII/4 + 2*HeIII/4) / xH
+
+        del HII
+        del HeII
+        del HeIII
+
+        return ElectronAbundance
+    
     def load_data(self,particle_type,fields,snapNum,method=None):
         """
         Load data.
@@ -101,10 +117,16 @@ class SIMBA_SightlineSim():
         snapFile = self._SimbaSnapManipulation(snapNum)
 
         data = {}
+
+        if 'ElectronAbundance' in fields:
+            data['ElectronAbundance'] = self._load_electron_abundnace(snapFile)
+            fields.remove('ElectronAbundance')
+
         for field in fields:
             truefield = fieldTransfer[field]
-            d = readsnap(snapFile,truefield,particle_type,units=0,suppress=1)
-            data[field] = d
+            if truefield == 'ne':
+                d = self._load_electronabundance
+            data[field] = readsnap(snapFile,truefield,particle_type,units=0,suppress=1)
 
         if 'Coordinates' in fields:
             data['Coordinates'] = data['Coordinates'] / self.hub
