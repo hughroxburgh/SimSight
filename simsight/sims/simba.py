@@ -4,6 +4,7 @@ import yt
 yt.funcs.mylog.setLevel(50)
 from time import time as clock
 from pathlib import Path
+from copy import deepcopy
 
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
@@ -112,6 +113,8 @@ class SIMBA_SightlineSim():
         """
         Load data.
         """
+
+        fields = deepcopy(fields)
 
         fieldTransfer = {'Coordinates':'pos',
                          'Density':'rho',

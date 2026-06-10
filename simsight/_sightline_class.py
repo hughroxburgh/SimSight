@@ -336,7 +336,7 @@ class Sightline():
                     discrete_origins[i,j] -= box_size * (origin[j] // box_size)
 
         if verbose:
-            print(f'Snapshots Needed: {snaps_required}')
+            print(f'Snapshots Needed: {snaps_required}',flush=True)
 
         return discrete_origins,discrete_distances,redshifts[:snaps_required]    
         
@@ -1083,7 +1083,7 @@ class Sightline():
             num_sub_sightlines = self.subsightline_reached(grid=True,observed=True)
             if num_sub_sightlines == 0:
                 if verbose:
-                    print("Halos have not been observed! Switching 'halo_params' to 'truth'") 
+                    print("Halos have not been observed! Switching 'halo_params' to 'truth'",flush=True)
                 halo_params = 'truth'
             else:
                 self.infer_halos(inference,filters)
