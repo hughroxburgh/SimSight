@@ -133,6 +133,8 @@ class SightlineSim():
 
         for snap in range(snaps_required):
 
+            trueSnapNum = self.sim._get_snap_num(snap)
+
             print(f'------Snapshot {snap}------',flush=True)
 
             # -- Load halos -- #
@@ -141,7 +143,6 @@ class SightlineSim():
                 ts = clock()
                 print(msg,end='\r',flush=True)
 
-            trueSnapNum = self.sim._get_snap_num(snap)
             halos = self.sim.load_halos(trueSnapNum)
 
             if not _Is_Interactive():
