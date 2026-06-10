@@ -2,12 +2,14 @@ import caesar
 from readgadget import readsnap
 import yt
 yt.funcs.mylog.setLevel(50)
-from time import time
+from time import time as clock
 from tqdm import tqdm
 from pathlib import Path
 
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
+
+from .._utils import _Progress_Print
 
 class SIMBA_SightlineSim():
     def __init__(self,data_path,halo_path_structure,fsps_path=None):
@@ -146,8 +148,9 @@ class SIMBA_SightlineSim():
     
     def _load_particle_ids(self,snap_num,stars=True,gas=True):
 
-        print('Loading particle ID cache...', end='\r')
-        ts = time()
+        msg = 'Loading particle ID cache'
+        print(msg, end='\r')
+        ts = clock()
 
         if self._halo_cache is None or self._halo_cache['snapshot'] != snap_num:
             self.load_halos(snap_num,return_dict=False)
@@ -157,7 +160,7 @@ class SIMBA_SightlineSim():
         if gas:
             self._halo_cache['gas_ids'] = self.load_data('gas',['ParticleIDs'],snap_num)['ParticleIDs']
 
-        print(f'Loading particle ID cache -- done! ({time()-ts:.1f}s)')
+        _Progress_Print(msg,ts)
 
     def load_halos(self,snap_num,return_dict=True,cache_stars_particles=False, cache_gas_particles=False):
 

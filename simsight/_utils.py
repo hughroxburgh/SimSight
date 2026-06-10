@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit
+import sys
+from time import time as clock
 
 def _Get_Colours(num):
     """
@@ -40,3 +42,10 @@ def _Counting_Sort(flat, n_voxels):
             pos[k] += 1
 
     return order, offsets
+
+def _Progress_Print(msg,time_start):
+
+    if sys.stdout.isatty():
+        print(f"{msg} -- Done ({clock()-time_start:.0f}s)")
+    else:
+        print(f" -- Done ({clock()-time_start:.0f}s)")

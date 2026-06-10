@@ -1,10 +1,11 @@
 import illustris_python as il
 import numpy as np
-from time import time
+from time import time as clock
 from astropy.cosmology import FlatLambdaCDM
 from tqdm import tqdm
 
 from ._arepo_compute import Find_Line_Elements
+from .._utils import _Progress_Print
 
 class TNG_SightlineSim():
     def __init__(self,data_path,fsps_path=None):
@@ -189,8 +190,9 @@ class TNG_SightlineSim():
 
     def _load_particle_ids(self,snap_num,stars=True,gas=True):
 
-        print('Loading particle ID cache...', end='\r')
-        ts = time()
+        msg = 'Loading particle ID cache'
+        print(msg, end='\r')
+        ts = clock()
 
         if self._halo_cache is None or self._halo_cache['snapshot'] != snap_num:
             self.load_halos(snap_num,return_dict=False)
@@ -206,8 +208,7 @@ class TNG_SightlineSim():
             self._halo_cache['gas_ids'] = all_gas_ids
             self._halo_cache['gas_offsets'] = gas_offsets
 
-        print(f'Loading particle ID cache -- done! ({time()-ts:.1f}s)')
-
+        _Progress_Print(msg,ts)
 
     def load_halos(self, snap_num, return_dict=True, cache_stars_particles=False, cache_gas_particles=False):
 

@@ -1,6 +1,6 @@
 import numpy as np
 from numba import njit,prange
-from time import time
+from time import time as clock
 
 # -- If finding points without a KDTree -- #
 
@@ -194,22 +194,22 @@ def Points_In_Sightline(sightline,snapshot,architecture,radii,coarse_radius,find
                 c1,c2 = _Gen_Cross_Section(SL,np.nanmax(radii))
                 limits = _Gen_Cubic_Volume_Limits(c1,c2)
 
-                ts = time()
+                ts = clock()
                 print('    points subset',end='\r')
                 points_idx = _Points_Subset(limits,architecture)
-                print(f'    points subset -- Done ({time()-ts:.1f}s)')
+                print(f'    points subset -- Done ({clock()-ts:.1f}s)')
 
-                ts = time()
+                ts = clock()
                 print('    points inside cylinder',end='\r')
                 inside = _Points_Inside_Cylinder(architecture[points_idx],SL.origin,
                                               SL.transformation_matrix,
                                               SL.length,coarse_radius)
-                print(f'    points inside cylinder -- Done ({time()-ts:.1f}s)')
+                print(f'    points inside cylinder -- Done ({clock()-ts:.1f}s)')
 
-                ts = time()
+                ts = clock()
                 print('    final filtering',end='\r')
                 points_idx[points_idx==True] = np.logical_and(points_idx[points_idx==True],inside)
-                print(f'    final filtering -- Done ({time()-ts:.1f}s)')
+                print(f'    final filtering -- Done ({clock()-ts:.1f}s)')
                 
                 sightline.sub_PointsIdx[i] = np.where(points_idx)[0]
 

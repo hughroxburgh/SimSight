@@ -4,11 +4,12 @@ from joblib import Parallel, delayed
 import warnings
 warnings.filterwarnings('ignore')
 
-from time import time
+from time import time as clock
 import numpy as np
 
 from .sims import load_sim
 from ._visualiser_class import VisualSim
+from ._utils import _Progress_Print
 
 class SightlineSim():
 
@@ -246,10 +247,11 @@ class SightlineSim():
             trueSnapNum = self.sim._get_snap_num(snap)
 
             # -- Load data -- #
-            print(f"    loading {self.sim.name} snapshot {trueSnapNum} data",end='\r')
-            ts = time()
+            msg = f"    loading {self.sim.name} snapshot {trueSnapNum} data"
+            print(msg,end='\r')
+            ts = clock()
             data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum)
-            print(f"    loading {self.sim.name} snapshot {trueSnapNum} data -- Done ({time()-ts:.1f}s)")
+            _Progress_Print(msg,ts)
 
             # -- Define particle radii and the maximum radius to search within -- #
             radii = self.sim.radius_mapping(data)
@@ -291,15 +293,16 @@ class SightlineSim():
         giant_pts = data['Coordinates'][giant_idx]
         giant_radii = radii[giant_idx]
 
-        ts = time()
+        ts = clock()
         if findtype == 'tree':
                 
             from scipy.spatial import cKDTree
 
             #  -- Generate KDTree of all points in simulation -- #
-            print(f"    generating KDTree",end='\r')
+            msg = f"    generating KDTree"
+            print(msg,end='\r')
             tree = cKDTree(data['Coordinates'])
-            print(f"    generating KDTree -- Done ({time()-ts:.1f}s)")
+            _Progress_Print(msg,ts)
 
             return tree, radii, coarse_radius, giant_idx, giant_pts, giant_radii
 
@@ -307,7 +310,8 @@ class SightlineSim():
 
             from ._utils import _Counting_Sort
 
-            print(f"    generating voxelgrid",end='\r')
+            msg = f"    generating voxelgrid"
+            print(msg,end='\r')
             voxel_size = coarse_radius
             grid_size = int(np.ceil(self.sim.box_size / voxel_size))
 
@@ -339,7 +343,7 @@ class SightlineSim():
                         if k >= 0}
             del order
 
-            print(f"    generating voxelgrid -- Done ({time()-ts:.1f}s)")
+            _Progress_Print(msg,ts)
 
             return {'voxels':voxels,
                     'coords':data['Coordinates'],
@@ -395,17 +399,23 @@ class SightlineSim():
             trueSnapNum = self.sim._get_snap_num(snap)
 
             # -- Load data -- #
-            print(f"    loading {self.sim.name} snapshot {trueSnapNum} data",end='\r')
-            ts = time()
+            msg = f"    loading {self.sim.name} snapshot {trueSnapNum} data"
+            print(msg,end='\r')
+            ts = clock()
             data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
-            print(f"    loading {self.sim.name} snapshot {trueSnapNum} data -- Done ({time()-ts:.1f}s)")
+            _Progress_Print(msg,ts)
 
             # -- Point finding architecture -- #
             architecture, radii, coarse_radius, giant_idx, giant_pts, giant_radii = self._finder_architecture(data,findtype)
 
             # -- Allocate point idx to each sub sightline -- #
+            msg = f"    finding points in sightlines"
+            ts = clock()
+            print(msg,end='\r')
             self._snapshot_points_in_sightlines(sightlines,snap,architecture,radii,coarse_radius,findtype,
                                                 giant_idx,giant_pts,giant_radii,parallel_findpts)
+            _Progress_Print(msg,ts)
+            
 
             if delete_data:
                 del(architecture)
@@ -413,10 +423,19 @@ class SightlineSim():
             if (snap == 0) & (plot_sightlines):
                 self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=data['Coordinates'],n_subsightlines=1)
 
+            # -- Compute function for each sightline -- #
+            msg = f"    computing snapshot sightlines"
+            ts = clock()
+            print(msg,end='\r')
             self._snapshot_compute_sightlines(sightlines,data,func,snap,parallel_compute)
+            _Progress_Print(msg,ts)
 
             if save_path is not None:
+                msg = f"    saving sightlines to {save_path}"
+                ts = clock()
+                print(msg,end='\r')
                 self.save_sightlines(sightlines,save_path)
+                _Progress_Print(msg,ts)
 
             if delete_data:
                 del(data)
@@ -449,10 +468,11 @@ class SightlineSim():
                 trueSnapNum = self.sim._get_snap_num(snap)
 
                 # -- Load data -- #
-                print(f"    loading {self.sim.name} snapshot {trueSnapNum} data",end='\r')
-                ts = time()
+                msg = f"    loading {self.sim.name} snapshot {trueSnapNum} data"
+                print(msg,end='\r')
+                ts = clock()
                 data = self.sim.load_data(particle_type='gas',fields=['ParticleIDs'],snapNum=trueSnapNum)
-                print(f"    loading {self.sim.name} snapshot {trueSnapNum} data -- Done ({time()-ts:.1f}s)")
+                _Progress_Print(msg,ts)
 
                 for sl in tqdm(sightlines,desc='Assigning halo contribution'):
                     sl.assign_to_halos(method=method,particle_ids = data['ParticleIDs'], snapshot=snap,sim=self.sim)

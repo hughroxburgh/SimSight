@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from sklearn.cluster import DBSCAN
-from time import time
+from time import time as clock
 from matplotlib.patches import Ellipse
 from shapely.geometry import Point
 from shapely.affinity import scale, rotate
@@ -12,7 +12,7 @@ from scipy.interpolate import RegularGridInterpolator
 
 
 from ._compute import Transform_Points
-
+from ._utils import _Progress_Print
 
 def load_grids(path,redshift):
 
@@ -57,8 +57,9 @@ class GalaxyFinder():
                                 cache_stars_particles=self.stars is not False,
                                 cache_gas_particles=self.gas is not False)
 
-        ts = time()
-        print(f'Loading data...',end='\r')
+        msg = f'Loading data'
+        ts = clock()
+        print(msg,end='\r')
 
         if self.stars is not False:
             self.stars = self.sim.load_data('stars', ['Coordinates', 'Masses','Metallicity','StellarFormationTime'], self.sim._get_snap_num(self.snapshot)) if self.stars is None else self.stars
@@ -77,12 +78,14 @@ class GalaxyFinder():
             if 'ParticleIDs' not in self.gas:
                 self.gas['ParticleIDs'] = self.sim._halo_cache['gas_ids']
 
-        print(f'Loading data -- done! ({time()-ts:.1f}s)')
+        _Progress_Print(msg,ts)
 
     def sort_data(self):
         
-        ts = time()
-        print(f'Sorting data...',end='\r')
+        msg = f'Sorting data'
+        ts = clock()
+        print(msg,end='\r')
+
         if self.stars is not False:
             sorted_order = np.argsort(self.stars['ParticleIDs'])
             self.stars = {key: self.stars[key][sorted_order] for key in self.stars.keys()}
@@ -91,7 +94,7 @@ class GalaxyFinder():
             sorted_order = np.argsort(self.gas['ParticleIDs'])
             self.gas = {key: self.gas[key][sorted_order] for key in self.gas.keys()}
         
-        print(f'Sorting data -- done! ({time()-ts:.1f}s)')
+        _Progress_Print(msg,ts)
 
     def load_halo(self,halo_id,verbose=True):
         """
@@ -100,39 +103,43 @@ class GalaxyFinder():
 
         
         if verbose:
-            ts = time()
-            print(f'Loading halo info...',end='\r')
+            msg = f'Loading halo info'
+            ts = clock()
+            print(msg,end='\r')
         halo_info = self.sim.load_halo(self.sim._get_snap_num(self.snapshot),halo_id,
                                        load_stars= self.stars is not False,
                                        load_gas= self.gas is not False)
         if verbose:
-            print(f'Loading halo info -- done! ({time()-ts:.1f}s)')
+            _Progress_Print(msg,ts)
+
 
         stars = None
         gas = None
         if self.stars is not False:
             if verbose:
-                ts = time()
-                print(f'Loading stars...',end='\r')
+                msg = f'Loading stars'
+                ts = clock()
+                print(msg,end='\r')
             pos = np.searchsorted(self.stars['ParticleIDs'], halo_info['StarsParticleIDs'])
             pos = pos.clip(0, len(self.stars['ParticleIDs']) - 1)
             mask = self.stars['ParticleIDs'][pos] == halo_info['StarsParticleIDs']
             idx = pos[mask]
             stars = {key: self.stars[key][idx] for key in self.stars.keys()}
             if verbose:
-                print(f'Loading stars -- done! ({time()-ts:.1f}s)')
+                _Progress_Print(msg,ts)
 
         if self.gas is not False:
             if verbose:
-                ts = time()
-                print(f'Loading gas...',end='\r')
+                msg = f'Loading gas'
+                ts = clock()
+                print(msg,end='\r')
             pos = np.searchsorted(self.gas['ParticleIDs'], halo_info['GasParticleIDs'])
             pos = pos.clip(0, len(self.gas['ParticleIDs']) - 1)
             mask = self.gas['ParticleIDs'][pos] == halo_info['GasParticleIDs']
             idx = pos[mask]
             gas = {key: self.gas[key][idx] for key in self.gas.keys()}
             if verbose:
-                print(f'Loading gas -- done! ({time()-ts:.1f}s)')
+                _Progress_Print(msg,ts)
         
         if verbose:
             print('\n')
