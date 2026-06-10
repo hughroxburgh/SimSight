@@ -412,13 +412,13 @@ class SightlineSim():
 
 
             # -- Allocate point idx to each sub sightline -- #
-            if _Is_Interactive():
+            if not _Is_Interactive():
                 msg = f"    finding points in sightlines"
                 ts = clock()
                 print(msg,end='\r',flush=True)
             self._snapshot_points_in_sightlines(sightlines,snap,architecture,radii,coarse_radius,findtype,
                                                 giant_idx,giant_pts,giant_radii,parallel_findpts)
-            if _Is_Interactive():
+            if not _Is_Interactive():
                 _Progress_Print(msg,ts)
             # ---------------------------------------------- #
             
@@ -429,24 +429,24 @@ class SightlineSim():
                 self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=data['Coordinates'],n_subsightlines=1)
 
             # -- Compute function for each sightline -- #
-            if _Is_Interactive():
+            if not _Is_Interactive():
                 msg = f"    computing snapshot sightlines"
                 ts = clock()
                 print(msg,end='\r',flush=True)
             self._snapshot_compute_sightlines(sightlines,data,func,
                                               snap,parallel_compute)
-            if _Is_Interactive():
+            if not _Is_Interactive():
                 _Progress_Print(msg,ts)
             # ----------------------------------------- #
 
             # -- Save sightlines -- #
             if save_path is not None:
-                if _Is_Interactive():
+                if not _Is_Interactive():
                     msg = f"    saving sightlines to {save_path}"
                     ts = clock()
                     print(msg,end='\r',flush=True)
                 self.save_sightlines(sightlines,save_path)
-                if _Is_Interactive():
+                if not _Is_Interactive():
                     _Progress_Print(msg,ts)
             # --------------------- #
 
