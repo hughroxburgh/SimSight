@@ -10,9 +10,11 @@ import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 
 class SIMBA_SightlineSim():
-    def __init__(self,data_path,fsps_path=None):
+    def __init__(self,data_path,halo_path_structure,fsps_path=None):
 
         self.data_path = data_path
+        self.halo_path_structure = halo_path_structure
+
         sim = self._SimbaCaesarManipulation(151)
         self.hub = sim.simulation.hubble_constant
         self.cosmo = FlatLambdaCDM(H0=sim.simulation.hubble_constant*100, Om0=sim.simulation.omega_matter,Ob0=sim.simulation.omega_baryon)
@@ -83,8 +85,8 @@ class SIMBA_SightlineSim():
         #     if ting[:4] == 'snap':
         #         ting = f'Groups/{ting[5:]}'
         #     caesar_sim_file += f'/{ting}'
-        directory = Path(f'{self.data_path}/Groups')
-        caesar_sim_file = str(list(directory.glob(f'*{snapNum}.hdf5'))[0])
+
+        caesar_sim_file = f'{self.data_path}/Groups/{self.halo_path_structure}_{snapNum:03d}.hdf5'
         sim = caesar.load(caesar_sim_file)
 
         return sim
