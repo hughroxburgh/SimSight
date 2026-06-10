@@ -12,7 +12,7 @@ from ._visualiser_class import VisualSim
 
 class SightlineSim():
 
-    def __init__(self,data_path,parallel=False,num_cores=None,backend='loky',fsps_path=None):
+    def __init__(self,data_path,halo_path_structure=None,parallel=False,num_cores=None,backend='threading',fsps_path=None):
         """
         data_path : where the data is stored on the servers. As long as the words 'TNG' or 'SIMBA' are inside, the class will try to conform to those standards.
         parallel : run things in parallel -- SEEMS TO BE WORSE SO JUST LEAVE FALSE FOR NOW
@@ -28,7 +28,7 @@ class SightlineSim():
             self.num_cores = num_cores
 
         # -- Select Simulation Suite -- #
-        self.sim = load_sim(data_path,fsps_path)
+        self.sim = load_sim(data_path,halo_path_structure,fsps_path)
 
         # -- Visualiser -- #
         self.Vis = VisualSim(self.sim)
