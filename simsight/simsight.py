@@ -133,11 +133,29 @@ class SightlineSim():
 
         for snap in range(snaps_required):
 
+            print(f'------Snapshot {snap}------',flush=True)
+
+            # -- Load halos -- #
+            if not _Is_Interactive():
+                msg = f"    loading {self.sim.name} snapshot {trueSnapNum} halos"
+                ts = clock()
+                print(msg,end='\r',flush=True)
+
             trueSnapNum = self.sim._get_snap_num(snap)
             halos = self.sim.load_halos(trueSnapNum)
 
+            if not _Is_Interactive():
+                _Progress_Print(msg,ts)
+            # --------------- #
+
             radii = np.array([h['Radius'] for h in halos], dtype=np.float32)
             com = np.array([h['Pos'] for h in halos], dtype=np.float32)
+
+            # -- Find halos in sightlines -- #
+            if not _Is_Interactive():
+                msg = f"    finding halos in sightlines"
+                ts = clock()
+                print(msg,end='\r',flush=True)
 
             if parallel:
                 sightlines = Parallel(n_jobs=self.num_cores, backend='loky')(
@@ -145,6 +163,10 @@ class SightlineSim():
             else:
                 for sightline in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines'):
                     Halos_In_Sightline(sightline,snap,halos,com,radii)
+
+            if not _Is_Interactive():
+                _Progress_Print(msg,ts)
+            # ------------------------------ #
 
             print('\n',flush=True)
 
@@ -564,6 +586,12 @@ class SightlineSim():
 
         inference = Inference(self.sim)
 
+
+        if not _Is_Interactive():
+            msg = f"Modelling sightlines"
+            ts = clock()
+            print(msg,end='\r',flush=True)
+
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
                 delayed(sl.model_sightline)(inference,halo_params,igm_background,density_smooth_kernel,
@@ -572,3 +600,6 @@ class SightlineSim():
         else:
             for sl in _Smart_Tqdm(sightlines, desc='Modelling sightlines'):
                 sl.model_sightline(inference,halo_params,igm_background,density_smooth_kernel,filters,verbose=False)
+
+        if not _Is_Interactive():
+            _Progress_Print(msg,ts)
