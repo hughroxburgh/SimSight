@@ -4,6 +4,7 @@ import yt
 yt.funcs.mylog.setLevel(50)
 from time import time
 from tqdm import tqdm
+from pathlib import Path
 
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
@@ -12,7 +13,7 @@ class SIMBA_SightlineSim():
     def __init__(self,data_path,fsps_path=None):
 
         self.data_path = data_path
-        sim = self._SimbaCaesarManipulation(data_path)
+        sim = self._SimbaCaesarManipulation(151)
         self.hub = sim.simulation.hubble_constant
         self.cosmo = FlatLambdaCDM(H0=sim.simulation.hubble_constant*100, Om0=sim.simulation.omega_matter,Ob0=sim.simulation.omega_baryon)
         self.box_size = sim.simulation.boxsize.value+0
@@ -60,34 +61,39 @@ class SIMBA_SightlineSim():
         Used for going from snapshot file to next z snapshot (ie. 151 to 150).
         """
 
-        parts = self.data_path.split('_')
-        if 9 < snapNum < 100:
-            snapNum = f'0{snapNum}'
-        elif snapNum < 10:
-            snapNum = f'00{snapNum}'
-        new_snap_file = f'{parts[0]}_{parts[1]}_{snapNum}.hdf5'
+        # parts = self.data_path.split('_')
+        # if 9 < snapNum < 100:
+        #     snapNum = f'0{snapNum}'
+        # elif snapNum < 10:
+        #     snapNum = f'00{snapNum}'
+        # new_snap_file = f'{parts[0]}_{parts[1]}_{snapNum}.hdf5'
+
+        directory = Path(self.data_path)
+        new_snap_file = str(list(directory.glob(f'*{snapNum}.hdf5'))[0])
 
         return new_snap_file
 
-    def _SimbaCaesarManipulation(self,snapFile):
+    def _SimbaCaesarManipulation(self,snapNum):
         """
         Used for loading Caesar files.
         """
 
-        caesar_sim_file = ''
-        for ting in snapFile.split('/')[1:]:
-            if ting[:4] == 'snap':
-                ting = f'Groups/{ting[5:]}'
-            caesar_sim_file += f'/{ting}'
+        # caesar_sim_file = ''
+        # for ting in snapFile.split('/')[1:]:
+        #     if ting[:4] == 'snap':
+        #         ting = f'Groups/{ting[5:]}'
+        #     caesar_sim_file += f'/{ting}'
+        directory = Path(f'{self.data_path}/Groups')
+        caesar_sim_file = str(list(directory.glob(f'*{snapNum}.hdf5'))[0])
         sim = caesar.load(caesar_sim_file)
 
         return sim
     
     def _load_electron_abundnace(self,snapFile):
 
-        HII     = readsnap(snapFile, 'GrackleHII',   'gas')  # mass fraction
-        HeII    = readsnap(snapFile, 'GrackleHeII',  'gas')  # mass fraction
-        HeIII   = readsnap(snapFile, 'GrackleHeIII', 'gas')
+        HII     = readsnap(snapFile, 'GrackleHII',   'gas',units=0,suppress=1)  # mass fraction
+        HeII    = readsnap(snapFile, 'GrackleHeII',  'gas',units=0,suppress=1)  # mass fraction
+        HeIII   = readsnap(snapFile, 'GrackleHeIII', 'gas',units=0,suppress=1)
 
         xH = 0.76
 
@@ -154,7 +160,7 @@ class SIMBA_SightlineSim():
     def load_halos(self,snap_num,return_dict=True,cache_stars_particles=False, cache_gas_particles=False):
 
         snapFile = self._SimbaSnapManipulation(snap_num)
-        sim = self._SimbaCaesarManipulation(snapFile)
+        sim = self._SimbaCaesarManipulation(snap_num)
 
         self._halo_cache = {'snapshot': snap_num,
                             'halos_full': sim.halos}
