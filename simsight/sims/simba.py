@@ -3,13 +3,12 @@ from readgadget import readsnap
 import yt
 yt.funcs.mylog.setLevel(50)
 from time import time as clock
-from tqdm import tqdm
 from pathlib import Path
 
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 
-from .._utils import _Progress_Print
+from .._utils import _Progress_Print, _Smart_Tqdm
 
 class SIMBA_SightlineSim():
     def __init__(self,data_path,halo_path_structure,fsps_path=None):
@@ -176,7 +175,7 @@ class SIMBA_SightlineSim():
         if return_dict:
             n = len(sim.halos)
             halos = []
-            for i in tqdm(range(n),desc=f'Generating snap {snap_num} halos dict'):
+            for i in _Smart_Tqdm(range(n),desc=f'Generating snap {snap_num} halos dict'):
                 halo = sim.halos[i]
                 halos.append({
                     'ID': i,

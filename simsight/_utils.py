@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from numba import njit
 import sys
 from time import time as clock
+from tqdm import tqdm
 
 def _Get_Colours(num):
     """
@@ -49,3 +50,30 @@ def _Progress_Print(msg,time_start):
         print(f"{msg} -- Done ({clock()-time_start:.0f}s)")
     else:
         print(f" -- Done ({clock()-time_start:.0f}s)")
+
+def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60):
+    
+    if sys.stdout.isatty():
+        yield from tqdm(iterable, desc=desc, total=total)
+        return
+    
+    if total is None:
+        iterable = list(iterable)
+        total = len(iterable)
+    
+    t_start = clock()
+    t_last = t_start
+
+    for i, item in enumerate(iterable):
+        yield item
+        t_now = clock()
+        if t_now - t_last >= every_sec:
+            pct = int((i + 1) / total * 100)
+            elapsed = t_now - t_start
+            rate = (i + 1) / elapsed if elapsed > 0 else 0
+            rate_str = f"{rate:.1f} it/s" if rate < 1000 else f"{rate/1000:.2f}k it/s"
+            print(f"[{pct:3d}%] {desc} ({i+1}/{total}, {rate_str})", file=sys.stderr)
+            t_last = t_now
+    
+    elapsed = clock() - t_start
+    print(f"[100%] {desc} ({total}/{total}, {elapsed:.1f}s total)", file=sys.stderr)

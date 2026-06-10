@@ -2,10 +2,9 @@ import illustris_python as il
 import numpy as np
 from time import time as clock
 from astropy.cosmology import FlatLambdaCDM
-from tqdm import tqdm
 
 from ._arepo_compute import Find_Line_Elements
-from .._utils import _Progress_Print
+from .._utils import _Progress_Print, _Smart_Tqdm
 
 class TNG_SightlineSim():
     def __init__(self,data_path,fsps_path=None):
@@ -112,7 +111,7 @@ class TNG_SightlineSim():
 
         # -- Pass 2: fill directly into pre-allocated arrays -- #
         offset = 0
-        for chunk in tqdm(range(n_chunks),desc='Loading data'):
+        for chunk in _Smart_Tqdm(range(n_chunks),desc='Loading data'):
             with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, chunk), 'r') as f:
                 if pkey not in f:
                     continue
@@ -226,7 +225,7 @@ class TNG_SightlineSim():
         if return_dict:
             n = halos_full['count']
             halos = []
-            for i in tqdm(range(n),desc=f'Generating snap {snap_num} halos dict'):
+            for i in _Smart_Tqdm(range(n),desc=f'Generating snap {snap_num} halos dict'):
                 halos.append({
                     'ID': i,
                     'Pos': halos_full['GroupPos'][i].astype(np.float32) / self.hub,
