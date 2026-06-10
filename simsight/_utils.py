@@ -44,16 +44,23 @@ def _Counting_Sort(flat, n_voxels):
 
     return order, offsets
 
+def _Is_Interactive():
+    try:
+        shell = get_ipython().__class__.__name__
+        return shell in ('ZMQInteractiveShell', 'TerminalInteractiveShell')
+    except NameError:
+        return sys.stdout.isatty()
+
 def _Progress_Print(msg,time_start):
 
-    if sys.stdout.isatty():
+    if _Is_Interactive():
         print(f"{msg} -- Done ({clock()-time_start:.0f}s)")
     else:
         print(f" -- Done ({clock()-time_start:.0f}s)")
 
 def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60):
     
-    if sys.stdout.isatty():
+    if _Is_Interactive():
         yield from tqdm(iterable, desc=desc, total=total)
         return
     

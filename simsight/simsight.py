@@ -9,7 +9,7 @@ import numpy as np
 
 from .sims import load_sim
 from ._visualiser_class import VisualSim
-from ._utils import _Progress_Print, _Smart_Tqdm
+from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive
 
 class SightlineSim():
 
@@ -412,13 +412,13 @@ class SightlineSim():
 
 
             # -- Allocate point idx to each sub sightline -- #
-            if sys.stdout.isatty():
+            if _Is_Interactive():
                 msg = f"    finding points in sightlines"
                 ts = clock()
                 print(msg,end='\r')
             self._snapshot_points_in_sightlines(sightlines,snap,architecture,radii,coarse_radius,findtype,
                                                 giant_idx,giant_pts,giant_radii,parallel_findpts)
-            if sys.stdout.isatty():
+            if _Is_Interactive():
                 _Progress_Print(msg,ts)
             # ---------------------------------------------- #
             
@@ -429,24 +429,24 @@ class SightlineSim():
                 self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=data['Coordinates'],n_subsightlines=1)
 
             # -- Compute function for each sightline -- #
-            if sys.stdout.isatty():
+            if _Is_Interactive():
                 msg = f"    computing snapshot sightlines"
                 ts = clock()
                 print(msg,end='\r')
             self._snapshot_compute_sightlines(sightlines,data,func,
                                               snap,parallel_compute)
-            if sys.stdout.isatty():
+            if _Is_Interactive():
                 _Progress_Print(msg,ts)
             # ----------------------------------------- #
 
             # -- Save sightlines -- #
             if save_path is not None:
-                if sys.stdout.isatty():
+                if _Is_Interactive():
                     msg = f"    saving sightlines to {save_path}"
                     ts = clock()
                     print(msg,end='\r')
                 self.save_sightlines(sightlines,save_path)
-                if sys.stdout.isatty():
+                if _Is_Interactive():
                     _Progress_Print(msg,ts)
             # --------------------- #
 
