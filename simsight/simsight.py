@@ -3,6 +3,8 @@ from joblib import Parallel, delayed
 import warnings
 warnings.filterwarnings('ignore')
 import sys
+from glob import glob
+import os
 
 from time import time as clock
 import numpy as np
@@ -197,12 +199,17 @@ class SightlineSim():
             return None
                     
 
-    def save_sightlines(self,sightlines,save_path):
+    def save_sightlines(self,sightlines,save_path,flush=False):
+
+        if flush:
+            files = glob(f'{save_path}/*.pkl')
 
         for i in _Smart_Tqdm(range(len(sightlines)), desc='    saving sightlines'):
             sightlines[i].save(save_path,i)
 
-
+        if flush:
+            for file in files:
+                os.system(f'rm {file}')
 
     # ------------- Runnning computation ------------- #
 
@@ -386,13 +393,18 @@ class SightlineSim():
         
         # -- Check for saved sightlines in save_path, or generate and partition sightlines -- #
         sightlines = None
+        flush = False
+
         if save_path is not None:
             sightlines = self.load_sightlines(save_path)    # load sightlines
 
             if sightlines is not None:      # if sightlines were loaded
+
+                flush = redshift > sightlines[0].target_redshift    # delete old files from save path
+
                 for sl in sightlines:
                     sl.extend(self.sim,redshift)    # check to see if desired redshift longer than loaded, and extend whilst saving loaded data
-
+        
                 if (n_sightlines > len(sightlines)) & (method=='random'):   # if more sightlines wanted, extend list of sightlines
                     sightlines.extend(self._generate_and_partition_sightlines(n_sightlines-len(sightlines),redshift,parallel_slgen,method,origin))
 
@@ -469,7 +481,8 @@ class SightlineSim():
                     msg = f"    saving sightlines to {save_path}"
                     ts = clock()
                     print(msg,end='\r',flush=True)
-                self.save_sightlines(sightlines,save_path)
+                self.save_sightlines(sightlines,save_path,flush)
+                flush = False
                 if not _Is_Interactive():
                     _Progress_Print(msg,ts)
             # --------------------- #

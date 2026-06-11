@@ -433,7 +433,7 @@ class Sightline():
 
         snapshot_reached = max(0,self.sub_Snapshots[idx]-1)
 
-        save_name = f'sightline_z{self.target_redshift}_snap{snapshot_reached}_{i}'
+        save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached}_{i}'
 
         with open(f'{save_path}/{save_name}.pkl','wb') as f:
             pickle.dump(self,f)
