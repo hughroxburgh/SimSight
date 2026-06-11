@@ -712,9 +712,10 @@ class Sightline():
 
         attr = f"sub_{data.capitalize()}"
 
-        lengths  = [self.sub_Grid[idx]] if idx is not None else self.sub_Grid
-        computed = [getattr(self, attr)[idx]] if idx is not None else getattr(self, attr)
-        cmap = [_Get_Colours(self.num_sub_sightlines)[idx]] if idx is not None else _Get_Colours(self.num_sub_sightlines)
+        lengths  = [self.sub_Grid[idx]] if idx is not None else self.sub_Grid[:self.subsightline_reached()]
+        computed = [getattr(self, attr)[idx]] if idx is not None else getattr(self, attr)[:self.subsightline_reached()]
+        cmap = [_Get_Colours(self.num_sub_sightlines)[idx]] if idx is not None else _Get_Colours(self.subsightline_reached())
+
 
         if with_model:
             max_idx = self.subsightline_reached(modelled=True)
