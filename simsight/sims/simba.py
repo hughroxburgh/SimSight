@@ -5,6 +5,7 @@ yt.funcs.mylog.setLevel(50)
 from time import time as clock
 from pathlib import Path
 from copy import deepcopy
+from glob import glob
 
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
@@ -12,9 +13,10 @@ from astropy.cosmology import FlatLambdaCDM
 from .._utils import _Progress_Print, _Smart_Tqdm
 
 class SIMBA_SightlineSim():
-    def __init__(self,data_path,halo_path_structure,fsps_path=None):
+    def __init__(self,data_path,snap_path_structure,halo_path_structure,fsps_path=None):
 
         self.data_path = data_path
+        self.snap_path_structure = snap_path_structure
         self.halo_path_structure = halo_path_structure
 
         sim = self._SimbaCaesarManipulation(151)
@@ -34,7 +36,9 @@ class SIMBA_SightlineSim():
 
     def _get_snap_num(self,snapNum):
 
-        return 151-snapNum
+        trueSnapNum = self.snap_idx[snapNum]
+
+        return 151-trueSnapNum
 
     def get_redshifts(self):
 
@@ -58,7 +62,15 @@ class SIMBA_SightlineSim():
                         1.1428765e+01, 1.1839961e+01, 1.2271910e+01, 1.2726037e+01, 1.3203888e+01, 1.3707152e+01, 1.4237665e+01, 1.4797437e+01,
                         1.5388664e+01, 1.6013753e+01, 1.6675347e+01, 1.7376352e+01, 1.8119968e+01, 1.8909730e+01, 1.9749544e+01, 9.9000000e+01])
 
-        self.redshifts = redshifts
+        files = sorted(glob(f'{self.data_path}/{self.snap_path_structure}_*.hdf5'))
+        idx = []
+        for f in files[::-1]:
+            snapNum = int(f.split('_')[-1][:3])
+            idx.append(151 - snapNum)
+
+        self.snap_idx = np.array(idx)
+
+        self.redshifts = redshifts[self.snap_idx]
     
     def _SimbaSnapManipulation(self,snapNum):
         """
@@ -72,8 +84,7 @@ class SIMBA_SightlineSim():
         #     snapNum = f'00{snapNum}'
         # new_snap_file = f'{parts[0]}_{parts[1]}_{snapNum}.hdf5'
 
-        directory = Path(self.data_path)
-        new_snap_file = str(list(directory.glob(f'*{snapNum}.hdf5'))[0])
+        new_snap_file = f'{self.data_path}/{self.snap_path_structure}_{snapNum:03d}.hdf5'
 
         return new_snap_file
 
