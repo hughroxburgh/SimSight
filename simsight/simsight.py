@@ -132,9 +132,12 @@ class SightlineSim():
 
         from ._point_find import Halos_In_Sightline
 
-        snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, snaps] if v is not None)
 
-        for snap in range(snaps_required):
+
+        snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, snaps] if v is not None)
+        start_snap = sightlines[-1].sub_Snapshots[sightlines[-1].subsightline_reached(halos=True)]
+
+        for snap in range(start_snap,snaps_required):
 
             trueSnapNum = self.sim._get_snap_num(snap)
 

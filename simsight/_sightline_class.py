@@ -353,14 +353,8 @@ class Sightline():
         # -- Allocate -- #
         self.sub_Origins = []
         self.sub_Lengths = []
-        self.sub_PointsIdx = []
         self.sub_BoxRedshifts = []
         self.sub_Snapshots = []
-        self.sub_Halos = []     
-        self.sub_Density = []
-        self.sub_Compute = []     
-        self.sub_Grid = []     
-        self.sub_Cells = []  
 
         # -- Partition each snapshot sightline -- #
         count = 0
@@ -373,17 +367,18 @@ class Sightline():
                 self.sub_BoxRedshifts.append(redshifts[i])
                 self.sub_Snapshots.append(i)
 
-                self.sub_PointsIdx.append([])
-                self.sub_Halos.append([])
-
-                self.sub_Density.append([])
-                self.sub_Compute.append([])
-                self.sub_Grid.append([])
-                self.sub_Cells.append([])
-
                 count += 1
 
         self.num_sub_sightlines = count  
+
+        self.sub_PointsIdx = [[] for i in range(self.num_sub_sightlines)]
+        self.sub_Halos = [[] for i in range(self.num_sub_sightlines)]
+        self.sub_Compute = [[] for i in range(self.num_sub_sightlines)]
+        self.sub_Density = [[] for i in range(self.num_sub_sightlines)] 
+        self.sub_Grid = [[] for i in range(self.num_sub_sightlines)]
+        self.sub_Cells = [[] for i in range(self.num_sub_sightlines)]
+        self.sub_HaloAssignment = [[] for i in range(self.num_sub_sightlines)]
+        self.sub_CellConditions = [[] for i in range(self.num_sub_sightlines)]
 
         self.sub_Origins = np.array(self.sub_Origins).astype(np.float32)
         self.sub_Lengths = np.array(self.sub_Lengths).astype(np.float32)
@@ -466,9 +461,10 @@ class Sightline():
                     sl_copy.sub_Density[i]   = self.sub_Density[i]
                     sl_copy.sub_Compute[i]   = self.sub_Compute[i]
                     sl_copy.sub_Halos[i]     = self.sub_Halos[i]
-                    sl_copy.sub_HaloAssignment[i]     = self.sub_HaloAssignment[i]
-                    sl_copy.sub_CellConditions[i]     = self.sub_CellConditions[i]
-                    
+                    if self.sub_HaloAssignment is not None:     # temporary
+                        sl_copy.sub_HaloAssignment[i]     = self.sub_HaloAssignment[i]
+                        sl_copy.sub_CellConditions[i]     = self.sub_CellConditions[i]
+
             # Copy data back into self (mutate in place)
             self.num_sub_sightlines = sl_copy.num_sub_sightlines
 
@@ -478,7 +474,9 @@ class Sightline():
             self.sub_Density            = sl_copy.sub_Density
             self.sub_Compute            = sl_copy.sub_Compute
             self.sub_Halos              = sl_copy.sub_Halos
-
+            self.sub_HaloAssignment     = sl_copy.sub_HaloAssignment
+            self.sub_CellConditions     = sl_copy.sub_CellConditions
+            
             self.sub_Lengths = sl_copy.sub_Lengths
             self.sub_BoxRedshifts = sl_copy.sub_BoxRedshifts
             self.sub_Origins = sl_copy.sub_Origins
@@ -797,9 +795,6 @@ class Sightline():
         """
         Assign grid cells to halos. Either through spherical r200c check, or through halo membership.
         """
-
-        self.sub_HaloAssignment = [[] for i in range(self.num_sub_sightlines)]
-        self.sub_CellConditions = [[] for i in range(self.num_sub_sightlines)]
 
         self.halos_traversed = {}
 
