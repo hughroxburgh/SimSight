@@ -438,7 +438,7 @@ class Sightline():
         with open(f'{save_path}/{save_name}.pkl','wb') as f:
             pickle.dump(self,f)
 
-        last_save_name = f'sightline_z{self.target_redshift}_snap{snapshot_reached-1}_{i}'
+        last_save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached-1}_{i}'
         if os.path.exists(f'{save_path}/{last_save_name}.pkl'):
             os.system(f'rm {save_path}/{last_save_name}.pkl')
 

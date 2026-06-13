@@ -179,24 +179,36 @@ class SightlineSim():
 
     # ------------- Loading / saving sightlines ------------- #
 
-    def load_sightlines(self,save_path,percent=100):
+    def load_sightlines(self,directory_path=None,percent=100,sl_files=None):
 
         import pickle
         import os
         from glob import glob
 
-        if os.path.exists(save_path):
-            files = sorted(glob(f'{save_path}/*.pkl'))
-            if len(files) > 0:
-                n_files = int(percent*len(files)/100)
-                sightlines = []
-                for file in _Smart_Tqdm(files[:n_files],desc='Loading sightlines'):
-                    with open(file,'rb') as f:
-                        sightlines.append(pickle.load(f))
-                return sightlines
+        if directory_path is not None and sl_files is not None:
+            raise ValueError('"directory_path" and "sl_path" cannot both be provided!')
+        
+        elif directory_path is not None:
+            if os.path.exists(directory_path):
+                files = sorted(glob(f'{directory_path}/*.pkl'))
+                if len(files) > 0:
+                    n_files = int(percent*len(files)/100)
+                    sightlines = []
+                    for file in _Smart_Tqdm(files[:n_files],desc='Loading sightlines'):
+                        with open(file,'rb') as f:
+                            sightlines.append(pickle.load(f))
+                    return sightlines
+            else:
+                print('No sightlines saved in directory_path.',flush=True)
+                return None
+            
         else:
-            print('No sightlines saved in save_path.',flush=True)
-            return None
+            n_files = int(percent*len(sl_files)/100)
+            sightlines = []
+            for file in _Smart_Tqdm(sl_files[:n_files],desc='Loading sightlines'):
+                with open(file,'rb') as f:
+                    sightlines.append(pickle.load(f))
+            return sightlines
                     
 
     def save_sightlines(self,sightlines,save_path,flush=False):
