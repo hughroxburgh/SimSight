@@ -857,7 +857,8 @@ class Sightline():
 
         checks = []                 
         if grid:
-            checks.append(next((i for i, h in enumerate(self.sub_Grid)  if len(h) == 0), self.num_sub_sightlines))
+            #checks.append(next((i for i, h in enumerate(self.sub_Grid)  if len(h) == 0), self.num_sub_sightlines))
+            checks.append(next((i for i, h in enumerate(self.sub_Grid)  if len(h) == 0), len(self.sub_Grid)))
         if halos:
             checks.append(next((i for i, h in enumerate(self.sub_Halos) if h == []), self.num_sub_sightlines))
         if assigned:
