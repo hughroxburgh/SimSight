@@ -458,13 +458,13 @@ class Sightline():
             n = self.num_sub_sightlines - 1
 
             if n > 0:
-
-                sl_copy.sub_PointsIdx[:n] = self.sub_PointsIdx[:n]
-                sl_copy.sub_Grid[:n]     = self.sub_Grid[:n]
-                sl_copy.sub_Cells[:n]     = self.sub_Cells[:n]
-                sl_copy.sub_Density[:n]   = self.sub_Density[:n]
-                sl_copy.sub_Compute[:n]   = self.sub_Compute[:n]
-                sl_copy.sub_Halos[:n]     = self.sub_Halos[:n]
+                for i in range(n):
+                    sl_copy.sub_PointsIdx[i] = self.sub_PointsIdx[i]
+                    sl_copy.sub_Grid[i]      = self.sub_Grid[i]
+                    sl_copy.sub_Cells[i]     = self.sub_Cells[i]
+                    sl_copy.sub_Density[i]   = self.sub_Density[i]
+                    sl_copy.sub_Compute[i]   = self.sub_Compute[i]
+                    sl_copy.sub_Halos[i]     = self.sub_Halos[i]
 
             # Copy data back into self (mutate in place)
             self.num_sub_sightlines = sl_copy.num_sub_sightlines
