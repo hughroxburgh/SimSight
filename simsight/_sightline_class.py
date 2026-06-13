@@ -466,7 +466,9 @@ class Sightline():
                     sl_copy.sub_Density[i]   = self.sub_Density[i]
                     sl_copy.sub_Compute[i]   = self.sub_Compute[i]
                     sl_copy.sub_Halos[i]     = self.sub_Halos[i]
-
+                    sl_copy.sub_HaloAssignment[i]     = self.sub_HaloAssignment[i]
+                    sl_copy.sub_CellConditions[i]     = self.sub_CellConditions[i]
+                    
             # Copy data back into self (mutate in place)
             self.num_sub_sightlines = sl_copy.num_sub_sightlines
 
