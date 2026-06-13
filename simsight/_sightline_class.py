@@ -419,7 +419,7 @@ class Sightline():
 
         return subsightline
     
-    def save(self,save_path,i):
+    def save(self,save_path,i,return_file=False):
         """
         Save sightline out to where it is so far.
         """
@@ -441,6 +441,9 @@ class Sightline():
         last_save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached-1}_{i}'
         if os.path.exists(f'{save_path}/{last_save_name}.pkl'):
             os.system(f'rm {save_path}/{last_save_name}.pkl')
+
+        if return_file:
+            return f'{save_path}/{save_name}.pkl'
 
     def extend(self,sim,redshift):
         """

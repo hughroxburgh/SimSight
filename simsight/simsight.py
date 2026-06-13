@@ -216,12 +216,14 @@ class SightlineSim():
         if flush:
             files = glob(f'{save_path}/*.pkl')
 
+        saved_files = []
         for i in _Smart_Tqdm(range(len(sightlines)), desc='    saving sightlines'):
-            sightlines[i].save(save_path,i)
+            saved_files.append(sightlines[i].save(save_path,i,return_file=True))
 
         if flush:
             for file in files:
-                os.system(f'rm {file}')
+                if file not in saved_files:
+                    os.system(f'rm {file}')
 
     # ------------- Runnning computation ------------- #
 
