@@ -455,7 +455,8 @@ class Sightline():
             sl_copy.target_redshift = redshift
             sl_copy.partition(sim,verbose=False)
 
-            n = self.num_sub_sightlines - 1
+            # n = self.num_sub_sightlines - 1
+            n = self.subsightline_reached() - 1
 
             if n > 0:
                 for i in range(n):
