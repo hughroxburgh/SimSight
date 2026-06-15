@@ -135,7 +135,7 @@ class SightlineSim():
 
 
         snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, snaps] if v is not None)
-        start_snap = sightlines[-1].sub_Snapshots[sightlines[-1].subsightline_reached(halos=True)]
+        start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(halos=True)] for sl in sightlines])
 
         for snap in range(start_snap,snaps_required):
 
@@ -439,10 +439,7 @@ class SightlineSim():
 
         # -- Iterate over all snapshots required to traverse chosen redshift -- #
         snaps_required = len(np.unique(sightlines[0].sub_BoxRedshifts))
-        for idx,subPoints in enumerate(sightlines[-1].sub_PointsIdx):
-            if len(subPoints) == 0:
-                break
-        start_snap = sightlines[-1].sub_Snapshots[idx]
+        start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=True)] for sl in sightlines])
 
         for snap in range(start_snap,snaps_required):
 
