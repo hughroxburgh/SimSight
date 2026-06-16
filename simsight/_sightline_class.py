@@ -5,6 +5,7 @@ from numba import njit
 import os 
 import pickle
 from copy import deepcopy
+from glob import glob
 
 from scipy.spatial.distance import cdist
 
@@ -415,31 +416,28 @@ class Sightline():
 
         return subsightline
     
-    def save(self,save_path,return_file=False):
+    def save(self,save_path):
         """
         Save sightline out to where it is so far.
         """
 
+        # -- Make save path if needed -- #
         if not os.path.exists(save_path):
             os.mkdir(save_path)
 
-        for idx,subPoints in enumerate(self.sub_PointsIdx):
-            if len(subPoints) == 0:
-                break
-
-        snapshot_reached = max(0,self.sub_Snapshots[idx]-1)
-
+        # -- Generate save file name -- #
+        snapshot_reached = self.sub_Snapshots[self.subsightline_reached()]
         save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached}_{self.sightline_idx}'
 
+        # -- Save to pkl file -- #
         with open(f'{save_path}/{save_name}.pkl','wb') as f:
             pickle.dump(self,f)
 
-        last_save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached-1}_{self.sightline_idx}'
-        if os.path.exists(f'{save_path}/{last_save_name}.pkl'):
-            os.system(f'rm {save_path}/{last_save_name}.pkl')
-
-        if return_file:
-            return f'{save_path}/{save_name}.pkl'
+        # -- Remove all previous sightlines -- #
+        all_saves = glob(f'{save_path}/*_{self.sightline_idx}.pkl')
+        for file in all_saves:
+            if save_name not in file:
+                os.system(f'rm {file}')
 
     def extend(self,sim,redshift):
         """

@@ -219,19 +219,10 @@ class SightlineSim():
             return sightlines
                     
 
-    def save_sightlines(self,sightlines,save_path,flush=False):
+    def save_sightlines(self,sightlines,save_path):
 
-        if flush:
-            files = glob(f'{save_path}/*.pkl')
-
-        saved_files = []
         for i in _Smart_Tqdm(range(len(sightlines)), desc='    saving sightlines'):
-            saved_files.append(sightlines[i].save(save_path,return_file=True))
-
-        if flush:
-            for file in files:
-                if file not in saved_files:
-                    os.system(f'rm {file}')
+            sightlines[i].save(save_path)
 
     # ------------- Runnning computation ------------- #
 
@@ -244,7 +235,7 @@ class SightlineSim():
 
                     'DM' : {'func': Calc_Ray_DM, 
                             'fields': ['Coordinates','Density','Masses','SmoothingLength','StarFormationRate','ElectronAbundance']}}
-        #       
+               
 
         return mapping[f]['func'], mapping[f]['fields']
     
@@ -402,7 +393,7 @@ class SightlineSim():
                     'coords':data['Coordinates'],
                     'grid_size':grid_size}, radii, coarse_radius, giant_idx, giant_pts, giant_radii
 
-    def run_many_sightlines(self,n_sightlines,redshift,method='random',origin=None,
+    def run_many_sightlines(self,n_sightlines=None,redshift=None,sightlines=None,method='random',origin=None,
                             functype='DM',findtype='tree',load_method='custom',
                             parallel_slgen=False,parallel_findpts=False,parallel_compute=False,
                             delete_data=True,save_path=None,plot_sightlines=False,reduce_sightlines=False):
@@ -410,33 +401,39 @@ class SightlineSim():
         Run full loop over chosen number of sightlines.
         """
 
+        if sightlines is None:
+            if n_sightlines is None:
+                raise ValueError('Provide n_sightlines!')
+            if redshift is None:
+                raise ValueError('Provide redshift!')
+        else:
+            if n_sightlines is not None or redshift is not None:
+                print('Using provided sightlines, ignoring other arguments!')
+
+
         # -- Select function to calculate and corresponding data fields needed -- #
         func,fields = self._choose_function(functype)
         
         # -- Check for saved sightlines in save_path, or generate and partition sightlines -- #
-        sightlines = None
-        flush = False
 
-        if save_path is not None:
+        if save_path is not None and sightlines is None:
             sightlines = self.load_sightlines(save_path)    # load sightlines
 
-            if sightlines is not None:      # if sightlines were loaded
+        if sightlines is not None:      # if sightlines were loaded / offered
 
-                flush = redshift > sightlines[0].target_redshift    # delete old files from save path
+            for sl in sightlines:
+                sl.extend(self.sim,redshift)    # check to see if desired redshift longer than loaded, and extend whilst saving loaded data
+    
+            if (n_sightlines > len(sightlines)) & (method=='random'):   # if more sightlines wanted, extend list of sightlines
+                sightlines.extend(self._generate_and_partition_sightlines(n_sightlines-len(sightlines),redshift,parallel_slgen,method,origin))
 
-                for sl in sightlines:
-                    sl.extend(self.sim,redshift)    # check to see if desired redshift longer than loaded, and extend whilst saving loaded data
-        
-                if (n_sightlines > len(sightlines)) & (method=='random'):   # if more sightlines wanted, extend list of sightlines
-                    sightlines.extend(self._generate_and_partition_sightlines(n_sightlines-len(sightlines),redshift,parallel_slgen,method,origin))
-
-                elif sightlines[-1].redshift_reached(self.sim.cosmo) > redshift or len(sightlines[-1].sub_Compute[-1]) > 0:   # if all sightlines are completely full, return sightlines
-                    print('Sightlines already processed!')
-                    
-                    if delete_data:
-                        return sightlines
-                    else:
-                        return sightlines, None, None
+            elif sightlines[-1].redshift_reached(self.sim.cosmo) > redshift or len(sightlines[-1].sub_Compute[-1]) > 0:   # if all sightlines are completely full, return sightlines
+                print('Sightlines already processed!')
+                
+                if delete_data:
+                    return sightlines
+                else:
+                    return sightlines, None, None
                     
         if sightlines is None:  # if sightlines not created, create
             sightlines = self._generate_and_partition_sightlines(n_sightlines,redshift,parallel_slgen,method,origin)
@@ -505,8 +502,7 @@ class SightlineSim():
                     msg = f"    saving sightlines to {save_path}"
                     ts = clock()
                     print(msg,end='\r',flush=True)
-                self.save_sightlines(sightlines,save_path,flush)
-                flush = False
+                self.save_sightlines(sightlines,save_path)
                 if not _Is_Interactive():
                     _Progress_Print(msg,ts)
             # --------------------- #
