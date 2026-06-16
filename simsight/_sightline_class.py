@@ -45,6 +45,8 @@ class Sightline():
         self.length = length
         self.target_redshift = target_redshift
 
+        self.sightline_idx = 0
+
         # -- Calculate direction vector and find resulting vector basis -- #
         self._process_direction_vector(direction_vector,end_point,box_size)
         self._find_vector_basis() 
@@ -68,7 +70,6 @@ class Sightline():
 
             self.sub_Observed = None
             self.modelled = None
-
 
     def _validate_inputs(self,origin,target_redshift,length,end_point,direction_vector):
         """
@@ -414,7 +415,7 @@ class Sightline():
 
         return subsightline
     
-    def save(self,save_path,i,return_file=False):
+    def save(self,save_path,return_file=False):
         """
         Save sightline out to where it is so far.
         """
@@ -428,12 +429,12 @@ class Sightline():
 
         snapshot_reached = max(0,self.sub_Snapshots[idx]-1)
 
-        save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached}_{i}'
+        save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached}_{self.sightline_idx}'
 
         with open(f'{save_path}/{save_name}.pkl','wb') as f:
             pickle.dump(self,f)
 
-        last_save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached-1}_{i}'
+        last_save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached-1}_{self.sightline_idx}'
         if os.path.exists(f'{save_path}/{last_save_name}.pkl'):
             os.system(f'rm {save_path}/{last_save_name}.pkl')
 

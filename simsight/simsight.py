@@ -81,6 +81,7 @@ class SightlineSim():
             sightlines = []
             for i in range(n_sightlines):
                 SL = Sightline(origin=origins[i],direction_vector=directions[i],target_redshift=redshift)
+                SL.sightline_idx = i
                 sightlines.append(SL)
 
             return sightlines
@@ -199,7 +200,9 @@ class SightlineSim():
                     sightlines = []
                     for file in _Smart_Tqdm(files[:n_files],desc='Loading sightlines'):
                         with open(file,'rb') as f:
-                            sightlines.append(pickle.load(f))
+                            SL = pickle.load(f)
+                            SL.sightline_idx = sightline_idx
+                            sightlines.append(SL)
                     return sightlines
             else:
                 print('No sightlines saved in directory_path.',flush=True)
@@ -209,8 +212,11 @@ class SightlineSim():
             n_files = int(percent*len(sl_files)/100)
             sightlines = []
             for file in _Smart_Tqdm(sl_files[:n_files],desc='Loading sightlines'):
+                sightline_idx = int(file.split('_')[-1].split('.pkl')[0])
                 with open(file,'rb') as f:
-                    sightlines.append(pickle.load(f))
+                    SL = pickle.load(f)
+                    SL.sightline_idx = sightline_idx
+                    sightlines.append(SL)
             return sightlines
                     
 
@@ -221,7 +227,7 @@ class SightlineSim():
 
         saved_files = []
         for i in _Smart_Tqdm(range(len(sightlines)), desc='    saving sightlines'):
-            saved_files.append(sightlines[i].save(save_path,i,return_file=True))
+            saved_files.append(sightlines[i].save(save_path,return_file=True))
 
         if flush:
             for file in files:
@@ -400,7 +406,7 @@ class SightlineSim():
     def run_many_sightlines(self,n_sightlines,redshift,method='random',origin=None,
                             functype='DM',findtype='tree',load_method='custom',
                             parallel_slgen=False,parallel_findpts=False,parallel_compute=False,
-                            delete_data=True,save_path=None,plot_sightlines=False):
+                            delete_data=True,save_path=None,plot_sightlines=False,reduce_sightlines=True):
         """
         Run full loop over chosen number of sightlines.
         """
@@ -503,6 +509,11 @@ class SightlineSim():
 
             if delete_data:
                 del(data)
+
+            if reduce_sightlines:
+                for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines'):
+
+                    saved_files.append(sightlines[i].save(save_path,i,return_file=True))
 
         if delete_data:
             return sightlines
