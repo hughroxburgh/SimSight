@@ -404,7 +404,7 @@ class SightlineSim():
     def run_many_sightlines(self,n_sightlines,redshift,method='random',origin=None,
                             functype='DM',findtype='tree',load_method='custom',
                             parallel_slgen=False,parallel_findpts=False,parallel_compute=False,
-                            delete_data=True,save_path=None,plot_sightlines=False,reduce_sightlines=True):
+                            delete_data=True,save_path=None,plot_sightlines=False,reduce_sightlines=False):
         """
         Run full loop over chosen number of sightlines.
         """
