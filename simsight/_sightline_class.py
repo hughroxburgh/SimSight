@@ -555,9 +555,9 @@ class Sightline():
                     # counts = np.diff(np.append(idx, buf_stop - buf_start))
                     # density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop], idx) / counts
 
-                    dl = np.diff(self.sub_Grid[i][buf_start:buf_stop], append=self.sub_Grid[i][buf_stop] if buf_stop < len(self.sub_Grid[i]) else self.sub_Grid[i][-1])
-                    weighted_density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop] * dl[buf_start:buf_stop], idx)
-                    total_dl         = np.add.reduceat(dl[buf_start:buf_stop], idx)
+                    dl               = self.sub_Grid[i][buf_start:buf_stop]
+                    weighted_density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop] * dl, idx)
+                    total_dl         = np.add.reduceat(dl, idx)
                     density          = weighted_density / total_dl
 
 
