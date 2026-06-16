@@ -512,8 +512,8 @@ class Sightline():
         for i in range(n_subsightlines):
 
             new_PointsIdx[i] = ['Removed']
-            
-            median_length = np.nanmedian(np.diff(self.sub_Grid[i]))
+
+            median_length = np.nanmedian(self.sub_Grid[i])
             downsample_factor = int(grid_resolution // median_length)
             if downsample_factor <= 1:
                 for k, src in enumerate([self.sub_Grid[i], self.sub_Density[i], self.sub_Compute[i],
