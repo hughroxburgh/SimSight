@@ -497,7 +497,7 @@ class Sightline():
 
         # Update saved with any newly filled indices
         for i, pidx in enumerate(self.sub_PointsIdx):
-            if len(pidx) > 0 and pidx != ['Removed']:
+            if len(pidx) > 0 and pidx[0] != 'Removed':
                 saved[i] = pidx
 
         np.save(f'{save_path}/{save_name}', np.array(saved, dtype=object), allow_pickle=True)
