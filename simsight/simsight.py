@@ -197,6 +197,7 @@ class SightlineSim():
                     n_files = int(percent*len(files)/100)
                     sightlines = []
                     for file in _Smart_Tqdm(files[:n_files],desc='Loading sightlines'):
+                        sightline_idx = int(file.split('_')[-1].split('.pkl')[0])
                         with open(file,'rb') as f:
                             SL = pickle.load(f)
                             SL.sightline_idx = sightline_idx
