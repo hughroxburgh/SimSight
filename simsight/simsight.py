@@ -133,8 +133,6 @@ class SightlineSim():
 
         from ._point_find import Halos_In_Sightline
 
-
-
         snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, snaps] if v is not None)
         start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(halos=True)] for sl in sightlines])
 
@@ -512,8 +510,7 @@ class SightlineSim():
 
             if reduce_sightlines:
                 for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines'):
-
-                    saved_files.append(sightlines[i].save(save_path,i,return_file=True))
+                    sightlines[i].reduce(grid_resolution=100,cgm_buffer=20,save_points_path=save_path)
 
         if delete_data:
             return sightlines

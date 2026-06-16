@@ -484,11 +484,31 @@ class Sightline():
             self.sub_Snapshots = sl_copy.sub_Snapshots
             self.target_redshift = sl_copy.target_redshift
             self.length = sl_copy.length
+
+    def _save_pointsidx(self,save_path):
+
+        save_name = f'sightline_z{self.target_redshift:.3f}_{self.sightline_idx}_PointsIdx.npy'
+
+        # Load existing or initialise
+        if os.path.exists(f'{save_path}/{save_name}'):
+            saved = np.load(f'{save_path}/{save_name}', allow_pickle=True).tolist()
+        else:
+            saved = [[] for _ in range(self.num_sub_sightlines)]
+
+        # Update saved with any newly filled indices
+        for i, pidx in enumerate(self.sub_PointsIdx):
+            if len(pidx) > 0 and pidx != ['Removed']:
+                saved[i] = pidx
+
+        np.save(f'{save_path}/{save_name}', np.array(saved, dtype=object), allow_pickle=True)
     
-    def reduce(self,grid_resolution,cgm_buffer,inplace=True):
+    def reduce(self,grid_resolution,cgm_buffer,inplace=True,save_points_path=None):
         """
         Reduce resolution of IGM component and remmove PointsIdx. Only do after halo_assigment is complete.
         """
+
+        if save_points_path is not None:
+            self._save_pointsidx(save_points_path)
 
         new_Grid, new_Density, new_Compute, new_HaloAssignment, new_CellConditions,new_Cells,new_PointsIdx = [[[] for _ in range(self.num_sub_sightlines)] for _ in range(7)]
         arrs = [new_Grid, new_Density, new_Compute, new_HaloAssignment, new_CellConditions, new_Cells]
