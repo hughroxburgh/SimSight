@@ -540,8 +540,12 @@ class Sightline():
                 if buf_stop > buf_start:          # downsampled core
                     idx = np.arange(0, buf_stop - buf_start, downsample_factor)
                     grid = np.add.reduceat(self.sub_Grid[i][buf_start:buf_stop], idx)
-                    density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop], idx)
+                    # density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop], idx)
                     compute = np.add.reduceat(self.sub_Compute[i][buf_start:buf_stop], idx)
+
+                    counts = np.diff(np.append(idx, buf_stop - buf_start))
+                    density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop], idx) / counts
+
                     append_igm(i, grid, density, compute)
 
                 append_seg(i, buf_stop, stop)    # right buffer (full res)
