@@ -484,7 +484,7 @@ class Sightline():
             self.target_redshift = sl_copy.target_redshift
             self.length = sl_copy.length
     
-    def reduce(self,downsample_factor,cgm_buffer,inplace=True):
+    def reduce(self,grid_resolution,cgm_buffer,inplace=True):
         """
         Reduce resolution of IGM component and remmove PointsIdx. Only do after halo_assigment is complete.
         """
@@ -510,6 +510,16 @@ class Sightline():
 
         n_subsightlines = self.subsightline_reached(grid=True,halos=True)
         for i in range(n_subsightlines):
+
+            new_PointsIdx[i] = ['Removed']
+            
+            median_length = np.nanmedian(np.diff(self.sub_Grid[i]))
+            downsample_factor = int(grid_resolution // median_length)
+            if downsample_factor <= 1:
+                for k, src in enumerate([self.sub_Grid[i], self.sub_Density[i], self.sub_Compute[i],
+                                        self.sub_HaloAssignment[i], self.sub_CellConditions[i], self.sub_Cells[i]]):
+                    arrs[k][i] = src
+                continue
 
             is_igm = (self.sub_CellConditions[i] == 0)
             switches = np.diff(is_igm.astype(int), prepend=0, append=0)
@@ -540,11 +550,16 @@ class Sightline():
                 if buf_stop > buf_start:          # downsampled core
                     idx = np.arange(0, buf_stop - buf_start, downsample_factor)
                     grid = np.add.reduceat(self.sub_Grid[i][buf_start:buf_stop], idx)
-                    # density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop], idx)
                     compute = np.add.reduceat(self.sub_Compute[i][buf_start:buf_stop], idx)
 
-                    counts = np.diff(np.append(idx, buf_stop - buf_start))
-                    density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop], idx) / counts
+                    # counts = np.diff(np.append(idx, buf_stop - buf_start))
+                    # density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop], idx) / counts
+
+                    dl = np.diff(self.sub_Grid[i][buf_start:buf_stop], append=self.sub_Grid[i][buf_stop] if buf_stop < len(self.sub_Grid[i]) else self.sub_Grid[i][-1])
+                    weighted_density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop] * dl[buf_start:buf_stop], idx)
+                    total_dl         = np.add.reduceat(dl[buf_start:buf_stop], idx)
+                    density          = weighted_density / total_dl
+
 
                     append_igm(i, grid, density, compute)
 
@@ -556,27 +571,24 @@ class Sightline():
             # -- Append any CGM after the final IGM segment -- #
             append_seg(i, igm_stops[-1], len(self.sub_Grid[i]))  
 
-            new_PointsIdx[i] = ['Removed']
-
         if inplace:
-            self.sub_Grid = new_Grid
-            self.sub_Density = new_Density
-            self.sub_Compute = new_Compute
-            self.sub_HaloAssignment = new_HaloAssignment
-            self.sub_CellConditions = new_CellConditions
-            self.sub_Cells = new_Cells
-            self.sub_PointsIdx = new_PointsIdx
+            self.sub_Grid[:n_subsightlines]           = new_Grid[:n_subsightlines]
+            self.sub_Density[:n_subsightlines]        = new_Density[:n_subsightlines]
+            self.sub_Compute[:n_subsightlines]        = new_Compute[:n_subsightlines]
+            self.sub_HaloAssignment[:n_subsightlines] = new_HaloAssignment[:n_subsightlines]
+            self.sub_CellConditions[:n_subsightlines] = new_CellConditions[:n_subsightlines]
+            self.sub_Cells[:n_subsightlines]          = new_Cells[:n_subsightlines]
+            self.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
             
         else:
             sl = deepcopy(self)
-            sl.sub_Grid = new_Grid
-            sl.sub_Density = new_Density
-            sl.sub_Compute = new_Compute
-            sl.sub_HaloAssignment = new_HaloAssignment
-            sl.sub_CellConditions = new_CellConditions
-            sl.sub_Cells = new_Cells
-            sl.sub_PointsIdx = new_PointsIdx
-
+            sl.sub_Grid[:n_subsightlines]           = new_Grid[:n_subsightlines]
+            sl.sub_Density[:n_subsightlines]        = new_Density[:n_subsightlines]
+            sl.sub_Compute[:n_subsightlines]        = new_Compute[:n_subsightlines]
+            sl.sub_HaloAssignment[:n_subsightlines] = new_HaloAssignment[:n_subsightlines]
+            sl.sub_CellConditions[:n_subsightlines] = new_CellConditions[:n_subsightlines]
+            sl.sub_Cells[:n_subsightlines]          = new_Cells[:n_subsightlines]
+            sl.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
             return sl
 
     # ------------- Sightline information readout / plotting ------------- #
