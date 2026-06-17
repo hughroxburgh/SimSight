@@ -267,7 +267,7 @@ def Points_In_Sightline(sightline,snapshot,architecture,radii,coarse_radius,find
 #     return x_halos
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True,nogil=True)
 def _Halos_Near_Ray(origin, direction, length, com, radii):
     N = radii.shape[0]
 
