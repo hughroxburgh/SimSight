@@ -129,18 +129,23 @@ class SightlineSim():
                 Points_In_Sightline(sl,snapshot,architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
 
 
-    def find_halos_in_sightlines(self,sightlines,parallel=False,snaps=None):
+    def find_halos_in_sightlines(self,sightlines,parallel=False,snaps=None,single_snap=None,announce=True):
 
         from ._point_find import Halos_In_Sightline
 
-        snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, snaps] if v is not None)
-        start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(halos=True)] for sl in sightlines])
+        if single_snap is not None:
+            start_snap = single_snap
+            snaps_required = single_snap + 1
+        else:
+            snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, snaps] if v is not None)
+            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(halos=True)] for sl in sightlines])
 
         for snap in range(start_snap,snaps_required):
 
             trueSnapNum = self.sim._get_snap_num(snap)
 
-            print(f'------Snapshot {snap}------',flush=True)
+            if announce:
+                print(f'------Snapshot {snap}------',flush=True)
 
             # -- Load halos -- #
             if not _Is_Interactive():
@@ -174,7 +179,8 @@ class SightlineSim():
                 _Progress_Print(msg,ts)
             # ------------------------------ #
 
-            print('\n',flush=True)
+            if announce:
+                print('\n',flush=True)
 
             
 
@@ -402,8 +408,9 @@ class SightlineSim():
 
     def run_many_sightlines(self,n_sightlines=None,redshift=None,sightlines=None,method='random',origin=None,
                             functype='DM',findtype='tree',load_method='custom',
-                            parallel_slgen=False,parallel_findpts=False,parallel_compute=False,
-                            delete_data=True,save_path=None,plot_sightlines=False,reduce_sightlines=False):
+                            delete_data=True,save_path=None,plot_sightlines=False,reduce_sightlines=False,find_halos=False,
+                            parallel_slgen=False,parallel_findpts=False,parallel_compute=False,parallel_halos=False):
+                            
         """
         Run full loop over chosen number of sightlines.
         """
@@ -417,6 +424,8 @@ class SightlineSim():
             if n_sightlines is not None or redshift is not None:
                 print('Using provided sightlines, ignoring other arguments!')
 
+        if reduce_sightlines and not find_halos:
+            print("Can't reduce sightlines without halo assignment, so they won't be reduced!")
 
         # -- Select function to calculate and corresponding data fields needed -- #
         func,fields = self._choose_function(functype)
@@ -479,7 +488,6 @@ class SightlineSim():
                                                 giant_idx,giant_pts,giant_radii,parallel_findpts)
             if not _Is_Interactive():
                 _Progress_Print(msg,ts)
-            # ---------------------------------------------- #
             
             if delete_data:
                 del(architecture)
@@ -496,12 +504,16 @@ class SightlineSim():
                                               snap,parallel_compute)
             if not _Is_Interactive():
                 _Progress_Print(msg,ts)
-            # ----------------------------------------- #
 
-            # -- Reduce Sightlines -- #
-            if reduce_sightlines:
-                for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines'):
-                    sightlines[i].reduce(grid_resolution=100,cgm_buffer=20,save_points_path=save_path)
+            # -- Find halos in sightlines -- #
+            if find_halos:
+                self.find_halos_in_sightlines(sightlines,parallel=parallel_halos,single_snap=snap,announce=False)
+                self.assign_sightline_to_halos(sightlines)
+
+                # -- Reduce Sightlines -- #
+                if reduce_sightlines:
+                    for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines'):
+                        sightlines[i].reduce(grid_resolution=100,cgm_buffer=20,save_points_path=save_path)
 
             # -- Save sightlines -- #
             if save_path is not None:
@@ -512,7 +524,6 @@ class SightlineSim():
                 self.save_sightlines(sightlines,save_path)
                 if not _Is_Interactive():
                     _Progress_Print(msg,ts)
-            # --------------------- #
 
             if delete_data:
                 del(data)
@@ -553,7 +564,7 @@ class SightlineSim():
 
                 for sl in _Smart_Tqdm(sightlines,desc='Assigning halo contribution'):
                     sl.assign_to_halos(method=method,particle_ids = data['ParticleIDs'], snapshot=snap,sim=self.sim)
-
+                    
 
 
     def observe_halos_in_sightlines(self,sightlines,grid_path,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],snaps=None,parallel=False):

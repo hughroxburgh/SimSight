@@ -426,7 +426,7 @@ class Sightline():
             os.mkdir(save_path)
 
         # -- Generate save file name -- #
-        snapshot_reached = self.sub_Snapshots[self.subsightline_reached()]
+        snapshot_reached = self.sub_Snapshots[self.subsightline_reached()-1]
         save_name = f'sightline_z{self.target_redshift:.3f}_snap{snapshot_reached}_{self.sightline_idx}'
 
         # -- Save to pkl file -- #
