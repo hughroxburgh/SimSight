@@ -298,30 +298,44 @@ def _Halos_Near_Ray(origin, direction, length, com, radii):
 
         impact_param = (dx*dx + dy*dy + dz*dz) ** 0.5
 
-        c1 = (impact_param < radii[i]) and (dot >= 0.0) and (dot <= length)
+        if impact_param < radii[i]:
+            half_chord = (radii[i]**2 - impact_param**2) ** 0.5
+            t_enter = dot - half_chord
+            t_exit  = dot + half_chord
 
-        # shifted halo
-        shx = hx - radii[i] * direction[0]
-        shy = hy - radii[i] * direction[1]
-        shz = hz - radii[i] * direction[2]
+            # any overlap with [0, length]
+            intersects[i] = (t_exit >= 0.0) and (t_enter <= length)
 
-        sdot = shx * direction[0] + shy * direction[1] + shz * direction[2]
+            # partial = doesn't fully sit within the segment
+            partial[i] = intersects[i] and (t_enter < 0.0 or t_exit > length)
+        else:
+            intersects[i] = False
+            partial[i]    = False
 
-        spx = sdot * direction[0]
-        spy = sdot * direction[1]
-        spz = sdot * direction[2]
+        # c1 = (impact_param < radii[i]) and (dot >= 0.0) and (dot <= length)
 
-        sdx = shx - spx
-        sdy = shy - spy
-        sdz = shz - spz
+        # # shifted halo
+        # shx = hx - radii[i] * direction[0]
+        # shy = hy - radii[i] * direction[1]
+        # shz = hz - radii[i] * direction[2]
 
-        shifted_impact = (sdx*sdx + sdy*sdy + sdz*sdz) ** 0.5
+        # sdot = shx * direction[0] + shy * direction[1] + shz * direction[2]
 
-        c2 = (shifted_impact <= radii[i]) and (sdot >= 0.0) and (sdot <= length)
+        # spx = sdot * direction[0]
+        # spy = sdot * direction[1]
+        # spz = sdot * direction[2]
 
-        intersects[i] = c1 or c2
-        partial[i] = (not c1) and c2
-        impact[i] = impact_param
+        # sdx = shx - spx
+        # sdy = shy - spy
+        # sdz = shz - spz
+
+        # shifted_impact = (sdx*sdx + sdy*sdy + sdz*sdz) ** 0.5
+
+        # c2 = (shifted_impact <= radii[i]) and (sdot >= 0.0) and (sdot <= length)
+
+        # intersects[i] = c1 or c2
+        # partial[i] = (not c1) and c2
+        # impact[i] = impact_param
 
     return intersects, partial, impact
 
@@ -335,9 +349,10 @@ def Halos_In_Sightline(sightline,snapshot,halos,com,radii):
 
             intersects, partial, impact = _Halos_Near_Ray(SL.origin,SL.direction_vector,SL.length,com,radii)
 
-            if len(np.where(intersects)[0]) > 0:
+            where = np.where(intersects)[0]
+            if len(where) > 0:
                 x_halos = []
-                for j in np.where(intersects)[0]:
+                for j in where:
                     halo = halos[j].copy()
                     if not partial[j]:
                         halo['ImpactParam'] = impact[j]
