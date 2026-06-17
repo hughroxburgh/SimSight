@@ -416,7 +416,7 @@ class Sightline():
 
         return subsightline
     
-    def save(self,save_path):
+    def save(self,save_path,return_file=False):
         """
         Save sightline out to where it is so far.
         """
@@ -433,11 +433,14 @@ class Sightline():
         with open(f'{save_path}/{save_name}.pkl','wb') as f:
             pickle.dump(self,f)
 
-        # -- Remove all previous sightlines -- #
-        all_saves = glob(f'{save_path}/*_{self.sightline_idx}.pkl')
-        for file in all_saves:
-            if save_name not in file:
-                os.system(f'rm {file}')
+        # # -- Remove all previous sightlines -- #
+        # all_saves = glob(f'{save_path}/*_{self.sightline_idx}.pkl')
+        # for file in all_saves:
+        #     if save_name not in file:
+        #         os.system(f'rm {file}')
+        
+        if return_file:
+            return f'{save_path}/{save_name}.pkl'
 
     def extend(self,sim,redshift):
         """
