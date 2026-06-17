@@ -351,16 +351,14 @@ def Halos_In_Sightline(sightline,snapshot,halos,com,radii):
 
             where = np.where(intersects)[0]
             if len(where) > 0:
-                x_halos = []
                 for j in where:
-                    halo = halos[j].copy()
-                    if not partial[j]:
-                        halo['ImpactParam'] = impact[j]
-                    else:
-                        halo['ImpactParam'] = 'Maybe partial intersection.'
-                    x_halos.append(halo)
-
-                sightline.sub_Halos[i] = x_halos
+                    # if not partial[j]:
+                    #     halo['ImpactParam'] = impact[j]
+                    # else:
+                    #     halo['ImpactParam'] = 'Maybe partial intersection.'
+                    # sightline.sub_Halos[i].append(halo)
+                    impact_val = impact[j] if not partial[j] else 'Maybe partial intersection.'
+                    sightline.sub_Halos[i].append((halos[j], impact_val))
             else:
                 sightline.sub_Halos[i] = [None]
 
