@@ -129,7 +129,7 @@ class SightlineSim():
                 Points_In_Sightline(sl,snapshot,architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
 
 
-    def find_halos_in_sightlines(self, sightlines, parallel=True, snaps=None, single_snap=None, announce=True):
+    def find_halos_in_sightlines(self, sightlines, parallel=False, num_snaps=None, single_snap=None, announce=True):
 
         from ._point_find import Halos_In_Sightline, _Halos_Near_Ray
         from scipy.spatial import cKDTree
@@ -138,7 +138,7 @@ class SightlineSim():
             start_snap = single_snap
             snaps_required = single_snap + 1
         else:
-            snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, snaps] if v is not None)
+            snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, num_snaps] if v is not None)
             start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(halos=True)] for sl in sightlines])
 
         for snap in range(start_snap, snaps_required):
