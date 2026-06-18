@@ -975,11 +975,11 @@ class Sightline():
         return values[0] if np.isscalar(redshift) else np.array(values)
     
 
-    def halo_info(self,modelled=False,with_compute=True):
+    def halo_info(self,modelled=False,with_compute=False):
 
         halos_traversed = {}
 
-        num_sub_sightlines = self.subsightline_reached(halos=True,modelled=modelled,assigned=with_compute)
+        num_sub_sightlines = self.subsightline_reached(grid=False,halos=True,modelled=modelled,assigned=with_compute)
 
         source = self.modelled if modelled else self
         

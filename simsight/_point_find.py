@@ -267,27 +267,26 @@ def Points_In_Sightline(sightline,snapshot,architecture,radii,coarse_radius,find
 #     return x_halos
 
 
-@njit(cache=True, fastmath=True,nogil=True)
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _Halos_Near_Ray(origin, direction, length, com, radii):
     N = radii.shape[0]
 
-    impact = np.empty(N, dtype=np.float64)
+    impact     = np.empty(N, dtype=np.float64)
     intersects = np.zeros(N, dtype=np.bool_)
-    partial = np.zeros(N, dtype=np.bool_)
+    partial    = np.zeros(N, dtype=np.bool_)
 
-    for i in range(N):
+    for i in prange(N):
+        impact[i] = 0.0
+
         if radii[i] <= 0.0:
-            impact[i] = 0.0
             continue
 
-        # halo_vec = com[i] - origin
         hx = com[i, 0] - origin[0]
         hy = com[i, 1] - origin[1]
         hz = com[i, 2] - origin[2]
 
         dot = hx * direction[0] + hy * direction[1] + hz * direction[2]
 
-        # proj = dot * direction
         px = dot * direction[0]
         py = dot * direction[1]
         pz = dot * direction[2]
@@ -297,45 +296,15 @@ def _Halos_Near_Ray(origin, direction, length, com, radii):
         dz = hz - pz
 
         impact_param = (dx*dx + dy*dy + dz*dz) ** 0.5
+        impact[i]    = impact_param
 
         if impact_param < radii[i]:
             half_chord = (radii[i]**2 - impact_param**2) ** 0.5
             t_enter = dot - half_chord
             t_exit  = dot + half_chord
 
-            # any overlap with [0, length]
             intersects[i] = (t_exit >= 0.0) and (t_enter <= length)
-
-            # partial = doesn't fully sit within the segment
-            partial[i] = intersects[i] and (t_enter < 0.0 or t_exit > length)
-        else:
-            intersects[i] = False
-            partial[i]    = False
-
-        # c1 = (impact_param < radii[i]) and (dot >= 0.0) and (dot <= length)
-
-        # # shifted halo
-        # shx = hx - radii[i] * direction[0]
-        # shy = hy - radii[i] * direction[1]
-        # shz = hz - radii[i] * direction[2]
-
-        # sdot = shx * direction[0] + shy * direction[1] + shz * direction[2]
-
-        # spx = sdot * direction[0]
-        # spy = sdot * direction[1]
-        # spz = sdot * direction[2]
-
-        # sdx = shx - spx
-        # sdy = shy - spy
-        # sdz = shz - spz
-
-        # shifted_impact = (sdx*sdx + sdy*sdy + sdz*sdz) ** 0.5
-
-        # c2 = (shifted_impact <= radii[i]) and (sdot >= 0.0) and (sdot <= length)
-
-        # intersects[i] = c1 or c2
-        # partial[i] = (not c1) and c2
-        # impact[i] = impact_param
+            partial[i]    = intersects[i] and (t_enter < 0.0 or t_exit > length)
 
     return intersects, partial, impact
 
