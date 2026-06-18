@@ -129,7 +129,7 @@ class SightlineSim():
                 Points_In_Sightline(sl,snapshot,architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
 
 
-    def find_halos_in_sightlines(self, sightlines, parallel=False, snaps=None, single_snap=None, announce=True):
+    def find_halos_in_sightlines(self, sightlines, parallel=True, snaps=None, single_snap=None, announce=True):
 
         from ._point_find import Halos_In_Sightline, _Halos_Near_Ray
         from scipy.spatial import cKDTree
@@ -483,7 +483,7 @@ class SightlineSim():
 
         # -- Iterate over all snapshots required to traverse chosen redshift -- #
         snaps_required = len(np.unique(sightlines[0].sub_BoxRedshifts))
-        start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=True)] for sl in sightlines])
+        start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=True,halos=find_halos)] for sl in sightlines])
 
         for snap in range(start_snap,snaps_required):
 
