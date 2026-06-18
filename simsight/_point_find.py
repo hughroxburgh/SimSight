@@ -306,6 +306,16 @@ def _Halos_Near_Ray(origin, direction, length, com, radii):
             intersects[i] = (t_exit >= 0.0) and (t_enter <= length)
             partial[i]    = intersects[i] and (t_enter < 0.0 or t_exit > length)
 
+            if partial[i]:
+                # Distance to closest point on the segment
+                t_clamped = min(max(dot, 0.0), length)
+                cx = hx - t_clamped * direction[0]
+                cy = hy - t_clamped * direction[1]
+                cz = hz - t_clamped * direction[2]
+                impact[i] = (cx*cx + cy*cy + cz*cz) ** 0.5
+            else:
+                impact[i] = impact_param
+
     return intersects, partial, impact
 
 
