@@ -340,47 +340,27 @@ def _Halos_Near_Ray(origin, direction, length, com, radii):
     return intersects, partial, impact
 
 
-def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius):
+def Halos_In_Sightline(sightline,snapshot,halos,com,radii):
+    
+    # -- Iterate over sub sightlines, checking for those which coincide with the given snapshot number -- #
     for i in range(sightline.num_sub_sightlines):
+        if sightline.sub_Snapshots[i] == snapshot:
+            SL = sightline.get_subsightline(i)
 
-        if sightline.sub_Snapshots[i] != snapshot:
-            continue
+            intersects, partial, impact = _Halos_Near_Ray(SL.origin,SL.direction_vector,SL.length,com,radii)
 
-        SL = sightline.get_subsightline(i)
-
-        # Use existing gen_line() instead of _sample_ray
-        sample_pts = SL.gen_line(n_samples=int(2*SL.length//max_radius))  # (n_samples, 3)
-
-        raw_candidates = tree.query_ball_point(sample_pts, r=max_radius)
-        candidates     = np.unique(np.concatenate(raw_candidates))
-
-        if len(candidates) == 0:
-            sightline.sub_Halos[i] = [None]
-            continue
-
-        intersects, partial, impact = _Halos_Near_Ray(
-            SL.origin,
-            SL.direction_vector,
-            SL.length,
-            com[candidates],
-            radii[candidates],
-        )
-
-        hit_local_indices = np.where(intersects)[0]
-
-        if len(hit_local_indices) == 0:
-            sightline.sub_Halos[i] = [None]
-            continue
-
-        result = []
-        for local_j in hit_local_indices:
-            global_j  = candidates[local_j]
-            halo_dict = dict(halos[global_j])
-            halo_dict['ImpactParam']        = None if partial[local_j] else float(impact[local_j])
-            halo_dict['PartialIntersection'] = bool(partial[local_j])
-            result.append(halo_dict)
-
-        sightline.sub_Halos[i] = result
+            where = np.where(intersects)[0]
+            if len(where) > 0:
+                for j in where:
+                    # if not partial[j]:
+                    #     halo['ImpactParam'] = impact[j]
+                    # else:
+                    #     halo['ImpactParam'] = 'Maybe partial intersection.'
+                    # sightline.sub_Halos[i].append(halo)
+                    impact_val = impact[j] if not partial[j] else 'Maybe partial intersection.'
+                    sightline.sub_Halos[i].append((halos[j], impact_val))
+            else:
+                sightline.sub_Halos[i] = [None]
 
     return sightline
 

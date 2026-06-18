@@ -129,10 +129,9 @@ class SightlineSim():
                 Points_In_Sightline(sl,snapshot,architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
 
 
-    def find_halos_in_sightlines(self, sightlines, parallel=False, snaps=None, single_snap=None, announce=True):
+    def find_halos_in_sightlines(self,sightlines,parallel=False,snaps=None,single_snap=None,announce=True):
 
-        from ._point_find import Halos_In_Sightline, _Halos_Near_Ray
-        from scipy.spatial import cKDTree
+        from ._point_find import Halos_In_Sightline
 
         if single_snap is not None:
             start_snap = single_snap
@@ -141,74 +140,47 @@ class SightlineSim():
             snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, snaps] if v is not None)
             start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(halos=True)] for sl in sightlines])
 
-        for snap in range(start_snap, snaps_required):
+        for snap in range(start_snap,snaps_required):
 
             trueSnapNum = self.sim._get_snap_num(snap)
 
             if announce:
-                print(f'------Snapshot {snap}------', flush=True)
+                print(f'------Snapshot {snap}------',flush=True)
 
             # -- Load halos -- #
             if not _Is_Interactive():
                 msg = f"    loading {self.sim.name} snapshot {trueSnapNum} halos"
                 ts = clock()
-                print(msg, end='\r', flush=True)
+                print(msg,end='\r',flush=True)
 
             halos = self.sim.load_halos(trueSnapNum)
 
             if not _Is_Interactive():
-                _Progress_Print(msg, ts)
+                _Progress_Print(msg,ts)
             # --------------- #
 
-            radii = np.array([h['Radius'] for h in halos], dtype=np.float64)
-            com   = np.array([h['Pos']    for h in halos], dtype=np.float64)
-
-            # -- Build spatial index -- #
-            if not _Is_Interactive():
-                msg = f"    building spatial index"
-                ts = clock()
-                print(msg, end='\r', flush=True)
-
-            tree       = cKDTree(com)
-            max_radius = float(radii.max())
-
-            if not _Is_Interactive():
-                _Progress_Print(msg, ts)
-
-            # -- Warm up numba kernel (pays JIT cost once, on main thread) -- #
-            _Halos_Near_Ray(
-                np.zeros(3,          dtype=np.float64),
-                np.array([1.,0.,0.], dtype=np.float64),
-                1.0,
-                com[:1],
-                radii[:1],
-            )
-            # ---------------------------------------------------------------- #
+            radii = np.array([h['Radius'] for h in halos], dtype=np.float32)
+            com = np.array([h['Pos'] for h in halos], dtype=np.float32)
 
             # -- Find halos in sightlines -- #
             if not _Is_Interactive():
                 msg = f"    finding halos in sightlines"
                 ts = clock()
-                print(msg, end='\r', flush=True)
+                print(msg,end='\r',flush=True)
 
             if parallel:
                 sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                    delayed(Halos_In_Sightline)(sl, snap, halos, com, radii, tree, max_radius)
-                    for sl in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines')
-                )
+                    delayed(Halos_In_Sightline)(sl, snap, halos,com,radii) for sl in _Smart_Tqdm(sightlines,desc='Finding halos in sightlines'))
             else:
-                for sl in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines'):
-                    Halos_In_Sightline(sl, snap, halos, com, radii, tree, max_radius)
-                # inactive sightlines untouched — already in sightlines list
+                for sightline in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines'):
+                    Halos_In_Sightline(sightline,snap,halos,com,radii)
 
             if not _Is_Interactive():
-                _Progress_Print(msg, ts)
+                _Progress_Print(msg,ts)
             # ------------------------------ #
 
             if announce:
-                print('\n', flush=True)
-
-        return sightlines
+                print('\n',flush=True)
 
             
 

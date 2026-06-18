@@ -488,6 +488,10 @@ class Sightline():
 
     def _save_pointsidx(self,save_path):
 
+        # -- Make save path if needed -- #
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
+
         save_name = f'sightline_z{self.target_redshift:.3f}_{self.sightline_idx}_PointsIdx.npy'
 
         # Load existing or initialise
