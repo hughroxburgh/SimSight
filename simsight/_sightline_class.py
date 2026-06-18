@@ -987,9 +987,10 @@ class Sightline():
             if source.sub_Halos[i] != [None]:
                 for halo in source.sub_Halos[i]:
                     halos_traversed[halo['ID']] = halo
+                    halos_traversed[halo['ID']]['SubSightline'] = i
                     if with_compute:
                         halos_traversed[halo['ID']]['Compute'] = np.nansum(source.sub_Compute[i][source.sub_HaloAssignment[i]==halo['ID']])
-                        halos_traversed[halo['ID']]['SubSightline'] = i
+
                 
         return halos_traversed
 

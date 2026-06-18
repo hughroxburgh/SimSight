@@ -356,7 +356,6 @@ def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius)
             global_j  = candidates[local_j]
             halo_dict = dict(halos[global_j])
             halo_dict['ImpactParam']        = None if partial[local_j] else float(impact[local_j])
-            halo_dict['PartialIntersection'] = bool(partial[local_j])
             result.append(halo_dict)
 
         sightline.sub_Halos[i] = result
