@@ -164,16 +164,14 @@ class SightlineSim():
             com   = np.array([h['Pos']    for h in halos], dtype=np.float64)
 
             # -- Build spatial index -- #
-            if not _Is_Interactive():
-                msg = f"    building spatial index"
-                ts = clock()
-                print(msg, end='\r', flush=True)
+            msg = f"    building spatial index"
+            ts = clock()
+            print(msg, end='\r', flush=True)
 
             tree       = cKDTree(com)
             max_radius = float(radii.max())
 
-            if not _Is_Interactive():
-                _Progress_Print(msg, ts)
+            _Progress_Print(msg, ts)
 
             # -- Warm up numba kernel (pays JIT cost once, on main thread) -- #
             _Halos_Near_Ray(
