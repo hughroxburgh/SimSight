@@ -352,7 +352,7 @@ def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius)
         sample_pts = SL.gen_line(n_samples=int(2*SL.length//max_radius))  # (n_samples, 3)
 
         raw_candidates = tree.query_ball_point(sample_pts, r=max_radius)
-        candidates     = np.unique(np.concatenate(raw_candidates)).astype(int)
+        candidates = np.unique(np.concatenate(raw_candidates)).astype(int) if any(raw_candidates) else np.array([], dtype=int)
 
         if len(candidates) == 0:
             sightline.sub_Halos[i] = [None]
