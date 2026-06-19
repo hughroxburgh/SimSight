@@ -449,8 +449,8 @@ class SightlineSim():
         else:
             if n_sightlines is not None or redshift is not None:
                 print('Using provided sightlines, ignoring other arguments!')
-                n_sightlines = len(sightlines)
-                redshift = max([sl.target_redshift for sl in sightlines])
+            n_sightlines = len(sightlines)
+            redshift = max([sl.target_redshift for sl in sightlines])
 
         if reduce_sightlines and not find_halos:
             print("Can't reduce sightlines without halo assignment, so they won't be reduced!")
@@ -471,7 +471,7 @@ class SightlineSim():
             if (n_sightlines > len(sightlines)) & (method=='random'):   # if more sightlines wanted, extend list of sightlines
                 sightlines.extend(self._generate_and_partition_sightlines(n_sightlines-len(sightlines),redshift,parallel_slgen,method,origin))
 
-            elif sightlines[-1].redshift_reached(self.sim.cosmo) > redshift or len(sightlines[-1].sub_Compute[-1]) > 0:   # if all sightlines are completely full, return sightlines
+            elif all(sl.redshift_reached(self.sim.cosmo) > redshift or len(sl.sub_Compute[-1]) > 0 for sl in sightlines):   # if all sightlines are completely full, return sightlines
                 print('Sightlines already processed!')
                 
                 if delete_data:
