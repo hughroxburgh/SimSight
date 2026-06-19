@@ -449,6 +449,8 @@ class SightlineSim():
         else:
             if n_sightlines is not None or redshift is not None:
                 print('Using provided sightlines, ignoring other arguments!')
+                n_sightlines = len(sightlines)
+                redshift = max([sl.target_redshift for sl in sightlines])
 
         if reduce_sightlines and not find_halos:
             print("Can't reduce sightlines without halo assignment, so they won't be reduced!")
