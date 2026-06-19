@@ -540,8 +540,14 @@ class SightlineSim():
 
                 # -- Reduce Sightlines -- #
                 if reduce_sightlines:
-                    for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines'):
+                    if not _Is_Interactive():
+                        msg = f"    reducing sightlines"
+                        ts = clock()
+                        print(msg,end='\r',flush=True)
+                    for i in _Smart_Tqdm(range(len(sightlines)), desc='reducing sightlines'):
                         sightlines[i].reduce(grid_resolution=100,cgm_buffer=20,save_points_path=save_path)
+                    if not _Is_Interactive():
+                        _Progress_Print(msg,ts)
 
             # -- Save sightlines -- #
             if save_path is not None:
