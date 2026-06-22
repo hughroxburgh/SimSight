@@ -317,6 +317,11 @@ class SightlineSim():
         Run compute in all sightlines for this snapshot.
         """
 
+        import os
+        os.environ['OMP_NUM_THREADS'] = '1'
+        os.environ['OPENBLAS_NUM_THREADS'] = '1'
+        os.environ['MKL_NUM_THREADS'] = '1'
+
         if not _Is_Interactive():
             msg = f"    reducing sightlines"
             ts = clock()
