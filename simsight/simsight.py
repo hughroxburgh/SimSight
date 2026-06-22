@@ -328,7 +328,7 @@ class SightlineSim():
             print(msg,end='\r',flush=True)
 
         if parallel:
-            sightlines = Parallel(n_jobs=self.num_cores, backend='loky')(
+            sightlines = Parallel(n_jobs=4, backend='loky')(
                 delayed(_Reduce_Sightline_Parallel)(sl, 100, 20, save_path)
                 for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines')
             )
