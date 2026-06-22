@@ -182,9 +182,13 @@ class SIMBA_SightlineSim():
 
         _Progress_Print(msg,ts)
 
-    def load_halos(self,snap_num,return_dict=True,cache_stars_particles=False, cache_gas_particles=False):
+    def load_halos(self,snap_num,return_dict=True,cache_stars_particles=False, cache_gas_particles=False,verbose=False):
 
-        snapFile = self._SimbaSnapManipulation(snap_num)
+        if verbose:
+            msg = f"    loading {self.sim.name} snapshot {snap_num} halos"
+            ts = clock()
+            print(msg, end='\r', flush=True)
+
         sim = self._SimbaCaesarManipulation(snap_num)
 
         self._halo_cache = {'snapshot': snap_num,
@@ -196,7 +200,7 @@ class SIMBA_SightlineSim():
         if return_dict:
             n = len(sim.halos)
             halos = []
-            for i in _Smart_Tqdm(range(n),desc=f'Generating snap {snap_num} halos dict'):
+            for i in _Smart_Tqdm(range(n),desc=f'    generating snap {snap_num} halos dict'):
                 halo = sim.halos[i]
                 halos.append({
                     'ID': i,
@@ -208,6 +212,9 @@ class SIMBA_SightlineSim():
                             'NumStars' : halo.nstar
                             # 'GalaxyIDs' : halo.galaxy_index_list
                 })
+
+            if verbose:
+                _Progress_Print(msg, ts)
 
             return halos
         

@@ -325,21 +325,55 @@ class SightlineSim():
         if parallel:
             sightlines = Parallel(n_jobs=-1, backend='loky')(
                 delayed(_Reduce_Sightline_Parallel)(sl, 100, 20, save_path)
-                for sl in _Smart_Tqdm(sightlines, desc='reducing sightlines')
+                for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines')
             )
         else:
-            for i in _Smart_Tqdm(range(len(sightlines)), desc='reducing sightlines'):
+            for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines'):
                 sightlines[i].reduce(grid_resolution=100,cgm_buffer=20,save_points_path=save_path)
                 
         if not _Is_Interactive():
             _Progress_Print(msg,ts)
 
 
+    def _snapshot_find_halos(self, sightlines, snap, halos, com, radii, tree, max_radius,parallel=False):
+        """
+        Run compute in all sightlines for this snapshot.
+        """
+
+        from ._point_find import Halos_In_Sightline,_Halos_Near_Ray
+
+        # -- Warm up numba kernel (pays JIT cost once, on main thread) -- #
+        _Halos_Near_Ray(
+            np.zeros(3,          dtype=np.float64),
+            np.array([1.,0.,0.], dtype=np.float64),
+            1.0,
+            com[:1],
+            radii[:1],
+        )
+
+        if not _Is_Interactive():
+            msg = f"    finding halos in sightlines"
+            ts = clock()
+            print(msg, end='\r', flush=True)
+
+        if parallel:
+            sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
+                delayed(Halos_In_Sightline)(sl, snap, halos, com, radii, tree, max_radius)
+                for sl in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines')
+            )
+        else:
+            for sl in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines'):
+                Halos_In_Sightline(sl, snap, halos, com, radii, tree, max_radius)
+            # inactive sightlines untouched — already in sightlines list
+
+        if not _Is_Interactive():
+            _Progress_Print(msg, ts)
+
+
     # ------------- Main functions ------------- #
 
     def find_halos_in_sightlines(self, sightlines, parallel=False, num_snaps=None, single_snap=None, announce=True):
 
-        from ._point_find import Halos_In_Sightline, _Halos_Near_Ray
         from scipy.spatial import cKDTree
 
         if single_snap is not None:
@@ -357,59 +391,15 @@ class SightlineSim():
                 print(f'------Snapshot {snap}------', flush=True)
 
             # -- Load halos -- #
-            if not _Is_Interactive():
-                msg = f"    loading {self.sim.name} snapshot {trueSnapNum} halos"
-                ts = clock()
-                print(msg, end='\r', flush=True)
-
             halos = self.sim.load_halos(trueSnapNum)
-
-            if not _Is_Interactive():
-                _Progress_Print(msg, ts)
-            # --------------- #
 
             radii = np.array([h['Radius'] for h in halos], dtype=np.float64)
             com   = np.array([h['Pos']    for h in halos], dtype=np.float64)
-
-            # -- Build spatial index -- #
-            msg = f"    building spatial index"
-            ts = clock()
-            print(msg, end='\r', flush=True)
-
             tree       = cKDTree(com)
             max_radius = float(radii.max())
 
-            _Progress_Print(msg, ts)
-
-            # -- Warm up numba kernel (pays JIT cost once, on main thread) -- #
-            _Halos_Near_Ray(
-                np.zeros(3,          dtype=np.float64),
-                np.array([1.,0.,0.], dtype=np.float64),
-                1.0,
-                com[:1],
-                radii[:1],
-            )
-            # ---------------------------------------------------------------- #
-
             # -- Find halos in sightlines -- #
-            if not _Is_Interactive():
-                msg = f"    finding halos in sightlines"
-                ts = clock()
-                print(msg, end='\r', flush=True)
-
-            if parallel:
-                sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                    delayed(Halos_In_Sightline)(sl, snap, halos, com, radii, tree, max_radius)
-                    for sl in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines')
-                )
-            else:
-                for sl in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines'):
-                    Halos_In_Sightline(sl, snap, halos, com, radii, tree, max_radius)
-                # inactive sightlines untouched — already in sightlines list
-
-            if not _Is_Interactive():
-                _Progress_Print(msg, ts)
-            # ------------------------------ #
+            self._snapshot_find_halos(sightlines, snap, halos, com, radii, tree, max_radius,parallel)
 
             if announce:
                 print('\n', flush=True)
@@ -448,11 +438,7 @@ class SightlineSim():
             trueSnapNum = self.sim._get_snap_num(snap)
 
             # -- Load data -- #
-            msg = f"    loading {self.sim.name} snapshot {trueSnapNum} data"
-            print(msg,end='\r',flush=True)
-            ts = clock()
-            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum)
-            _Progress_Print(msg,ts)
+            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,verbose=not _Is_Interactive())
 
             # -- Define particle radii and the maximum radius to search within -- #
             radii = self.sim.radius_mapping(data)
@@ -543,7 +529,7 @@ class SightlineSim():
             trueSnapNum = self.sim._get_snap_num(snap)
 
             # -- Load data -- #
-            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
+            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method,verbose=not _Is_Interactive())
 
             # -- Point finding architecture -- #
             architecture, radii, coarse_radius, giant_idx, giant_pts, giant_radii = self._finder_architecture(data,findtype)
@@ -591,7 +577,7 @@ class SightlineSim():
 
 
         if method == 'sphere':
-            for sl in _Smart_Tqdm(sightlines,desc='Assigning halo contribution using spherical approx'):
+            for sl in _Smart_Tqdm(sightlines,desc='    assigning halo contribution using spherical approx'):
                 sl.assign_to_halos()
         
         elif method == 'particles':
@@ -611,10 +597,10 @@ class SightlineSim():
                 msg = f"    loading {self.sim.name} snapshot {trueSnapNum} data"
                 print(msg,end='\r',flush=True)
                 ts = clock()
-                data = self.sim.load_data(particle_type='gas',fields=['ParticleIDs'],snapNum=trueSnapNum)
+                data = self.sim.load_data(particle_type='gas',fields=['ParticleIDs'],snapNum=trueSnapNum,verbose=not _Is_Interactive())
                 _Progress_Print(msg,ts)
 
-                for sl in _Smart_Tqdm(sightlines,desc='Assigning halo contribution'):
+                for sl in _Smart_Tqdm(sightlines,desc='    assigning halo contribution'):
                     sl.assign_to_halos(method=method,particle_ids = data['ParticleIDs'], snapshot=snap,sim=self.sim)
                     
 

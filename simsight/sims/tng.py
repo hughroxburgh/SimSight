@@ -111,7 +111,7 @@ class TNG_SightlineSim():
 
         # -- Pass 2: fill directly into pre-allocated arrays -- #
         offset = 0
-        for chunk in _Smart_Tqdm(range(n_chunks),desc='Loading data'):
+        for chunk in _Smart_Tqdm(range(n_chunks),desc=f'    loading {self.name} snapshot {snap_num} data'):
             with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, chunk), 'r') as f:
                 if pkey not in f:
                     continue
@@ -218,7 +218,14 @@ class TNG_SightlineSim():
 
         _Progress_Print(msg,ts)
 
-    def load_halos(self, snap_num, return_dict=True, cache_stars_particles=False, cache_gas_particles=False):
+    def load_halos(self, snap_num, return_dict=True, cache_stars_particles=False, cache_gas_particles=False,verbose=False):
+
+        # -- Load halos -- #
+        if verbose:
+            msg = f"    loading {self.sim.name} snapshot {snap_num} halos"
+            ts = clock()
+            print(msg, end='\r', flush=True)
+
 
         halos_full = il.groupcat.loadHalos(self.data_path, snap_num, fields=[
             'GroupPos', 'Group_R_Crit200', 'Group_M_Crit200', 'GroupMassType', 'GroupFirstSub', 'GroupNsubs', 'GroupLenType'
@@ -234,7 +241,7 @@ class TNG_SightlineSim():
         if return_dict:
             n = halos_full['count']
             halos = []
-            for i in _Smart_Tqdm(range(n),desc=f'Generating snap {snap_num} halos dict'):
+            for i in _Smart_Tqdm(range(n),desc=f'    generating snap {snap_num} halos dict'):
                 halos.append({
                     'ID': i,
                     'Pos': halos_full['GroupPos'][i].astype(np.float32) / self.hub,
@@ -247,7 +254,12 @@ class TNG_SightlineSim():
                     #                     halos_full['GroupFirstSub'][i] + halos_full['GroupNsubs'][i])
                 })
 
+            if verbose:
+                _Progress_Print(msg, ts)
+
             return np.array(halos)
+        
+
     
     # def load_halo(self,snap_num,halo_id): #,particles_only=False):
 
