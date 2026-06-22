@@ -332,7 +332,6 @@ class SightlineSim():
             ts = clock()
             print(msg,end='\r',flush=True)
 
-        
         def _reduce_one(sl, grid_resolution, cgm_buffer, save_path):
 
             sl.reduce(grid_resolution=grid_resolution, cgm_buffer=cgm_buffer,

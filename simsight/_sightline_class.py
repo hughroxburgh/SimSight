@@ -492,7 +492,7 @@ class Sightline():
         if not os.path.exists(save_path):
             os.mkdir(save_path)
 
-        save_name = f'sightline_z{self.target_redshift:.3f}_{self.sightline_idx}_PointsIdx.npy'
+        save_name = f'sightline_{self.sightline_idx}_PointsIdx.npy'
 
         # Load existing or initialise
         if os.path.exists(f'{save_path}/{save_name}'):
