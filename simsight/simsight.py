@@ -1,5 +1,7 @@
 import multiprocessing
 from joblib import Parallel, delayed
+from joblib.externals.loky import get_reusable_executor
+
 import warnings
 warnings.filterwarnings('ignore')
 import sys
@@ -168,6 +170,8 @@ class SightlineSim():
             delayed(_save_one)(sl)
             for sl in _Smart_Tqdm(sightlines, desc='    saving sightlines')
         )
+
+        get_reusable_executor().shutdown(wait=True)
 
         saved_set = set(saved_files)
         for file in files:
@@ -344,6 +348,9 @@ class SightlineSim():
                 delayed(_reduce_one)(sl, 100, 20, save_path)
                 for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines')
             )
+
+            get_reusable_executor().shutdown(wait=True)
+
         else:
             for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines'):
                 sightlines[i].reduce(grid_resolution=100,cgm_buffer=20,save_points_path=save_path)
