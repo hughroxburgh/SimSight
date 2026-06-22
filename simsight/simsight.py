@@ -166,7 +166,7 @@ class SightlineSim():
         def _save_one(sl):
             return sl.save(save_path, return_file=True)
 
-        saved_files = Parallel(n_jobs=16, backend='loky')(
+        saved_files = Parallel(n_jobs=self.num_cores, backend='loky')(
             delayed(_save_one)(sl)
             for sl in _Smart_Tqdm(sightlines, desc='    saving sightlines')
         )
@@ -344,7 +344,7 @@ class SightlineSim():
             return sl
 
         if parallel:
-            sightlines = Parallel(n_jobs=16, backend='loky')(
+            sightlines = Parallel(n_jobs=self.num_cores, backend='loky')(
                 delayed(_reduce_one)(sl, 100, 20, save_path)
                 for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines')
             )
