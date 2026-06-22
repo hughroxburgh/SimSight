@@ -11,7 +11,7 @@ import numpy as np
 
 from .sims import load_sim
 from ._visualiser_class import VisualSim
-from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive, _Reduce_Sightline_Parallel
+from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive
 
 class SightlineSim():
 
@@ -152,25 +152,30 @@ class SightlineSim():
             return sightlines
                     
 
-    def save_sightlines(self,sightlines,save_path):
+    def save_sightlines(self, sightlines, save_path):
 
         if not _Is_Interactive():
             msg = f"    saving sightlines to {save_path}"
             ts = clock()
-            print(msg,end='\r',flush=True)
+            print(msg, end='\r', flush=True)
 
         files = glob(f'{save_path}/*.pkl')
 
-        saved_files = []
-        for i in _Smart_Tqdm(range(len(sightlines)), desc='    saving sightlines'):
-            saved_files.append(sightlines[i].save(save_path,return_file=True))
+        def _save_one(sl):
+            return sl.save(save_path, return_file=True)
 
+        saved_files = Parallel(n_jobs=16, backend='loky')(
+            delayed(_save_one)(sl)
+            for sl in _Smart_Tqdm(sightlines, desc='    saving sightlines')
+        )
+
+        saved_set = set(saved_files)
         for file in files:
-            if file not in saved_files:
-                os.system(f'rm {file}')
+            if file not in saved_set:
+                os.remove(file)
 
         if not _Is_Interactive():
-            _Progress_Print(msg,ts)
+            _Progress_Print(msg, ts)
 
 
     # ------------- Computation architecture ------------- #
@@ -327,9 +332,17 @@ class SightlineSim():
             ts = clock()
             print(msg,end='\r',flush=True)
 
+        
+        def _reduce_one(sl, grid_resolution, cgm_buffer, save_path):
+
+            sl.reduce(grid_resolution=grid_resolution, cgm_buffer=cgm_buffer,
+                    save_points_path=save_path)
+            
+            return sl
+
         if parallel:
-            sightlines = Parallel(n_jobs=4, backend='loky')(
-                delayed(_Reduce_Sightline_Parallel)(sl, 100, 20, save_path)
+            sightlines = Parallel(n_jobs=16, backend='loky')(
+                delayed(_reduce_one)(sl, 100, 20, save_path)
                 for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines')
             )
         else:
