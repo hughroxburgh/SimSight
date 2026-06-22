@@ -497,6 +497,8 @@ class Sightline():
         # Load existing or initialise
         if os.path.exists(f'{save_path}/{save_name}'):
             saved = np.load(f'{save_path}/{save_name}', allow_pickle=True).tolist()
+            if len(saved) < self.num_sub_sightlines:
+                saved += [[] for _ in range(self.num_sub_sightlines - len(saved))]
         else:
             saved = [[] for _ in range(self.num_sub_sightlines)]
 
