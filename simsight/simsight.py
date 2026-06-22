@@ -323,7 +323,7 @@ class SightlineSim():
             print(msg,end='\r',flush=True)
 
         if parallel:
-            sightlines = Parallel(n_jobs=-1, backend='loky')(
+            sightlines = Parallel(n_jobs=self.num_cores, backend='loky')(
                 delayed(_Reduce_Sightline_Parallel)(sl, 100, 20, save_path)
                 for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines')
             )
@@ -359,10 +359,10 @@ class SightlineSim():
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
                 delayed(Halos_In_Sightline)(sl, snap, halos, com, radii, tree, max_radius)
-                for sl in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines')
+                for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines')
             )
         else:
-            for sl in _Smart_Tqdm(sightlines, desc='Finding halos in sightlines'):
+            for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines'):
                 Halos_In_Sightline(sl, snap, halos, com, radii, tree, max_radius)
             # inactive sightlines untouched — already in sightlines list
 
