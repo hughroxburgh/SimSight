@@ -126,7 +126,13 @@ class TNG_SightlineSim():
         return data
 
 
-    def load_data(self, particle_type, fields, snapNum,method='custom'):
+    def load_data(self, particle_type, fields, snapNum,method='custom',verbose=False):
+
+        if verbose:
+            msg = f"    loading {self.name} snapshot {snapNum} data"
+            print(msg,end='\r',flush=True)
+            ts = clock()
+
 
         fieldTransfer = {'Coordinates':          'Coordinates',
                         'Density':              'Density',
@@ -161,6 +167,9 @@ class TNG_SightlineSim():
             data['Masses']          /= self.hub
         if 'StellarInitialMass' in data:
             data['StellarInitialMass'] /= self.hub
+
+        if verbose:
+            _Progress_Print(msg,ts)
 
         return data
     

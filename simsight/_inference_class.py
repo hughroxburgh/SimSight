@@ -58,6 +58,30 @@ def Density_To_DM(density,lengths,redshift):
     return DM
 
 
+def Photometric_Redshifts(z_true,method,mags=None):
+    from scipy.stats import norm
+
+    z_grid = np.linspace(0,1,500)
+
+    if method == 'simple':
+
+        sigma = 0.028
+        outlier_scale = 0.3
+        outlier_fraction = 0.1
+
+        sig_main    = sigma         * (1 + z_true)
+        sig_outlier = outlier_scale * (1 + z_true)
+
+        pdf = ((1 - outlier_fraction) * norm.pdf(z_grid, z_true, sig_main)
+           +      outlier_fraction * norm.pdf(z_grid, z_true, sig_outlier))
+
+        pdf /= np.trapz(pdf, z_grid)
+
+
+
+
+
+
 class Inference:
     def __init__(self, sim, filters = ['lsst_g','lsst_r','lsst_i','lsst_z'],load_kcorrect=False):
         self.sim = sim

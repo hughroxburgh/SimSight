@@ -85,3 +85,10 @@ def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60):
     elapsed = clock() - t_start
     print(f"[100%] {desc} ({total}/{total}, {elapsed:.1f}s total)", file=sys.stderr)
     print('\n', file=sys.stderr)
+
+def _Reduce_Sightline_Parallel(sl, grid_resolution, cgm_buffer, save_path):
+
+    sl.reduce(grid_resolution=grid_resolution, cgm_buffer=cgm_buffer,
+              save_points_path=save_path)
+    
+    return sl
