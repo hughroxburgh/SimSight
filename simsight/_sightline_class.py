@@ -929,7 +929,8 @@ class Sightline():
             halos = True
 
         num_sub_sightlines = self.subsightline_reached(grid=True,halos=halos,observed=observed,modelled=modelled)
-        full_grid = np.nansum(np.concatenate([sl for sl in self.sub_Grid[:num_sub_sightlines]]))
+        valid = [sl for sl in self.sub_Grid[:num_sub_sightlines] if len(sl) > 0]
+        full_grid = np.nansum(np.concatenate(valid)) if valid else 0.0
 
         return z_at_value(cosmo.comoving_distance, full_grid*u.kpc).value
 
