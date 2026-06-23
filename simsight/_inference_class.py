@@ -257,44 +257,49 @@ class Inference:
         return z_phots #, pdfs, z_grid
 
 
-    def process_redshifts(self, sightlines, filters=None):
+    def process_redshifts(self, sightlines, snaps, filters=None):
 
         method = self.halo_inference_params['Redshift_Mode']
 
         # -- Helper to iterate all (sightline, halo, galaxy_index) -- #
         def iter_galaxies():
             for sl in sightlines:
-                for sh in sl.sub_Halos:
-                    if sh != [None]:
-                        for j in range(len(sh['ObservedGalaxies'])):
-                            yield sh, j
+                for i,sh in enumerate(sl.sub_Halos):
+                    if sh != [None] and sl.sub_Snapshots[i] in snaps:
+                        for halo in sh:
+                            for j in range(len(halo['ObservedGalaxies'])):
+                                yield halo, j
 
         if method == 'truth':
-            for sh, j in iter_galaxies():
-                sh['ObservedGalaxies'][j]['Inferred_Redshift'] = sh['Redshift']
+            for halo, j in iter_galaxies():
+                halo['ObservedGalaxies'][j]['Inferred_Redshift'] = halo['Redshift']
 
         elif method == 'simple_phot':
             galaxy_refs = list(iter_galaxies())
-            true_zs     = np.array([sh['Redshift'] for sh, j in galaxy_refs])
+            if not galaxy_refs:
+                return
+            true_zs     = np.array([halo['Redshift'] for halo, j in galaxy_refs])
             phot_zs     = self.infer_redshift(z_true=true_zs)
 
-            for (sh, j), z in zip(galaxy_refs, phot_zs):
-                sh['ObservedGalaxies'][j]['Inferred_Redshift'] = z
+            for (halo, j), z in zip(galaxy_refs, phot_zs):
+                halo['ObservedGalaxies'][j]['Inferred_Redshift'] = z
 
         elif method == 'flexzboost':
             assert filters is not None, "filters required for flexzboost"
 
             galaxy_refs = list(iter_galaxies())
+            if not galaxy_refs:
+                return
             mags        = np.array([
-                [sh['ObservedGalaxies'][j]['ApparentMags'][band] for band in filters]
-                for sh, j in galaxy_refs
+                [halo['ObservedGalaxies'][j]['ApparentMags'][band] for band in filters]
+                for halo, j in galaxy_refs
             ])
             mag_errs    = np.ones_like(mags) * 0.05   # temporary
 
             phot_zs = self.infer_redshift(mags=mags, mag_errs=mag_errs)
 
-            for (sh, j), z in zip(galaxy_refs, phot_zs):
-                sh['ObservedGalaxies'][j]['Inferred_Redshift'] = z
+            for (halo, j), z in zip(galaxy_refs, phot_zs):
+                halo['ObservedGalaxies'][j]['Inferred_Redshift'] = z
 
 
     def infer_galaxy_mags(self,redshift,apparent_mags,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],limiting_mags=None):

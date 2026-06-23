@@ -1087,7 +1087,9 @@ class Sightline():
 
         return self
 
-    def infer_halos(self, inference, filters):
+    def infer_halos(self, inference, filters, snaps=None):
+
+        snaps = snaps if snaps is not None else np.unique(self.sub_Snapshots)
 
         limiting_mags = np.array([LIMITING_MAGS[key] for key in filters])
 
@@ -1095,7 +1097,7 @@ class Sightline():
 
         for i in range(num_sub_sightlines):
 
-            if self.sub_Halos[i] != [None]:
+            if self.sub_Halos[i] != [None] and self.sub_Snapshots[i] in snaps:
                 for halo in self.sub_Halos[i]:
                     num_galaxies = len(halo['ObservedGalaxies'])
 
@@ -1128,6 +1130,8 @@ class Sightline():
 
         self._initialise_modelled(inference)
 
+        halo_params = inference.model_params['HaloParams_Mode']
+
         if halo_params == 'inferred':
             num_sub_sightlines = self.subsightline_reached(grid=True,observed=True)
             if num_sub_sightlines == 0:
@@ -1146,7 +1150,7 @@ class Sightline():
         for i in range(num_sub_sightlines):
             subsightline = self.get_subsightline(i,with_values=True)
                     
-            grid,density,compute,conditions,assign = inference.model_dm(subsightline,igm_background,halo_params,density_smooth_kernel)
+            grid,density,compute,conditions,assign = inference.model_dm(subsightline)
             
             self.modelled.sub_Grid[i] = grid
             self.modelled.sub_Density[i] = density

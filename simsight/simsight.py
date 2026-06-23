@@ -404,8 +404,8 @@ class SightlineSim():
             start_snap = single_snap
             snaps_required = single_snap + 1
         else:
-            snaps_required = min(v for v in [sightlines[0].sub_Snapshots[-1]+1, num_snaps] if v is not None)
-            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(halos=True)] for sl in sightlines])
+            snaps_required = min(v for v in [sl.sub_Snapshots[-1] + 1 for sl in sightlines] + [num_snaps] if v is not None)
+            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False,halos=True)] for sl in sightlines])
 
         for snap in range(start_snap, snaps_required):
 
@@ -626,13 +626,22 @@ class SightlineSim():
                     
 
 
-    def observe_halos_in_sightlines(self,sightlines,grid_path,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],snaps=None,parallel=False):
+    def observe_halos_in_sightlines(self,sightlines,grid_path,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],
+                                    num_snaps=None, single_snap=None,parallel=False):
 
         from ._galfinder_class import GalaxyFinder
 
-        snaps_required = min(v for v in [sightlines[0].sub_Snapshots[sightlines[0].subsightline_reached(grid=False,halos=True)-1]+1, snaps] if v is not None)
+        if single_snap is not None:
+            start_snap = single_snap
+            snaps_required = single_snap + 1
+        else:
+            snaps_required = min(
+                v for v in [sl.sub_Snapshots[sl.subsightline_reached(grid=False, halos=True) - 1] + 1 for sl in sightlines] + [num_snaps]
+                if v is not None
+            )
+            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False, halos=True)] for sl in sightlines])
 
-        for snap in range(snaps_required):
+        for snap in range(start_snap,snaps_required):
             print('\n',flush=True)
             print(f'------Snapshot {snap}------',flush=True)
 
@@ -646,20 +655,30 @@ class SightlineSim():
                 for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]'):
                     sl.observe_halos(galfinder,grid_path,filters)
 
-    def infer_halos_in_sightlines(self,sightlines,snaps=None,parallel=False,
+    def infer_halos_in_sightlines(self,sightlines,num_snaps=None, single_snap=None,parallel=False,
                                   redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit'):
 
         from ._inference_class import Inference
 
-        snaps_required = min(v for v in [sightlines[0].sub_Snapshots[sightlines[0].subsightline_reached(grid=False,observed=True)-1]+1, snaps] if v is not None)
+        if single_snap is not None:
+            start_snap = single_snap
+            snaps_required = single_snap + 1
+        else:
+            snaps_required = min(
+                v for v in [sl.sub_Snapshots[sl.subsightline_reached(grid=False, observed=True) - 1] + 1 for sl in sightlines] + [num_snaps]
+                if v is not None
+            )
+            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False, observed=True)] for sl in sightlines])
+
+        snaps = range(start_snap,snaps_required)
 
         def get_filters(sightlines):
             for sl in sightlines:
-                for sh in sl.observed.sub_Halos:
+                for sh in sl.sub_Halos:
                     if sh != [None]:
                         for halo in sh:
-                            if 'GalaxyVisiblePerFilter' in halo:
-                                return list(halo['GalaxyVisiblePerFilter'].keys())
+                            if len(halo['ObservedGalaxies']) > 0:
+                                return list(halo['ObservedGalaxies'][0]['VisiblePerFilter'].keys())
             return None  
 
         filters = get_filters(sightlines)
@@ -667,19 +686,15 @@ class SightlineSim():
         inference = Inference(self.sim,filters=filters,load_kcorrect=True,
                               redshift_mode=redshift_mode,kcorrect_mode=kcorrect_mode,m2l_mode=m2l_mode,halomass_mode=halomass_mode)
         
-        inference.process_redshifts(sightlines)
+        inference.process_redshifts(sightlines,snaps,filters)
 
-        for snap in range(snaps_required):
-            print('\n',flush=True)
-            print(f'------Snapshot {snap}------',flush=True)
-
-            if parallel:
-                sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                    delayed(sl.infer_halos)(inference,filters) for sl in _Smart_Tqdm(sightlines,desc=f'Inferring halos in sightlines [snap {snap}]')
-                    )
-            else:
-                for sl in _Smart_Tqdm(sightlines, desc=f'Inferring halos in sightlines [snap {snap}]'):
-                    sl.infer_halos(inference,filters)
+        if parallel:
+            sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
+                delayed(sl.infer_halos)(inference,filters,snaps) for sl in _Smart_Tqdm(sightlines,desc=f'Inferring halos in sightlines')
+                )
+        else:
+            for sl in _Smart_Tqdm(sightlines, desc=f'Inferring halos in sightlines'):
+                sl.infer_halos(inference,filters,snaps)
 
 
     def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',igm_background='smooth_truth',density_smooth_kernel=1000):
