@@ -1,9 +1,11 @@
 import numpy as np
+import pandas as pd
 
 from scipy import integrate
 import astropy.units as u
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter1d
+from scipy.stats import norm
 
 from ._compute import Transform_Points
 
@@ -129,6 +131,171 @@ class Inference:
 
         self.kcorrect = kcorrect.kcorrect.Kcorrect(responses=list(self.filters))
         print(f'Loading kcorrect with {self.filters}...Done!')
+
+
+    def infer_redshift(self,z_true=None, mags=None, mag_errs=None,
+                        model_dir=None, zmax=3.0, plot=False):
+
+        z_grid = np.linspace(0, zmax, 500)
+        rng = np.random.default_rng()
+
+        method = self.halo_inference_params['Redshift_Mode']
+
+        if method == 'truth':
+            z_phots = z_true
+
+        if method == 'simple':
+            sigma            = 0.028
+            outlier_scale    = 0.3
+            outlier_fraction = 0.1
+
+            z_true_array = np.atleast_1d(z_true)
+
+            # decide per galaxy whether it's an outlier
+            is_outlier = rng.random(len(z_true_array)) < outlier_fraction
+
+            # draw dz from the appropriate Gaussian
+            sig = np.where(is_outlier,
+                        outlier_scale * (1 + z_true_array),
+                        sigma         * (1 + z_true_array))
+
+            dz     = rng.normal(0, sig)
+            z_phots = z_true_array + dz
+            z_phots = np.clip(z_phots, 0, None)   # no negative redshifts
+
+            # # build PDFs for plotting/return consistency
+            # pdfs = np.array([
+            #     ((1 - outlier_fraction) * norm.pdf(z_grid, z, sigma * (1+z))
+            #     +     outlier_fraction  * norm.pdf(z_grid, z, outlier_scale * (1+z)))
+            #     for z in z_true_array
+            # ])
+            # pdfs /= np.trapezoid(pdfs, z_grid, axis=1)[:, None]
+
+        elif method == 'flexzboost':
+            assert mags is not None and mag_errs is not None, \
+                "mags and mag_errs required for flexzboost"
+            assert model_dir is not None, \
+                "model_dir required for flexzboost"
+
+            import glob
+            import yaml
+            from rail.core.data import DataStore, TableHandle
+            from rail.estimation.algos.flexzboost import FlexZBoostEstimator
+
+            # -- Load config and model from directory -- #
+            config_path = glob.glob(f"{model_dir}/*config*.yml")[0]
+            model_path  = glob.glob(f"{model_dir}/*.pkl")[0]
+
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+
+            # Pull the FlexZBoost block — key may vary
+            fzb_config = config.get('inform_fzboost', list(config.values())[0])
+
+            mag_cols = fzb_config['bands']
+            err_cols = fzb_config['err_bands']
+            ref_band = fzb_config['ref_band']
+            mag_limits = fzb_config['mag_limits']
+            nondetect_val = fzb_config.get('nondetect_val', np.nan)
+            zmin     = fzb_config.get('zmin', 0.0)
+            zmax     = fzb_config.get('zmax', 3.0) if zmax is None else zmax
+            nzbins   = fzb_config.get('nzbins', 301)
+
+            if np.isnan(nondetect_val) if not isinstance(nondetect_val, float) \
+                    else nondetect_val != nondetect_val:
+                nondetect_val = np.nan
+
+            # -- Build input dataframe -- #
+            mags     = np.atleast_2d(mags)
+            mag_errs = np.atleast_2d(mag_errs)
+
+            df = pd.DataFrame(mags,     columns=mag_cols)
+            df[err_cols] = mag_errs
+
+            DS = DataStore()
+            DS.__class__.allow_overwrite = True
+            DS.clear()
+            handle = DS.add_data('galaxies', df, TableHandle)
+
+            # -- Run estimator -- #
+            estimator = FlexZBoostEstimator.make_stage(
+                name            = 'fzboost',
+                model           = model_path,
+                hdf5_groupname  = '',
+                bands           = mag_cols,
+                err_bands       = err_cols,
+                ref_band        = ref_band,
+                nondetect_val   = nondetect_val,
+                include_mag_err = True,
+                mag_limits      = mag_limits,
+                zmin            = zmin,
+                zmax            = zmax,
+                nzbins          = nzbins,
+                chunk_size      = 10000,
+            )
+
+            results  = estimator.estimate(handle)
+            ensemble = results.data
+
+            z_grid = np.linspace(zmin, zmax, nzbins)
+            pdfs   = ensemble.pdf(z_grid)
+            z_phots = ensemble.mode(grid=z_grid).flatten()
+
+        # if plot:
+        #     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        #     axes[0].plot(z_grid, pdfs[0])
+        #     axes[0].set_xlabel('z')
+        #     axes[0].set_ylabel('p(z)')
+        #     axes[0].set_title('Example PDF (first galaxy)')
+
+        #     axes[1].scatter(np.atleast_1d(z_true), z_phot, s=5, alpha=0.5)
+        #     axes[1].plot([z_grid[0], z_grid[-1]], [z_grid[0], z_grid[-1]], 'r--', lw=1)
+        #     axes[1].set_xlabel('True z')
+        #     axes[1].set_ylabel('Photo-z mode')
+        #     plt.tight_layout()
+
+        return z_phots #, pdfs, z_grid
+
+
+    def process_redshifts(self, sightlines, filters=None):
+
+        method = self.halo_inference_params['Redshift_Mode']
+
+        # -- Helper to iterate all (sightline, halo, galaxy_index) -- #
+        def iter_galaxies():
+            for sl in sightlines:
+                for sh in sl.sub_Halos:
+                    if sh != [None]:
+                        for j in range(len(sh['ObservedGalaxies'])):
+                            yield sh, j
+
+        if method == 'truth':
+            for sh, j in iter_galaxies():
+                sh['ObservedGalaxies'][j]['Inferred_Redshift'] = sh['Redshift']
+
+        elif method == 'simple_phot':
+            galaxy_refs = list(iter_galaxies())
+            true_zs     = np.array([sh['Redshift'] for sh, j in galaxy_refs])
+            phot_zs     = self.infer_redshift(z_true=true_zs)
+
+            for (sh, j), z in zip(galaxy_refs, phot_zs):
+                sh['ObservedGalaxies'][j]['Inferred_Redshift'] = z
+
+        elif method == 'flexzboost':
+            assert filters is not None, "filters required for flexzboost"
+
+            galaxy_refs = list(iter_galaxies())
+            mags        = np.array([
+                [sh['ObservedGalaxies'][j]['ApparentMags'][band] for band in filters]
+                for sh, j in galaxy_refs
+            ])
+            mag_errs    = np.ones_like(mags) * 0.05   # temporary
+
+            phot_zs = self.infer_redshift(mags=mags, mag_errs=mag_errs)
+
+            for (sh, j), z in zip(galaxy_refs, phot_zs):
+                sh['ObservedGalaxies'][j]['Inferred_Redshift'] = z
+
 
     def infer_galaxy_mags(self,redshift,apparent_mags,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],limiting_mags=None):
         """

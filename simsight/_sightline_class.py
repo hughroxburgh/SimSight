@@ -1101,8 +1101,9 @@ class Sightline():
 
                     for j in range(num_galaxies):
                         
-                        redshift = inference.infer_redshift(halo['Redshift'])
-                        halo['ObservedGalaxies'][j]['Inferred_Redshift'] = redshift
+                        if 'Inferred_Redshift' not in halo['ObservedGalaxies'][j].keys():
+                            redshift = inference.infer_redshift(halo['Redshift'])
+                            halo['ObservedGalaxies'][j]['Inferred_Redshift'] = redshift
 
                         if halo['ObservedGalaxies'][j]['Visible'] >= 0:
                             gal_abs_mags = inference.infer_galaxy_mags(halo['ObservedGalaxies'][j]['Inferred_Redshift'],

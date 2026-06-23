@@ -669,6 +669,8 @@ class SightlineSim():
         
         inference = Inference(self.sim,filters=filters,load_kcorrect=True,
                               redshift_mode=redshift_mode,kcorrect_mode=kcorrect_mode,m2l_mode=m2l_mode,halomass_mode=halomass_mode)
+        
+        inference.process_redshifts(sightlines)
 
         for snap in range(snaps_required):
             print('\n',flush=True)
