@@ -639,7 +639,7 @@ class SightlineSim():
                 v for v in [sl.sub_Snapshots[sl.subsightline_reached(grid=False, halos=True) - 1] + 1 for sl in sightlines] + [num_snaps]
                 if v is not None
             )
-            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False, halos=True)] for sl in sightlines])
+            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False, halos=True)-1] for sl in sightlines])
 
         for snap in range(start_snap,snaps_required):
             print('\n',flush=True)
@@ -655,22 +655,10 @@ class SightlineSim():
                 for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]'):
                     sl.observe_halos(galfinder,grid_path,filters)
 
-    def infer_halos_in_sightlines(self,sightlines,num_snaps=None, single_snap=None,parallel=False,
+    def infer_halos_in_sightlines(self,sightlines,parallel=False,
                                   redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit'):
 
         from ._inference_class import Inference
-
-        if single_snap is not None:
-            start_snap = single_snap
-            snaps_required = single_snap + 1
-        else:
-            snaps_required = min(
-                v for v in [sl.sub_Snapshots[sl.subsightline_reached(grid=False, observed=True) - 1] + 1 for sl in sightlines] + [num_snaps]
-                if v is not None
-            )
-            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False, observed=True)] for sl in sightlines])
-
-        snaps = range(start_snap,snaps_required)
 
         def get_filters(sightlines):
             for sl in sightlines:
@@ -686,15 +674,15 @@ class SightlineSim():
         inference = Inference(self.sim,filters=filters,load_kcorrect=True,
                               redshift_mode=redshift_mode,kcorrect_mode=kcorrect_mode,m2l_mode=m2l_mode,halomass_mode=halomass_mode)
         
-        inference.process_redshifts(sightlines,snaps,filters)
+        inference.process_redshifts(sightlines,filters)
 
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                delayed(sl.infer_halos)(inference,filters,snaps) for sl in _Smart_Tqdm(sightlines,desc=f'Inferring halos in sightlines')
+                delayed(sl.infer_halos)(inference,filters) for sl in _Smart_Tqdm(sightlines,desc=f'Inferring halos in sightlines')
                 )
         else:
             for sl in _Smart_Tqdm(sightlines, desc=f'Inferring halos in sightlines'):
-                sl.infer_halos(inference,filters,snaps)
+                sl.infer_halos(inference,filters)
 
 
     def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',igm_background='smooth_truth',density_smooth_kernel=1000):

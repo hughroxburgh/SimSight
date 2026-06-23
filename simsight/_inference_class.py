@@ -257,7 +257,7 @@ class Inference:
         return z_phots #, pdfs, z_grid
 
 
-    def process_redshifts(self, sightlines, snaps, filters=None):
+    def process_redshifts(self, sightlines, filters=None):
 
         method = self.halo_inference_params['Redshift_Mode']
 
@@ -265,7 +265,7 @@ class Inference:
         def iter_galaxies():
             for sl in sightlines:
                 for i,sh in enumerate(sl.sub_Halos):
-                    if sh != [None] and sl.sub_Snapshots[i] in snaps:
+                    if sh != [None]:
                         for halo in sh:
                             for j in range(len(halo['ObservedGalaxies'])):
                                 yield halo, j
