@@ -649,7 +649,8 @@ class SightlineSim():
                 for sl in _Smart_Tqdm(sightlines, desc=f'Observing halos in sightline [snap {snap}]'):
                     sl.observe_halos(galfinder,grid_path,filters)
 
-    def infer_halos_in_sightlines(self,sightlines,snaps=None,parallel=False):
+    def infer_halos_in_sightlines(self,sightlines,snaps=None,parallel=False,
+                                  redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit'):
 
         from ._inference_class import Inference
 
@@ -666,7 +667,8 @@ class SightlineSim():
 
         filters = get_filters(sightlines)
         
-        inference = Inference(self.sim,filters=filters,load_kcorrect=True)
+        inference = Inference(self.sim,filters=filters,load_kcorrect=True,
+                              redshift_mode=redshift_mode,kcorrect_mode=kcorrect_mode,m2l_mode=m2l_mode,halomass_mode=halomass_mode)
 
         for snap in range(snaps_required):
             print('\n',flush=True)
@@ -699,7 +701,7 @@ class SightlineSim():
 
             filters = get_filters(sightlines)
 
-        inference = Inference(self.sim)
+        inference = Inference(self.sim,halo_params=halo_params,igm_background=igm_background,density_smooth_kernel=density_smooth_kernel)
 
 
         if not _Is_Interactive():
@@ -709,12 +711,11 @@ class SightlineSim():
 
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                delayed(sl.model_sightline)(inference,halo_params,igm_background,density_smooth_kernel,
-                                            filters,verbose=False) for sl in _Smart_Tqdm(sightlines,desc='Modelling sightlines')
+                delayed(sl.model_sightline)(inference,filters,verbose=False) for sl in _Smart_Tqdm(sightlines,desc='Modelling sightlines')
                 )
         else:
             for sl in _Smart_Tqdm(sightlines, desc='Modelling sightlines'):
-                sl.model_sightline(inference,halo_params,igm_background,density_smooth_kernel,filters,verbose=False)
+                sl.model_sightline(inference,filters,verbose=False)
 
         if not _Is_Interactive():
             _Progress_Print(msg,ts)

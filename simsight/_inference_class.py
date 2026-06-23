@@ -83,11 +83,24 @@ def Photometric_Redshifts(z_true,method,mags=None):
 
 
 class Inference:
-    def __init__(self, sim, filters = ['lsst_g','lsst_r','lsst_i','lsst_z'],load_kcorrect=False):
+    def __init__(self, sim, filters = ['lsst_g','lsst_r','lsst_i','lsst_z'],load_kcorrect=False,
+                 redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit',
+                 halo_params='inferred',igm_background='mean',density_smooth_kernel=1000):
+        
         self.sim = sim
         self.kcorrect = None
 
         self.filters = filters
+
+        self.halo_inference_params = {'Redshift_Mode':redshift_mode,
+                                      'KCorrect_Mode':kcorrect_mode,
+                                      'M2L_Mode':m2l_mode,
+                                      'HaloMass_Mode':halomass_mode}
+        
+        self.model_params = {'HaloParams_Mode':halo_params,
+                            'IGM_Mode':igm_background}
+        if igm_background == 'smooth_truth':
+            self.model_params['SmoothingKernal'] = density_smooth_kernel
 
         if load_kcorrect:
             self._load_kcorrect()
@@ -181,9 +194,13 @@ class Inference:
 
         Currently based on a redshift independent double power law model fit to TNG 100-3 data: temporary!
         """
+        
+        if len(galaxy_masses) == 0:
+            return np.nan
+
+        total_stellar_mass = np.nansum([m for m in galaxy_masses if m is not None])
 
         def moster_model(halo_mass):
-            
             N = 9.29081662e-03
             log_max_mass = 12.076
             beta = 1.443
@@ -191,17 +208,16 @@ class Inference:
             
             max_mass = 10**log_max_mass
             galmass = 2 * N * halo_mass * ((halo_mass / max_mass)**(-beta) + (halo_mass / max_mass)**(gamma))**-1
-
             return galmass
 
         mhalo_grid = np.logspace(10, 16, 10000)
         mstar_grid = moster_model(mhalo_grid)
 
         mhalo_from_mstar = interp1d(mstar_grid, mhalo_grid, 
-                             bounds_error=False, 
-                             fill_value=np.nan)
+                                    bounds_error=False, 
+                                    fill_value=np.nan)
         
-        return mhalo_from_mstar(galaxy_masses)
+        return float(mhalo_from_mstar(total_stellar_mass))
 
 
     def infer_halo_size(self, halo_mass, redshift):
@@ -213,6 +229,9 @@ class Inference:
         r200_physical = ((3 * halo_mass * u.Msun) / (4 * np.pi * 200 * rho_c)) ** (1/3)
         r200_comoving = r200_physical * (1 + redshift)
         return r200_comoving.to(u.kpc).value
+
+
+    # ------------------------ Model DM Contribution ------------------------ #
 
     def halo_model(self,radii, halo_m200,halo_r200, sim,f_gas=0.75, alpha=2.0, y0=2.0):
         """
@@ -238,7 +257,7 @@ class Inference:
 
         return rho_b/1e10
 
-    def infer_dm(self,subsightline,igm_background='smooth_truth',halo_params='inferred',smooth_kernel=1000):
+    def model_dm(self,subsightline):
         """
         Model the DM contribution along the grid for this sightline.
         """
@@ -258,11 +277,11 @@ class Inference:
         cellConditions = np.full(t_grid.shape[0],0)
 
         # -- Define IGM_Background -- #
-        if igm_background == 'smooth_truth':
+        if self.model_params['IGM_Mode'] == 'smooth_truth':
             density = Resample_Sightline_Density(subsightline.sub_Grid,subsightline.sub_Density,
-                                                 subsightline.sub_CellConditions == 0,t_grid,smooth_kernel)
+                                                 subsightline.sub_CellConditions == 0,t_grid,self.model_params['SmoothingKernal'])
 
-        elif igm_background == 'mean':
+        elif self.model_params['IGM_Mode'] == 'mean':
 
             f_igm = self.sim.f_igm
             mean_density = self.sim.cosmo.Ob0 * self.sim.cosmo.critical_density0.to(1e10*u.Msun / u.kpc**3).value
@@ -274,9 +293,9 @@ class Inference:
         halo_positions = np.array([Transform_Points(subsightline,halo['Pos']) for halo in subsightline.sub_Halos if halo is not None])  
         if len(halo_positions)>0:
 
-            if halo_params == 'inferred':
-                mass_string = 'Inferred_HaloMass'
-                radius_string = 'Inferred_HaloRadius'
+            if self.model_params['HaloParams_Mode'] == 'inferred':
+                mass_string = 'Inferred_TotalMass'
+                radius_string = 'Inferred_Radius'
             else:
                 mass_string = 'TotalMass'
                 radius_string = 'Radius'
@@ -302,7 +321,7 @@ class Inference:
             for j,halo in enumerate(subsightline.sub_Halos):
                 mask = inside[j]
 
-                if halo_params != False:
+                if self.model_params['HaloParams_Mode'] != False:
                     halo_density = self.halo_model(np.sqrt(dist2[j][mask]),halo[mass_string],halo[radius_string],self.sim) 
                 else:
                     resampled_density = Resample_Sightline_Density(subsightline.sub_Grid,subsightline.sub_Density,

@@ -71,6 +71,7 @@ class Sightline():
 
             self.sub_Observed = None
             self.modelled = None
+            self.halo_inference_params = None
 
     def _validate_inputs(self,origin,target_redshift,length,end_point,direction_vector):
         """
@@ -1000,7 +1001,7 @@ class Sightline():
 
     # ------------- Observing / Modelling Sightline ------------- #
 
-    def _initialise_modelled(self):
+    def _initialise_modelled(self,inference):
 
         mod = Sightline(origin=self.origin,
                     direction_vector=self.direction_vector,
@@ -1022,6 +1023,7 @@ class Sightline():
         mod.sub_HaloAssignment = [[] for _ in range(self.num_sub_sightlines)]
 
         self.modelled = mod
+        self.modelled.model_params = inference.model_params
 
     def observe_halos(self, galaxyfinder, grid_path, filters=['lsst_g','lsst_r','lsst_i','lsst_z']):
 
@@ -1034,53 +1036,46 @@ class Sightline():
         num_sub_sightlines = self.subsightline_reached(grid=False,halos=True)
 
         for i in range(num_sub_sightlines):
-            if self.sub_Snapshots[i] == galaxyfinder.snapshot: 
+            if self.sub_Snapshots[i] == galaxyfinder.snapshot:
                 if self.sub_Halos[i] != [None]:
                     for halo in self.sub_Halos[i]:
 
-                        prelength = np.nansum(self.sub_Lengths[:i]) 
+                        prelength = np.nansum(self.sub_Lengths[:i])
                         subsl = self.get_subsightline(i)
                         halo_dist = Transform_Points(subsl, halo['Pos'])[2]
-                        redshift = z_at_value(galaxyfinder.sim.cosmo.comoving_distance, (prelength + halo_dist)*u.kpc)
-                        
-                        if halo['NumStars'] >= galaxyfinder.nstars_limit:
-                            
-                            halo_info = galaxyfinder.process_halo(halo['ID'], subsl, redshift, grid_path, filters, apply_dust=True, plot=False, verbose=False)
-                            halo_info['ImpactParam'] = halo['ImpactParam']
-                            halo_info['Redshift'] = redshift.value
+                        redshift = z_at_value(galaxyfinder.sim.cosmo.comoving_distance, (prelength + halo_dist) * u.kpc)
 
-                            # Per-galaxy, per-band visibility: {band: [True/False, ...], ...}
-                            n = len(halo_info['GalaxyStellarMasses'])
+                        halo_info = deepcopy(halo)
+                        halo_info['Redshift'] = redshift.value
+
+                        if halo['NumStars'] >= galaxyfinder.nstars_limit:
+
+                            observed_halo = galaxyfinder.process_halo(halo['ID'], subsl, redshift, grid_path, filters, apply_dust=True, plot=False, verbose=False)
+
+                            n = len(observed_halo['GalaxyStellarMasses'])
+
                             visible_per_filter = {
-                                f: [halo_info['GalaxyApparentMags'][f][j] <= mag  for j in range(n)]
+                                f: [observed_halo['GalaxyApparentMags'][f][j] <= mag for j in range(n)]
                                 for f, mag in zip(filters, limiting_mags)
                             }
 
-                            visible = []
+                            halo_info['ObservedGalaxies'] = []
                             for j in range(n):
-                                in_all  = all(visible_per_filter[f][j] for f in filters)
-                                in_any  = any(visible_per_filter[f][j] for f in filters)
-                                if in_all:
-                                    visible.append(1)
-                                elif in_any:
-                                    visible.append(0)
-                                else:
-                                    visible.append(-1)
+                                in_all = all(visible_per_filter[f][j] for f in filters)
+                                in_any = any(visible_per_filter[f][j] for f in filters)
 
-                            halo_info['GalaxyVisiblePerFilter'] = visible_per_filter
-                            halo_info['GalaxyVisible'] = visible
-                            
-                        else:
-                            halo_info = deepcopy(halo)
-                            halo_info['Redshift'] = redshift.value
-                            halo_info['GalaxyStellarMasses'] = [halo['StellarMass']]
-                            halo_info['GalaxyVisible'] = [-1]
-                            halo_info['GalaxyVisiblePerFilter'] = [None]
-                            halo_info['GalaxyAbsoluteMags'] = [None]
-                            halo_info['GalaxyApparentMags'] = [None]
-                            halo_info['GalaxyMassLightRatio'] = [None]
-                            
-                            
+                                halo_info['ObservedGalaxies'].append({
+                                    'StellarMass':      observed_halo['GalaxyStellarMasses'][j],
+                                    'ApparentMags':     {f: observed_halo['GalaxyApparentMags'][f][j] for f in filters},
+                                    'AbsoluteMags':     {f: observed_halo['GalaxyAbsoluteMags'][f][j] for f in filters},
+                                    'MassLightRatio':   observed_halo['GalaxyMassLightRatio'][j],
+                                    'VisiblePerFilter': {f: visible_per_filter[f][j] for f in filters},
+                                    'Visible':          1 if in_all else (0 if in_any else -1),
+                                })
+
+                        else:                            
+                            halo_info['ObservedGalaxies'] = []
+
                         sub_ObservedHalos[i].append(halo_info)
 
                 else:
@@ -1102,31 +1097,35 @@ class Sightline():
 
             if self.sub_Halos[i] != [None]:
                 for halo in self.sub_Halos[i]:
-                    num_galaxies = len(halo['GalaxyVisible'])
+                    num_galaxies = len(halo['ObservedGalaxies'])
 
-                    inferred_gal_mags = []
-                    inferred_gal_masses = []
                     for j in range(num_galaxies):
-                        if halo['GalaxyVisible'][j] >= 0:
-                            gal_abs_mags = inference.infer_galaxy_mags(halo['Redshift'],halo['GalaxyApparentMags'],filters,limiting_mags)
+                        
+                        redshift = inference.infer_redshift(halo['Redshift'])
+                        halo['ObservedGalaxies'][j]['Inferred_Redshift'] = redshift
+
+                        if halo['ObservedGalaxies'][j]['Visible'] >= 0:
+                            gal_abs_mags = inference.infer_galaxy_mags(halo['ObservedGalaxies'][j]['Inferred_Redshift'],
+                                                                       halo['ObservedGalaxies'][j]['ApparentMags'],
+                                                                       filters,limiting_mags)
                             gal_mass = inference.infer_galaxy_mass(gal_abs_mags)
                         else:
                             gal_abs_mags = None
                             gal_mass = None
 
-                        inferred_gal_mags.append(gal_abs_mags)
-                        inferred_gal_masses.append(gal_mass)
+                        halo['ObservedGalaxies'][j]['Inferred_StellarMass'] = gal_mass
+                        halo['ObservedGalaxies'][j]['Inferred_AbsoluteMags'] = gal_abs_mags
 
-                    halo['Inferred_GalaxyMasses'] = inferred_gal_masses
-                    halo['Inferred_GalaxyAbsoluteMags'] = inferred_gal_mags
+                    inferred_gal_masses = [halo['ObservedGalaxies'][j]['Inferred_StellarMass'] for j in range(num_galaxies)]
 
-                halo['Inferred_HaloMass'] = inference.infer_halo_mass(halo['Inferred_GalaxyMasses'])
-                halo['Inferred_HaloRadius'] = inference.infer_halo_size(halo['Inferred_HaloMass']) 
+                    halo['Inferred_TotalMass'] = inference.infer_halo_mass(inferred_gal_masses)
+                    halo['Inferred_Radius'] = inference.infer_halo_size(halo['Inferred_TotalMass']) 
 
-    def model_sightline(self, inference, halo_params='inferred', igm_background='smooth_truth', 
-                        density_smooth_kernel=1000,filters=None,verbose=True):
+        self.halo_inference_params = inference.halo_inference_params
 
-        self._initialise_modelled()
+    def model_sightline(self, inference, filters=None,verbose=True):
+
+        self._initialise_modelled(inference)
 
         if halo_params == 'inferred':
             num_sub_sightlines = self.subsightline_reached(grid=True,observed=True)
@@ -1146,7 +1145,7 @@ class Sightline():
         for i in range(num_sub_sightlines):
             subsightline = self.get_subsightline(i,with_values=True)
                     
-            grid,density,compute,conditions,assign = inference.infer_dm(subsightline,igm_background,halo_params,density_smooth_kernel)
+            grid,density,compute,conditions,assign = inference.model_dm(subsightline,igm_background,halo_params,density_smooth_kernel)
             
             self.modelled.sub_Grid[i] = grid
             self.modelled.sub_Density[i] = density
