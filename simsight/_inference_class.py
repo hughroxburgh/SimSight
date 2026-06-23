@@ -144,7 +144,7 @@ class Inference:
         if method == 'truth':
             z_phots = z_true
 
-        if method == 'simple':
+        if method == 'simple_phot':
             sigma            = 0.028
             outlier_scale    = 0.3
             outlier_fraction = 0.1
