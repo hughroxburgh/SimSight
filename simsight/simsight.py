@@ -639,7 +639,7 @@ class SightlineSim():
                 v for v in [sl.sub_Snapshots[sl.subsightline_reached(grid=False, halos=True) - 1] + 1 for sl in sightlines] + [num_snaps]
                 if v is not None
             )
-            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False, halos=True)-1] for sl in sightlines])
+            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False, observed=True)] for sl in sightlines])
 
         for snap in range(start_snap,snaps_required):
             print('\n',flush=True)
