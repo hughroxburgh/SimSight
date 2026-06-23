@@ -465,14 +465,7 @@ class Inference:
         halo_positions = np.array([Transform_Points(subsightline,halo['Pos']) for halo in subsightline.sub_Halos if halo is not None])  
         if len(halo_positions)>0:
 
-            if self.model_params['HaloParams_Mode'] == 'inferred':
-                mass_string = 'Inferred_TotalMass'
-                radius_string = 'Inferred_Radius'
-            else:
-                mass_string = 'TotalMass'
-                radius_string = 'Radius'
-
-            radii = np.array([halo[radius_string] for halo in subsightline.sub_Halos])
+            radii = np.array([halo['Radius'] for halo in subsightline.sub_Halos])
             ids = np.array([halo['ID'] for halo in subsightline.sub_Halos])
 
             # Distance from (0,0,z_mid) to halo COM
@@ -493,8 +486,8 @@ class Inference:
             for j,halo in enumerate(subsightline.sub_Halos):
                 mask = inside[j]
 
-                if self.model_params['HaloParams_Mode'] != False:
-                    halo_density = self.halo_model(np.sqrt(dist2[j][mask]),halo[mass_string],halo[radius_string],self.sim) 
+                if self.model_params['HaloParams_Mode'] != 'off':
+                    halo_density = self.halo_model(np.sqrt(dist2[j][mask]),halo['TotalMass'],halo['Radius'],self.sim) 
                 else:
                     resampled_density = Resample_Sightline_Density(subsightline.sub_Grid,subsightline.sub_Density,
                                                                    np.ones_like(subsightline.sub_Grid).astype(bool),t_grid,0)

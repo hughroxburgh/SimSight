@@ -70,8 +70,9 @@ class Sightline():
             self.num_sub_sightlines = None      # number of sub sightlines
 
             self.sub_Observed = None
-            self.modelled = None
+            self.sub_HalosInferred = None
             self.halo_inference_params = None
+            self.modelled = None
 
     def _validate_inputs(self,origin,target_redshift,length,end_point,direction_vector):
         """
@@ -405,15 +406,18 @@ class Sightline():
                          origin=self.sub_Origins[idx],
                          parent_sightline=False)
         
-        if with_values:
-            subsightline.sub_Grid = self.sub_Grid[idx]
-            subsightline.sub_Compute = self.sub_Compute[idx]
-            subsightline.sub_Density = self.sub_Density[idx]
-            subsightline.sub_CellConditions = self.sub_CellConditions[idx]
-            subsightline.sub_Halos = self.sub_Halos[idx]
-            subsightline.sub_HaloAssignment = self.sub_HaloAssignment[idx]
+        if with_values != False:
             subsightline.sub_BoxRedshifts = self.sub_BoxRedshifts[idx]
-            subsightline.sub_Snapshots = self.sub_Snapshots[idx]
+            
+            if with_values != 'inferred':
+                subsightline.sub_Grid = self.sub_Grid[idx]
+                subsightline.sub_Compute = self.sub_Compute[idx]
+                subsightline.sub_Density = self.sub_Density[idx]
+                subsightline.sub_CellConditions = self.sub_CellConditions[idx]
+                subsightline.sub_Halos = self.sub_Halos[idx]
+                subsightline.sub_HaloAssignment = self.sub_HaloAssignment[idx]
+            else:
+                subsightline.sub_Halos = self.sub_HalosInferred[idx]
 
         return subsightline
     
@@ -895,7 +899,7 @@ class Sightline():
                     self.sub_HaloAssignment[i][inside_array] = halo['ID']
                     self.sub_CellConditions[i][inside_array] = 1
 
-    def subsightline_reached(self,grid=True,halos=False,assigned=False,observed=False,modelled=False):
+    def subsightline_reached(self,grid=True,halos=False,assigned=False,observed=False,inferred=False,modelled=False):
 
         checks = []                 
         if grid:
@@ -908,7 +912,11 @@ class Sightline():
         if observed:
             if self.sub_Observed is not None:
                 checks.append(next((i for i, h in enumerate(self.sub_Observed) if not h), self.num_sub_sightlines))
-                # checks.append(next((i for i, h in enumerate(self.observed.sub_Halos) if h == []), self.num_sub_sightlines))
+            else:
+                checks.append(0)
+        if inferred:
+            if self.sub_HalosInferred is not None:
+                checks.append(next((i for i, h in enumerate(self.sub_HalosInferred) if h == []), self.num_sub_sightlines))
             else:
                 checks.append(0)
         if modelled:
@@ -979,56 +987,41 @@ class Sightline():
         return values[0] if np.isscalar(redshift) else np.array(values)
     
 
-    def halo_info(self,modelled=False,with_compute=False):
+    def halo_info(self,observed=False,inferred=False,modelled=False,with_compute=False):
 
-        halos_traversed = {}
+        num_sub_sightlines = self.subsightline_reached(grid=False,halos=True,
+                                                       observed=observed,inferred=inferred,modelled=modelled,assigned=with_compute)
 
-        num_sub_sightlines = self.subsightline_reached(grid=False,halos=True,modelled=modelled,assigned=with_compute)
-
-        source = self.modelled if modelled else self
+        if modelled:
+            source = self.modelled
+            source_halos = self.modelled.sub_Halos
+        elif inferred:
+            source = self
+            source_halos = self.sub_HalosInferred
+        else:
+            source = self
+            source_halos = self.sub_Halos
         
+        halos_traversed = {}
         for i in range(num_sub_sightlines):
-            if source.sub_Halos[i] != [None]:
-                for halo in source.sub_Halos[i]:
-                    halos_traversed[halo['ID']] = halo
-                    halos_traversed[halo['ID']]['SubSightline'] = i
+            if source_halos[i] != [None]:
+                for halo in source_halos[i]:
+                    halos_traversed[halo['ID']] = halo.copy()
+                    halos_traversed[halo['ID']]['Subsightline'] = i
                     if with_compute:
-                        halos_traversed[halo['ID']]['Compute'] = np.nansum(source.sub_Compute[i][source.sub_HaloAssignment[i]==halo['ID']])
-
+                        halos_traversed[halo['ID']]['Compute'] = np.nansum(
+                            source.sub_Compute[i][source.sub_HaloAssignment[i] == halo['ID']]
+                        )
                 
         return halos_traversed
 
 
     # ------------- Observing / Modelling Sightline ------------- #
 
-    def _initialise_modelled(self,inference):
-
-        mod = Sightline(origin=self.origin,
-                    direction_vector=self.direction_vector,
-                    length=self.length,
-                    parent_sightline=False)
-    
-        mod.num_sub_sightlines = self.num_sub_sightlines
-        mod.sub_Origins = self.sub_Origins
-        mod.sub_Lengths = self.sub_Lengths
-        mod.sub_BoxRedshifts = self.sub_BoxRedshifts
-        mod.sub_Snapshots = self.sub_Snapshots
-        mod.sub_Halos = self.sub_Halos 
-
-        # These get populated by the inference pipeline
-        mod.sub_Density = [[] for _ in range(self.num_sub_sightlines)]
-        mod.sub_Compute = [[] for _ in range(self.num_sub_sightlines)]        # inferred DM
-        mod.sub_Grid = [[] for _ in range(self.num_sub_sightlines)]           # can mirror original
-        mod.sub_CellConditions = [[] for _ in range(self.num_sub_sightlines)]
-        mod.sub_HaloAssignment = [[] for _ in range(self.num_sub_sightlines)]
-
-        self.modelled = mod
-        self.modelled.model_params = inference.model_params
-
     def observe_halos(self, galaxyfinder, grid_path, filters=['lsst_g','lsst_r','lsst_i','lsst_z']):
 
         limiting_mags = np.array([LIMITING_MAGS[key] for key in filters])
-
+    
         # sub_ObservedHalos = [[] for _ in range(self.num_sub_sightlines)]
 
         if self.sub_Observed is None:
@@ -1067,6 +1060,7 @@ class Sightline():
                                 in_any = any(visible_per_filter[f][j] for f in filters)
 
                                 halo_info['ObservedGalaxies'].append({
+                                    'AngularOffset' : observed_halo['GalaxyXY'][j],
                                     'StellarMass':      observed_halo['GalaxyStellarMasses'][j],
                                     'ApparentMags':     {f: observed_halo['GalaxyApparentMags'][f][j] for f in filters},
                                     'AbsoluteMags':     {f: observed_halo['GalaxyAbsoluteMags'][f][j] for f in filters},
@@ -1089,68 +1083,151 @@ class Sightline():
 
         return self
 
-    def infer_halos(self, inference, filters, snaps=None):
 
-        snaps = snaps if snaps is not None else np.unique(self.sub_Snapshots)
+
+    def _initialise_inferred(self,inference):
+
+        self.sub_HalosInferred = [[None] for _ in range(self.num_sub_sightlines)]
+
+        true_halos = self.halo_info(observed=True)
+
+        if inference.halo_inference_params['Redshift_Mode'] == 'truth':
+            
+            for halo in true_halos.values():
+                visible_galaxies = [g for g in halo['ObservedGalaxies'] if g['Visible'] >= 0]
+                if not visible_galaxies:
+                    continue
+
+                halo_copy = {k: v for k, v in halo.items() if k not in ['ObservedGalaxies','Subsightline']}
+                halo_copy['ObservedGalaxies'] = visible_galaxies
+
+                idx = halo['Subsightline']
+                if self.sub_HalosInferred[idx] == [None]:
+                    self.sub_HalosInferred[idx] = [halo_copy]
+                else:
+                    self.sub_HalosInferred[idx].append(halo_copy)
+
+        else:
+
+            subsightline_starts = np.concatenate([[0],np.cumsum(self.sub_Lengths)])
+
+            for halo in true_halos.values():
+                for i,galaxy in enumerate(halo['ObservedGalaxies']):
+                    if galaxy['Visible'] >= 0:
+                        galdict = {}
+        
+                        if 'Inferred_Redshift' not in galaxy.keys():
+                            galaxy['Inferred_Redshift'] = inference.infer_redshift(halo['Redshift'])
+
+                        redshift = galaxy['Inferred_Redshift']
+                        distance = np.float32(inference.sim.cosmo.comoving_distance(redshift).value*1000)
+
+                        if distance > self.length:
+                            continue
+
+                        idx = np.where(distance>subsightline_starts)[0][-1] 
+
+                        galdict['Redshift'] = redshift
+                        
+                        D_A = inference.sim.cosmo.angular_diameter_distance(redshift).to(u.kpc).value
+
+                        x_basis = galaxy['AngularOffset'][0] / 206265 * D_A * (1 + redshift)
+                        y_basis = galaxy['AngularOffset'][1] / 206265 * D_A * (1 + redshift)
+                        z_basis = distance - subsightline_starts[idx]  # distance within this subsightline
+
+                        basis_coord = np.array([[x_basis, y_basis, z_basis]])
+
+                        # inverse transform back to Cartesian box coords
+                        box_coord = Transform_Points(self.get_subsightline(idx), basis_coord, inverse=True)[0]
+
+                        galdict['Pos'] = box_coord 
+                        galdict['ImpactParam'] = np.sqrt(x_basis**2 + y_basis**2)
+
+                        galdict['ObservedGalaxies'] = [galaxy]
+
+                        galdict['_true_idx'] = (halo['Subsightline'],i)
+
+                        if self.sub_HalosInferred[idx] == [None]:
+                            self.sub_HalosInferred[idx] = [galdict]
+                        else:
+                            self.sub_HalosInferred[idx].append(galdict)
+
+    def infer_halos(self, inference, filters):
+
+        self._initialise_modelled(inference,mode='halo_inference')
 
         limiting_mags = np.array([LIMITING_MAGS[key] for key in filters])
 
-        num_sub_sightlines = self.subsightline_reached(grid=False,observed=True)
+        modelled_halos = self.halo_info(inferred=True)
 
-        for i in range(num_sub_sightlines):
+        for halo in modelled_halos:
+            for galaxy in halo['ObservedGalaxies']:
+                galaxy['AbsoluteMags'] = inference.infer_galaxy_mags(galaxy['Inferred_Redshift'],
+                                            galaxy['ApparentMags'],
+                                            filters,limiting_mags)
+                galaxy['StellarMass'] = inference.infer_galaxy_mass(galaxy['AbsoluteMags'])
 
-            if self.sub_Halos[i] != [None] and self.sub_Snapshots[i] in snaps:
-                for halo in self.sub_Halos[i]:
-                    num_galaxies = len(halo['ObservedGalaxies'])
+            inferred_gal_masses = [galaxy['Inferred_StellarMass'] for galaxy in halo['ObservedGalaxies']]
 
-                    for j in range(num_galaxies):
-                        
-                        if 'Inferred_Redshift' not in halo['ObservedGalaxies'][j].keys():
-                            redshift = inference.infer_redshift(halo['Redshift'])
-                            halo['ObservedGalaxies'][j]['Inferred_Redshift'] = redshift
-
-                        if halo['ObservedGalaxies'][j]['Visible'] >= 0:
-                            gal_abs_mags = inference.infer_galaxy_mags(halo['ObservedGalaxies'][j]['Inferred_Redshift'],
-                                                                       halo['ObservedGalaxies'][j]['ApparentMags'],
-                                                                       filters,limiting_mags)
-                            gal_mass = inference.infer_galaxy_mass(gal_abs_mags)
-                        else:
-                            gal_abs_mags = None
-                            gal_mass = None
-
-                        halo['ObservedGalaxies'][j]['Inferred_StellarMass'] = gal_mass
-                        halo['ObservedGalaxies'][j]['Inferred_AbsoluteMags'] = gal_abs_mags
-
-                    inferred_gal_masses = [halo['ObservedGalaxies'][j]['Inferred_StellarMass'] for j in range(num_galaxies)]
-
-                    halo['Inferred_TotalMass'] = inference.infer_halo_mass(inferred_gal_masses)
-                    halo['Inferred_Radius'] = inference.infer_halo_size(halo['Inferred_TotalMass']) 
+            halo['TotalMass'] = inference.infer_halo_mass(inferred_gal_masses)
+            halo['Radius'] = inference.infer_halo_size(halo['Inferred_TotalMass'],halo['Redshift']) 
 
         self.halo_inference_params = inference.halo_inference_params
+
+
+    def _initialise_modelled(self,inference):
+
+        mod = Sightline(origin=self.origin,
+                    direction_vector=self.direction_vector,
+                    length=self.length,
+                    parent_sightline=False)
+    
+        mod.num_sub_sightlines = self.num_sub_sightlines
+        mod.sub_Origins = self.sub_Origins
+        mod.sub_Lengths = self.sub_Lengths
+        mod.sub_BoxRedshifts = self.sub_BoxRedshifts
+        mod.sub_Snapshots = self.sub_Snapshots
+
+        # -- Deal with the movement caused by photometric redshifting -- #
+        mod.sub_Halos = self.sub_HalosInferrred if inference.model_params['HaloParams_Mode'] == 'inferred' else self.sub_Halos
+
+        mod.sub_Density = [[] for _ in range(self.num_sub_sightlines)]
+        mod.sub_Compute = [[] for _ in range(self.num_sub_sightlines)]        # inferred DM
+        mod.sub_Grid = [[] for _ in range(self.num_sub_sightlines)]           # can mirror original
+        mod.sub_CellConditions = [[] for _ in range(self.num_sub_sightlines)]
+        mod.sub_HaloAssignment = [[] for _ in range(self.num_sub_sightlines)]
+
+        self.modelled = mod
+        self.modelled.model_params = inference.model_params
+
+
 
     def model_sightline(self, inference, filters=None,verbose=True):
 
         self._initialise_modelled(inference)
 
-        halo_params = inference.model_params['HaloParams_Mode']
-
-        if halo_params == 'inferred':
+        if inference.model_params['HaloParams_Mode'] == 'inferred':
             num_sub_sightlines = self.subsightline_reached(grid=True,observed=True)
             if num_sub_sightlines == 0:
                 if verbose:
-                    print("Halos have not been observed! Switching 'halo_params' to 'truth'",flush=True)
-                halo_params = 'truth'
+                    print("Halos have not been observed! Switching HaloParams_Mode to 'truth'",flush=True)
+                inference.model_params['HaloParams_Mode'] = 'truth'
             else:
                 self.infer_halos(inference,filters)
 
-        elif halo_params in ['truth',False]:
+            if self.halo_inference_params['Redshift_Mode'] != 'truth' and inference.model_params['IGM_Mode'] =='smooth_truth':
+                if verbose:
+                    print("Cannot estimate smooth IGM density with photometric redshifts! Switching IGM_Mode to 'mean'",flush=True)
+                inference.model_params['IGM_Mode'] = 'mean'
+            
+        elif inference.model_params['HaloParams_Mode'] in ['truth','off']:
             num_sub_sightlines = self.subsightline_reached(grid=True,halos=True)  
 
         else:
-            raise ValueError("halo_params must be 'inferred', 'truth', or set to False.")
+            raise ValueError("inference.model_params['HaloParams_Mode'] must be 'inferred', 'truth', or 'off'.")
 
         for i in range(num_sub_sightlines):
-            subsightline = self.get_subsightline(i,with_values=True)
+            subsightline = self.get_subsightline(i,with_values=inference.model_params['HaloParams_Mode'])
                     
             grid,density,compute,conditions,assign = inference.model_dm(subsightline)
             

@@ -367,7 +367,7 @@ class GalaxyFinder():
 
         stars['ClusterIDs'] = labels
 
-        return stars
+        return stars,tCentres
     
     def extract_clusters(self, stars, max_radius=30):
 
@@ -543,7 +543,7 @@ class GalaxyFinder():
 
         halo_info,stars,centres = self.cluster_stars(halo_id, alpha=0.86, linking_length=20, min_stars=10, mass_frac=0.9, sig_frac=0.2, plot=plot,verbose=verbose)
 
-        stars = self.resolve_clusters(sightline=sightline,redshift=redshift,stars=stars,centres=centres,lsst_fwhm=0.7,merge_threshold = 0.3,plot=plot,verbose=verbose)
+        stars,tCentres = self.resolve_clusters(sightline=sightline,redshift=redshift,stars=stars,centres=centres,lsst_fwhm=0.7,merge_threshold = 0.3,plot=plot,verbose=verbose)
 
         clusters,masses = self.extract_clusters(stars,max_radius=30)
 
@@ -555,6 +555,7 @@ class GalaxyFinder():
             galaxy_abs_mags.append(proc_cluster['AbsoluteMags'])
 
         halo_info['GalaxyStellarMasses'] = masses
+        halo_info['GalaxyXY'] = tCentres
 
         ngals = len(masses)
         halo_info['GalaxyApparentMags'] = {key: np.array([galaxy_app_mags[i][key] for i in range(ngals)]) for key in filters}
@@ -566,19 +567,5 @@ class GalaxyFinder():
         halo_info['GalaxyMassLightRatio'] = masses/luminosities
 
         del(halo_info['StarsParticleIDs'])
-
-        # galaxy_app_mags = []
-        # galaxy_abs_mags_obs = []
-        # galaxy_abs_mags_rest = []
-        # for cluster in clusters:
-        #     proc_cluster = self.cluster_mags(cluster,redshift,grid_path,filters,apply_dust)
-        #     galaxy_app_mags.append(proc_cluster['ApparentMags'])
-        #     galaxy_abs_mags_obs.append(proc_cluster['AbsoluteMagsObs'])
-        #     galaxy_abs_mags_rest.append(proc_cluster['AbsoluteMagsRest'])
-
-        # halo_info['GalaxyStellarMasses'] = masses
-        # halo_info['GalaxyAbsoluteMagsObs'] = galaxy_abs_mags_obs
-        # halo_info['GalaxyAbsoluteMagsRest'] = galaxy_abs_mags_rest
-        # halo_info['GalaxyApparentMags'] = galaxy_app_mags
         
         return halo_info
