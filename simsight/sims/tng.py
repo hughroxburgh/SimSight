@@ -111,7 +111,7 @@ class TNG_SightlineSim():
 
         # -- Pass 2: fill directly into pre-allocated arrays -- #
         offset = 0
-        for chunk in _Smart_Tqdm(range(n_chunks),desc=f'    loading {self.name} snapshot {snap_num} data'):
+        for chunk in range(n_chunks):
             with h5py.File(il.snapshot.snapPath(self.data_path, snap_num, chunk), 'r') as f:
                 if pkey not in f:
                     continue
@@ -126,12 +126,11 @@ class TNG_SightlineSim():
         return data
 
 
-    def load_data(self, particle_type, fields, snapNum,method='custom',verbose=False):
+    def load_data(self, particle_type, fields, snapNum,method='custom'):
 
-        if verbose:
-            msg = f"    loading {self.name} snapshot {snapNum} data"
-            print(msg,end='\r',flush=True)
-            ts = clock()
+        msg = f"    loading {self.name} snapshot {snapNum} data"
+        print(msg,end='\r',flush=True)
+        ts = clock()
 
 
         fieldTransfer = {'Coordinates':          'Coordinates',
@@ -168,8 +167,7 @@ class TNG_SightlineSim():
         if 'StellarInitialMass' in data:
             data['StellarInitialMass'] /= self.hub
 
-        if verbose:
-            _Progress_Print(msg,ts)
+        _Progress_Print(msg,ts)
 
         return data
     
@@ -198,7 +196,7 @@ class TNG_SightlineSim():
 
     def _load_particle_ids(self,snap_num,stars=True,gas=True):
 
-        msg = 'Loading particle ID cache'
+        msg = '    loading particle ID cache'
         print(msg, end='\r')
         ts = clock()
 

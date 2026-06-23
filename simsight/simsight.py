@@ -428,9 +428,6 @@ class SightlineSim():
             if announce:
                 print('\n', flush=True)
 
-        return sightlines
-
-
             
     def run_single_sightline(self,redshift,origin=None,direction_vector=None,functype='DM',
                              delete_data=True,save_path=None,plot_sightline=False):
@@ -462,7 +459,7 @@ class SightlineSim():
             trueSnapNum = self.sim._get_snap_num(snap)
 
             # -- Load data -- #
-            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,verbose=not _Is_Interactive())
+            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum)
 
             # -- Define particle radii and the maximum radius to search within -- #
             radii = self.sim.radius_mapping(data)
@@ -553,7 +550,7 @@ class SightlineSim():
             trueSnapNum = self.sim._get_snap_num(snap)
 
             # -- Load data -- #
-            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method,verbose=not _Is_Interactive())
+            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
 
             # -- Point finding architecture -- #
             architecture, radii, coarse_radius, giant_idx, giant_pts, giant_radii = self._finder_architecture(data,findtype)
@@ -621,7 +618,7 @@ class SightlineSim():
                 msg = f"    loading {self.sim.name} snapshot {trueSnapNum} data"
                 print(msg,end='\r',flush=True)
                 ts = clock()
-                data = self.sim.load_data(particle_type='gas',fields=['ParticleIDs'],snapNum=trueSnapNum,verbose=not _Is_Interactive())
+                data = self.sim.load_data(particle_type='gas',fields=['ParticleIDs'],snapNum=trueSnapNum)
                 _Progress_Print(msg,ts)
 
                 for sl in _Smart_Tqdm(sightlines,desc='    assigning halo contribution'):
@@ -643,10 +640,10 @@ class SightlineSim():
 
             if parallel:
                 sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                    delayed(sl.observe_halos)(galfinder,grid_path,filters) for sl in _Smart_Tqdm(sightlines,desc=f'Observing halos in sightlines [snap {snap}]')
+                    delayed(sl.observe_halos)(galfinder,grid_path,filters) for sl in _Smart_Tqdm(sightlines,desc=f'    observing halos in sightlines [snap {snap}]')
                     )
             else:
-                for sl in _Smart_Tqdm(sightlines, desc=f'Observing halos in sightline [snap {snap}]'):
+                for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]'):
                     sl.observe_halos(galfinder,grid_path,filters)
 
     def infer_halos_in_sightlines(self,sightlines,snaps=None,parallel=False,

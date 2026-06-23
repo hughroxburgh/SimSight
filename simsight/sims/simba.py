@@ -120,15 +120,14 @@ class SIMBA_SightlineSim():
 
         return ElectronAbundance
     
-    def load_data(self,particle_type,fields,snapNum,method=None,verbose=False):
+    def load_data(self,particle_type,fields,snapNum,method=None):
         """
         Load data.
         """
 
-        if verbose:
-            msg = f"    loading {self.name} snapshot {snapNum} data"
-            print(msg,end='\r',flush=True)
-            ts = clock()
+        msg = f"    loading {self.name} snapshot {snapNum} data"
+        print(msg,end='\r',flush=True)
+        ts = clock()
 
         fields = deepcopy(fields)
 
@@ -161,8 +160,7 @@ class SIMBA_SightlineSim():
         if 'Density' in fields:
             data['Density'] = data['Density'] * self.hub**2
 
-        if verbose:
-            _Progress_Print(msg,ts)
+        _Progress_Print(msg,ts)
 
         return data
     
