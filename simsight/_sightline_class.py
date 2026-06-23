@@ -1154,7 +1154,7 @@ class Sightline():
 
     def infer_halos(self, inference, filters):
 
-        self._initialise_modelled(inference,mode='halo_inference')
+        self._initialise_inferred(inference)
 
         limiting_mags = np.array([LIMITING_MAGS[key] for key in filters])
 
