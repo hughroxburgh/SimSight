@@ -1167,10 +1167,10 @@ class Sightline():
                                             filters,limiting_mags)
                 galaxy['StellarMass'] = inference.infer_galaxy_mass(galaxy['AbsoluteMags'])
 
-            inferred_gal_masses = [galaxy['Inferred_StellarMass'] for galaxy in halo['ObservedGalaxies']]
+            inferred_gal_masses = [galaxy['StellarMass'] for galaxy in halo['ObservedGalaxies']]
 
             halo['TotalMass'] = inference.infer_halo_mass(inferred_gal_masses)
-            halo['Radius'] = inference.infer_halo_size(halo['Inferred_TotalMass'],halo['Redshift']) 
+            halo['Radius'] = inference.infer_halo_size(halo['TotalMass'],halo['Redshift']) 
 
         self.halo_inference_params = inference.halo_inference_params
 
