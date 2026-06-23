@@ -1160,7 +1160,7 @@ class Sightline():
 
         modelled_halos = self.halo_info(inferred=True)
 
-        for halo in modelled_halos:
+        for halo in modelled_halos.values():
             for galaxy in halo['ObservedGalaxies']:
                 galaxy['AbsoluteMags'] = inference.infer_galaxy_mags(galaxy['Inferred_Redshift'],
                                             galaxy['ApparentMags'],
