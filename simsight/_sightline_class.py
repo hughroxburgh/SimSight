@@ -1029,15 +1029,17 @@ class Sightline():
 
         limiting_mags = np.array([LIMITING_MAGS[key] for key in filters])
 
-        sub_ObservedHalos = [[] for _ in range(self.num_sub_sightlines)]
+        # sub_ObservedHalos = [[] for _ in range(self.num_sub_sightlines)]
 
-        self.sub_Observed = [False for _ in range(self.num_sub_sightlines)]
+        if self.sub_Observed is None:
+            self.sub_Observed = [False for _ in range(self.num_sub_sightlines)]
 
         num_sub_sightlines = self.subsightline_reached(grid=False,halos=True)
 
         for i in range(num_sub_sightlines):
             if self.sub_Snapshots[i] == galaxyfinder.snapshot:
                 if self.sub_Halos[i] != [None]:
+                    observed_halos_i = []
                     for halo in self.sub_Halos[i]:
 
                         prelength = np.nansum(self.sub_Lengths[:i])
@@ -1076,14 +1078,14 @@ class Sightline():
                         else:                            
                             halo_info['ObservedGalaxies'] = []
 
-                        sub_ObservedHalos[i].append(halo_info)
+                        observed_halos_i.append(halo_info)
+
+                    self.sub_Halos[i] = observed_halos_i
 
                 else:
-                    sub_ObservedHalos[i] = [None]
+                    self.sub_Halos[i] = [None]
 
-            self.sub_Observed[i] = True
-
-        self.sub_Halos = sub_ObservedHalos
+                self.sub_Observed[i] = True
 
         return self
 
