@@ -655,7 +655,7 @@ class SightlineSim():
                 for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]'):
                     sl.observe_halos(galfinder,grid_path,filters)
 
-    def infer_halos_in_sightlines(self,sightlines,parallel=False,model_dir=None,
+    def infer_halos_in_sightlines(self,sightlines,parallel=False,
                                   redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit'):
 
         from ._inference_class import Inference
@@ -674,7 +674,7 @@ class SightlineSim():
         inference = Inference(self.sim,filters=filters,load_kcorrect=True,
                               redshift_mode=redshift_mode,kcorrect_mode=kcorrect_mode,m2l_mode=m2l_mode,halomass_mode=halomass_mode)
         
-        inference.process_redshifts(sightlines,filters,model_dir)
+        inference.process_redshifts(sightlines,filters)
 
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
