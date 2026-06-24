@@ -1007,6 +1007,7 @@ class Sightline():
             if source_halos[i] != [None]:
                 for halo in source_halos[i]:
                     halos_traversed[halo['ID']] = halo.copy()
+                    halos_traversed[halo['ID']].pop('ID', None)
                     halos_traversed[halo['ID']]['Subsightline'] = i
                     if with_compute:
                         halos_traversed[halo['ID']]['Compute'] = np.nansum(
@@ -1097,6 +1098,8 @@ class Sightline():
                 visible_galaxies = [g for g in halo['ObservedGalaxies'] if g['Visible'] >= 0]
                 if not visible_galaxies:
                     continue
+                for g in visible_galaxies:
+                    g.pop('MassLightRatio', None)
 
                 halo_copy = {k: v for k, v in halo.items() if k not in ['ObservedGalaxies','Subsightline']}
                 halo_copy['ObservedGalaxies'] = visible_galaxies
@@ -1146,7 +1149,9 @@ class Sightline():
                         galdict['Pos'] = box_coord 
                         galdict['ImpactParam'] = np.sqrt(x_basis**2 + y_basis**2)
 
+                        galaxy.pop('MassLightRatio', None)
                         galdict['ObservedGalaxies'] = [galaxy]
+                        
 
                         if self.sub_HalosInferred[idx] == [None]:
                             self.sub_HalosInferred[idx] = [galdict]
@@ -1159,19 +1164,19 @@ class Sightline():
 
         limiting_mags = np.array([LIMITING_MAGS[key] for key in filters])
 
-        modelled_halos = self.halo_info(inferred=True)
+        for sh in self.sub_HalosInferred:
+            if sh != [None]:
+                for halo in sh:
+                    for galaxy in halo['ObservedGalaxies']:
+                        galaxy['AbsoluteMags'] = inference.infer_galaxy_mags(galaxy['Inferred_Redshift'],
+                                                    galaxy['ApparentMags'],
+                                                    filters,limiting_mags)
+                        galaxy['StellarMass'] = inference.infer_galaxy_mass(galaxy['AbsoluteMags'])
 
-        for halo in modelled_halos.values():
-            for galaxy in halo['ObservedGalaxies']:
-                galaxy['AbsoluteMags'] = inference.infer_galaxy_mags(galaxy['Inferred_Redshift'],
-                                            galaxy['ApparentMags'],
-                                            filters,limiting_mags)
-                galaxy['StellarMass'] = inference.infer_galaxy_mass(galaxy['AbsoluteMags'])
+                    inferred_gal_masses = [galaxy['StellarMass'] for galaxy in halo['ObservedGalaxies']]
 
-            inferred_gal_masses = [galaxy['StellarMass'] for galaxy in halo['ObservedGalaxies']]
-
-            halo['TotalMass'] = inference.infer_halo_mass(inferred_gal_masses)
-            halo['Radius'] = inference.infer_halo_size(halo['TotalMass'],halo['Redshift']) 
+                    halo['TotalMass'] = inference.infer_halo_mass(inferred_gal_masses)
+                    halo['Radius'] = inference.infer_halo_size(halo['TotalMass'],halo['Redshift']) 
 
         self.halo_inference_params = inference.halo_inference_params
 
