@@ -1006,7 +1006,7 @@ class Sightline():
         for i in range(num_sub_sightlines):
             if source_halos[i] != [None]:
                 for halo in source_halos[i]:
-                    halos_traversed[halo['ID']] = halo.copy()
+                    halos_traversed[halo['ID']] = deepcopy(halo)
                     halos_traversed[halo['ID']].pop('ID', None)
                     halos_traversed[halo['ID']]['Subsightline'] = i
                     if with_compute:
