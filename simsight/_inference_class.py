@@ -145,23 +145,21 @@ class Inference:
             z_phots = z_true
 
         if method == 'simple_phot':
+            
+            from scipy.stats import truncnorm
+
             sigma            = 0.028
             outlier_scale    = 0.3
             outlier_fraction = 0.1
 
             z_true_array = np.atleast_1d(z_true)
+            is_outlier   = rng.random(len(z_true_array)) < outlier_fraction
 
-            # decide per galaxy whether it's an outlier
-            is_outlier = rng.random(len(z_true_array)) < outlier_fraction
-
-            # draw dz from the appropriate Gaussian
-            sig = np.where(is_outlier,
-                        outlier_scale * (1 + z_true_array),
-                        sigma         * (1 + z_true_array))
-
-            dz     = rng.normal(0, sig)
-            z_phots = z_true_array + dz
-            z_phots = np.clip(z_phots, 0, None)   # no negative redshifts
+            z_phots = np.zeros(len(z_true_array))
+            for i, z in enumerate(z_true_array):
+                sig = (outlier_scale if is_outlier[i] else sigma) * (1 + z)
+                a   = (0 - z) / sig   # lower truncation bound
+                z_phots[i] = truncnorm.rvs(a, np.inf, loc=z, scale=sig, random_state=rng)
 
             # # build PDFs for plotting/return consistency
             # pdfs = np.array([
