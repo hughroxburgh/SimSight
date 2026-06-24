@@ -1116,7 +1116,7 @@ class Sightline():
                     if galaxy['Visible'] >= 0:
                         galdict = {}
         
-                        halo_id = f'{halo['ID']}_{halo['Subsightline']}_{i}'
+                        halo_id = f"{halo['ID']}_{halo['Subsightline']}_{i}"
                         galdict['ID'] = halo_id
 
                         if 'Inferred_Redshift' not in galaxy.keys():
