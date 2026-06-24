@@ -568,6 +568,9 @@ class SightlineSim():
             # -- Compute function for each sightline -- #
             self._snapshot_compute_sightlines(sightlines,data,func,
                                               snap,parallel_compute)
+            
+            if delete_data:
+                del(data)
 
             # -- Find halos in sightlines -- #
             if find_halos:
@@ -581,9 +584,6 @@ class SightlineSim():
             # -- Save sightlines -- #
             if save_path is not None:
                 self.save_sightlines(sightlines,save_path)
-
-            if delete_data:
-                del(data)
 
         if delete_data:
             return sightlines
