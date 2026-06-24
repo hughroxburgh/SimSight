@@ -41,8 +41,10 @@ class FZBoostPredictor:
         self.models.estimators_ = estimators
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path=None):
         """Load a pre-saved FZBoostPredictor from a pickle file."""
+        if path is None:
+            path = os.path.join(os.path.dirname(__file__), 'data', 'fzboost_predictor.pkl')
         with open(path, 'rb') as f:
             return pickle.load(f)
 
