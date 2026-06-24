@@ -10,6 +10,7 @@ from scipy.ndimage import gaussian_filter1d
 from scipy.stats import norm
 
 from ._compute import Transform_Points
+from ._photz import FZBoostPredictor
 
 def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,smoothing_scale=1000):
     """
@@ -80,49 +81,6 @@ def Photometric_Redshifts(z_true,method,mags=None):
            +      outlier_fraction * norm.pdf(z_grid, z_true, sig_outlier))
 
         pdf /= np.trapz(pdf, z_grid)
-
-
-class FlexZBoost_Predictor():
-
-    def __init__(self):
-        
-        _PACKAGE_DIR = os.path.dirname(__file__)
-        _PREDICTOR_PATH = os.path.join(_PACKAGE_DIR, 'data', 'fzboost_predictor.pkl')
-        with open(_PREDICTOR_PATH, 'rb') as f:
-            self.predictor = pickle.load(f)
-
-    def make_color_data(self,mags, mag_errs, 
-                    bands    = ['g_gaap1p0Mag', 'r_gaap1p0Mag', 'i_gaap1p0Mag', 'z_gaap1p0Mag'],
-                    err_bands= ['g_gaap1p0MagErr', 'r_gaap1p0MagErr', 'i_gaap1p0MagErr', 'z_gaap1p0MagErr'],
-                    ref_band = 'i_gaap1p0Mag'):
-        """
-        mags     : dict or DataFrame with band keys
-        mag_errs : dict or DataFrame with err_band keys
-        """
-
-        if not isinstance(mags, dict):
-            mags     = {b: mags[:, i]     for i, b in enumerate(bands)}
-            mag_errs = {b: mag_errs[:, i] for i, b in enumerate(err_bands)}
-
-        # ref band magnitude
-        input_data = mags[ref_band]
-
-        # colours and colour errors
-        for i in range(len(bands) - 1):
-            color    = mags[bands[i]] - mags[bands[i+1]]
-            colorerr = np.sqrt(mag_errs[err_bands[i]]**2 + mag_errs[err_bands[i+1]]**2)
-            input_data = np.vstack((input_data, color, colorerr))
-
-        return input_data.T
-    
-    def predict(self,mags,mag_errs):
-
-        color_data = self.make_color_data(mags, mag_errs)
-        pdfs, z_grid = self.predictor.predict(color_data, n_grid=301)
-        z_phots = z_grid.flatten()[np.argmax(pdfs, axis=1)]
-
-        return z_phots
-
 
 
 class Inference:
@@ -214,8 +172,8 @@ class Inference:
             assert mags is not None and mag_errs is not None, \
                 "mags and mag_errs required for flexzboost"
 
-            fzb = FlexZBoost_Predictor()
-            z_phots = fzb.predict(mags,mag_errs)
+            fzb = FZBoostPredictor.load('simsight/data/fzboost_predictor.pkl')
+            z_phots, pdfs, z_grid = fzb.predict(mags, mag_errs)
 
         # if plot:
         #     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
