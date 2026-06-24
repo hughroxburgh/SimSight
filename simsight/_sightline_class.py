@@ -1129,7 +1129,7 @@ class Sightline():
                         redshift = galaxy['Inferred_Redshift']
                         distance = np.float32(inference.sim.cosmo.comoving_distance(redshift).value*1000)
 
-                        if distance > self.length:
+                        if distance >= self.length:
                             continue
 
                         idx = np.where(distance>subsightline_starts)[0][-1] 
