@@ -32,9 +32,12 @@ setup(
     author_email=EMAIL,
     author=AUTHOR,
     license='MIT',
-    packages=find_packages(),#['tessellate'],
+    packages=find_packages(),
     install_requires=REQUIRED,
-    include_package_data=True
+    include_package_data=True,
+    package_data={
+        'simsight': ['data/*'],
+    },
 )
 
 

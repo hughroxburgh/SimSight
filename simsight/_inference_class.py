@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import os
+import pickle
 
 from scipy import integrate
 import astropy.units as u
@@ -80,7 +82,46 @@ def Photometric_Redshifts(z_true,method,mags=None):
         pdf /= np.trapz(pdf, z_grid)
 
 
+class FlexZBoost_Predictor():
 
+    def __init__(self):
+        
+        _PACKAGE_DIR = os.path.dirname(__file__)
+        _PREDICTOR_PATH = os.path.join(_PACKAGE_DIR, 'data', 'fzboost_predictor.pkl')
+        with open(_PREDICTOR_PATH, 'rb') as f:
+            self.predictor = pickle.load(f)
+
+    def make_color_data(self,mags, mag_errs, 
+                    bands    = ['g_gaap1p0Mag', 'r_gaap1p0Mag', 'i_gaap1p0Mag', 'z_gaap1p0Mag'],
+                    err_bands= ['g_gaap1p0MagErr', 'r_gaap1p0MagErr', 'i_gaap1p0MagErr', 'z_gaap1p0MagErr'],
+                    ref_band = 'i_gaap1p0Mag'):
+        """
+        mags     : dict or DataFrame with band keys
+        mag_errs : dict or DataFrame with err_band keys
+        """
+
+        if not isinstance(mags, dict):
+            mags     = {b: mags[:, i]     for i, b in enumerate(bands)}
+            mag_errs = {b: mag_errs[:, i] for i, b in enumerate(err_bands)}
+
+        # ref band magnitude
+        input_data = mags[ref_band]
+
+        # colours and colour errors
+        for i in range(len(bands) - 1):
+            color    = mags[bands[i]] - mags[bands[i+1]]
+            colorerr = np.sqrt(mag_errs[err_bands[i]]**2 + mag_errs[err_bands[i+1]]**2)
+            input_data = np.vstack((input_data, color, colorerr))
+
+        return input_data.T
+    
+    def predict(self,mags,mag_errs):
+
+        color_data = self.make_color_data(mags, mag_errs)
+        pdfs, z_grid = self.predictor.predict(color_data, n_grid=301)
+        z_phots = z_grid.flatten()[np.argmax(pdfs, axis=1)]
+
+        return z_phots
 
 
 
@@ -172,72 +213,9 @@ class Inference:
         elif method == 'flexzboost':
             assert mags is not None and mag_errs is not None, \
                 "mags and mag_errs required for flexzboost"
-            assert model_dir is not None, \
-                "model_dir required for flexzboost"
 
-            import glob
-            import yaml
-            from rail.core.data import DataStore, TableHandle
-            from rail.estimation.algos.flexzboost import FlexZBoostEstimator
-
-            # -- Load config and model from directory -- #
-            config_path = glob.glob(f"{model_dir}/*config*.yml")[0]
-            model_path  = glob.glob(f"{model_dir}/*.pkl")[0]
-
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-
-            # Pull the FlexZBoost block — key may vary
-            fzb_config = config.get('inform_fzboost', list(config.values())[0])
-
-            mag_cols = fzb_config['bands']
-            err_cols = fzb_config['err_bands']
-            ref_band = fzb_config['ref_band']
-            mag_limits = fzb_config['mag_limits']
-            nondetect_val = fzb_config.get('nondetect_val', np.nan)
-            zmin     = fzb_config.get('zmin', 0.0)
-            zmax     = fzb_config.get('zmax', 3.0) if zmax is None else zmax
-            nzbins   = fzb_config.get('nzbins', 301)
-
-            if np.isnan(nondetect_val) if not isinstance(nondetect_val, float) \
-                    else nondetect_val != nondetect_val:
-                nondetect_val = np.nan
-
-            # -- Build input dataframe -- #
-            mags     = np.atleast_2d(mags)
-            mag_errs = np.atleast_2d(mag_errs)
-
-            df = pd.DataFrame(mags,     columns=mag_cols)
-            df[err_cols] = mag_errs
-
-            DS = DataStore()
-            DS.__class__.allow_overwrite = True
-            DS.clear()
-            handle = DS.add_data('galaxies', df, TableHandle)
-
-            # -- Run estimator -- #
-            estimator = FlexZBoostEstimator.make_stage(
-                name            = 'fzboost',
-                model           = model_path,
-                hdf5_groupname  = '',
-                bands           = mag_cols,
-                err_bands       = err_cols,
-                ref_band        = ref_band,
-                nondetect_val   = nondetect_val,
-                include_mag_err = True,
-                mag_limits      = mag_limits,
-                zmin            = zmin,
-                zmax            = zmax,
-                nzbins          = nzbins,
-                chunk_size      = 10000,
-            )
-
-            results  = estimator.estimate(handle)
-            ensemble = results.data
-
-            z_grid = np.linspace(zmin, zmax, nzbins)
-            pdfs   = ensemble.pdf(z_grid)
-            z_phots = ensemble.mode(grid=z_grid).flatten()
+            fzb = FlexZBoost_Predictor()
+            z_phots = fzb.predict(mags,mag_errs)
 
         # if plot:
         #     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
