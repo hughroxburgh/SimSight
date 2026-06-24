@@ -145,7 +145,7 @@ class Inference:
             z_phots = z_true
 
         if method == 'simple_phot':
-            
+
             from scipy.stats import truncnorm
 
             sigma            = 0.028
@@ -255,7 +255,7 @@ class Inference:
         return z_phots #, pdfs, z_grid
 
 
-    def process_redshifts(self, sightlines, filters=None):
+    def process_redshifts(self, sightlines, filters=None,model_dir=None):
 
         method = self.halo_inference_params['Redshift_Mode']
 
@@ -294,7 +294,7 @@ class Inference:
             ])
             mag_errs    = np.ones_like(mags) * 0.05   # temporary
 
-            phot_zs = self.infer_redshift(mags=mags, mag_errs=mag_errs)
+            phot_zs = self.infer_redshift(mags=mags, mag_errs=mag_errs,model_dir=model_dir)
 
             for (halo, j), z in zip(galaxy_refs, phot_zs):
                 halo['ObservedGalaxies'][j]['Inferred_Redshift'] = z
