@@ -1116,6 +1116,9 @@ class Sightline():
                     if galaxy['Visible'] >= 0:
                         galdict = {}
         
+                        halo_id = f'{halo['ID']}_{halo['Subsightline']}_{i}'
+                        galdict['ID'] = halo_id
+
                         if 'Inferred_Redshift' not in galaxy.keys():
                             galaxy['Inferred_Redshift'] = inference.infer_redshift(halo['Redshift'])
 
@@ -1144,8 +1147,6 @@ class Sightline():
                         galdict['ImpactParam'] = np.sqrt(x_basis**2 + y_basis**2)
 
                         galdict['ObservedGalaxies'] = [galaxy]
-
-                        galdict['_true_idx'] = (halo['Subsightline'],i)
 
                         if self.sub_HalosInferred[idx] == [None]:
                             self.sub_HalosInferred[idx] = [galdict]
