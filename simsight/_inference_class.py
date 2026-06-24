@@ -172,7 +172,7 @@ class Inference:
             assert mags is not None and mag_errs is not None, \
                 "mags and mag_errs required for flexzboost"
 
-            fzb = FZBoostPredictor.load('simsight/data/fzboost_predictor.pkl')
+            fzb = FZBoostPredictor.load()
             z_phots, pdfs, z_grid = fzb.predict(mags, mag_errs)
 
         # if plot:
