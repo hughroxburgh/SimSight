@@ -428,7 +428,7 @@ class Sightline():
 
         # -- Make save path if needed -- #
         if not os.path.exists(save_path):
-            os.mkdir(save_path)
+            os.makedirs(save_path, exist_ok=True)
 
         # -- Generate save file name -- #
         snapshot_reached = self.sub_Snapshots[self.subsightline_reached()-1]
@@ -495,7 +495,7 @@ class Sightline():
 
         # -- Make save path if needed -- #
         if not os.path.exists(save_path):
-            os.mkdir(save_path)
+            os.makedirs(save_path, exist_ok=True)
 
         save_name = f'sightline_{self.sightline_idx}_PointsIdx.npy'
 
