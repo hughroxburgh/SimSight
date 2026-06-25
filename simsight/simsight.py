@@ -428,6 +428,8 @@ class SightlineSim():
             if announce:
                 print('\n', flush=True)
 
+            del(halos,radii,com,tree)
+
             
     def run_single_sightline(self,redshift,origin=None,direction_vector=None,functype='DM',
                              delete_data=True,save_path=None,plot_sightline=False):

@@ -6,6 +6,8 @@ from time import time as clock
 from pathlib import Path
 from copy import deepcopy
 from glob import glob
+from joblib import Parallel, delayed
+import multiprocessing
 
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
@@ -196,20 +198,40 @@ class SIMBA_SightlineSim():
             self._load_particle_ids(snap_num,stars=cache_stars_particles,gas=cache_stars_particles)
 
         if return_dict:
-            n = len(sim.halos)
-            halos = []
-            for i in _Smart_Tqdm(range(n),desc=f'    generating snap {snap_num} halos dict'):
+
+            def _build_halo_dict(i, sim):
                 halo = sim.halos[i]
-                halos.append({
+                return {
                     'ID': i,
-                    'Pos' : halo.minpotpos.value.astype(np.float32),
-                            'Radius' : halo.virial_quantities['r200c'].value.astype(np.float32),
-                            'TotalMass' : halo.virial_quantities['m200c'].value.astype(np.float32),
-                            'GasMass' : halo.masses['gas'].value.item(),
-                            'StellarMass' : halo.masses['stellar'].value.item(),
-                            'NumStars' : halo.nstar
-                            # 'GalaxyIDs' : halo.galaxy_index_list
-                })
+                    'Pos':         halo.minpotpos.value.astype(np.float32),
+                    'Radius':      halo.virial_quantities['r200c'].value.astype(np.float32),
+                    'TotalMass':   halo.virial_quantities['m200c'].value.astype(np.float32),
+                    'GasMass':     halo.masses['gas'].value.item(),
+                    'StellarMass': halo.masses['stellar'].value.item(),
+                    'NumStars':    halo.nstar,
+                }
+
+            n = len(sim.halos)
+            halos = Parallel(n_jobs=int(multiprocessing.cpu_count()), backend='threading')(
+                delayed(_build_halo_dict)(i, sim)
+                for i in _Smart_Tqdm(range(n), desc=f'    generating snap {snap_num} halos dict')
+            )
+
+
+            # n = len(sim.halos)
+            # halos = []
+            # for i in _Smart_Tqdm(range(n),desc=f'    generating snap {snap_num} halos dict'):
+            #     halo = sim.halos[i]
+            #     halos.append({
+            #         'ID': i,
+            #         'Pos' : halo.minpotpos.value.astype(np.float32),
+            #                 'Radius' : halo.virial_quantities['r200c'].value.astype(np.float32),
+            #                 'TotalMass' : halo.virial_quantities['m200c'].value.astype(np.float32),
+            #                 'GasMass' : halo.masses['gas'].value.item(),
+            #                 'StellarMass' : halo.masses['stellar'].value.item(),
+            #                 'NumStars' : halo.nstar
+            #                 # 'GalaxyIDs' : halo.galaxy_index_list
+            #     })
 
             if verbose:
                 _Progress_Print(msg, ts)
