@@ -166,7 +166,7 @@ class SIMBA_SightlineSim():
     
     def _load_particle_ids(self,snap_num,stars=True,gas=True):
 
-        msg = 'Loading particle ID cache'
+        msg = '    loading particle ID cache'
         print(msg, end='\r')
         ts = clock()
 

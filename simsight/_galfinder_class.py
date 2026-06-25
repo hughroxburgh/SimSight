@@ -58,9 +58,11 @@ class GalaxyFinder():
                                 cache_gas_particles=self.gas is not False)
 
         if self.stars is not False:
+            print('yuh')
             self.stars = self.sim.load_data('stars', ['Coordinates', 'Masses','Metallicity','StellarFormationTime'], 
                                             self.sim._get_snap_num(self.snapshot)) if self.stars is None else self.stars
-            
+            print('bruh')
+
             z_form = (1.0 / self.stars['StellarFormationTime']) - 1.0
             t_snap = self.sim.cosmo.age(self.sim.redshifts[self.snapshot]).to(u.Gyr).value
             t_form = self.sim.cosmo.age(z_form).to(u.Gyr).value
@@ -71,6 +73,7 @@ class GalaxyFinder():
                 self.stars['ParticleIDs'] = self.sim._halo_cache['star_ids']
 
         if self.gas is not False:
+            print('helkl yeah')
             self.gas = self.sim.load_data('gas', ['Coordinates', 'Masses'], self.sim._get_snap_num(self.snapshot)) if self.gas is None else self.gas
             if 'ParticleIDs' not in self.gas:
                 self.gas['ParticleIDs'] = self.sim._halo_cache['gas_ids']
