@@ -199,15 +199,14 @@ class SIMBA_SightlineSim():
 
         if return_dict:
 
-            n       = halos_full['count']
-            pos     = (halos_full['GroupPos'].astype(np.float32)            / self.hub)
-            r200c   = (halos_full['Group_R_Crit200'].astype(np.float32)     / self.hub)
-            m200c   = (halos_full['Group_M_Crit200'].astype(np.float32)     * 1e10 / self.hub)
-            gas     = (halos_full['GroupMassType'][:, 0].astype(np.float32) * 1e10 / self.hub)
-            stellar = (halos_full['GroupMassType'][:, 4].astype(np.float32) * 1e10 / self.hub)
-            nstar   = halos_full['GroupLenType'][:, 4]
+            n = len(sim.halos)
 
-            del halos_full
+            pos      = np.array(sim._halo_data['minpotpos'][:],                        dtype=np.float32)
+            nstar    = np.array(sim._halo_data['nstar'][:],                             dtype=np.int32)
+            r200c    = np.array(sim._halo_dicts['virial_quantities']['r200c'][:],       dtype=np.float32)
+            m200c    = np.array(sim._halo_dicts['virial_quantities']['m200c'][:],       dtype=np.float32)
+            gas_mass = np.array(sim._halo_dicts['masses']['gas'][:],                    dtype=np.float32)
+            stellar  = np.array(sim._halo_dicts['masses']['stellar'][:],                dtype=np.float32)
 
             halos = [
                 {
@@ -215,14 +214,14 @@ class SIMBA_SightlineSim():
                     'Pos':         pos[i],
                     'Radius':      r200c[i],
                     'TotalMass':   m200c[i],
-                    'GasMass':     gas[i],
+                    'GasMass':     gas_mass[i],
                     'StellarMass': stellar[i],
                     'NumStars':    nstar[i],
                 }
                 for i in _Smart_Tqdm(range(n), desc=f'    generating snap {snap_num} halos dict')
             ]
 
-            del pos, r200c, m200c, gas, stellar, nstar
+            del pos, nstar, r200c, m200c, gas_mass, stellar
 
             if verbose:
                 _Progress_Print(msg, ts)

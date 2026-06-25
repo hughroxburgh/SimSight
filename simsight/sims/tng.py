@@ -238,20 +238,31 @@ class TNG_SightlineSim():
             self._load_particle_ids(snap_num,stars=cache_stars_particles,gas=cache_stars_particles)
 
         if return_dict:
-            n = halos_full['count']
-            halos = []
-            for i in _Smart_Tqdm(range(n),desc=f'    generating snap {snap_num} halos dict'):
-                halos.append({
-                    'ID': i,
-                    'Pos': halos_full['GroupPos'][i].astype(np.float32) / self.hub,
-                    'Radius': halos_full['Group_R_Crit200'][i].astype(np.float32) / self.hub,
-                    'TotalMass': halos_full['Group_M_Crit200'][i].astype(np.float32) * 1e10 / self.hub,
-                    'GasMass': halos_full['GroupMassType'][i, 0].astype(np.float32) * 1e10 / self.hub,
-                    'StellarMass': halos_full['GroupMassType'][i, 4].astype(np.float32) * 1e10 / self.hub,
-                    'NumStars': halos_full['GroupLenType'][i, 4]
-                    # 'GalaxyIDs': np.arange(halos_full['GroupFirstSub'][i],
-                    #                     halos_full['GroupFirstSub'][i] + halos_full['GroupNsubs'][i])
-                })
+
+            n       = halos_full['count']
+            pos     = (halos_full['GroupPos'].astype(np.float32)            / self.hub)
+            r200c   = (halos_full['Group_R_Crit200'].astype(np.float32)     / self.hub)
+            m200c   = (halos_full['Group_M_Crit200'].astype(np.float32)     * 1e10 / self.hub)
+            gas     = (halos_full['GroupMassType'][:, 0].astype(np.float32) * 1e10 / self.hub)
+            stellar = (halos_full['GroupMassType'][:, 4].astype(np.float32) * 1e10 / self.hub)
+            nstar   = halos_full['GroupLenType'][:, 4]
+
+            del halos_full
+
+            halos = [
+                {
+                    'ID':          i,
+                    'Pos':         pos[i],
+                    'Radius':      r200c[i],
+                    'TotalMass':   m200c[i],
+                    'GasMass':     gas[i],
+                    'StellarMass': stellar[i],
+                    'NumStars':    nstar[i],
+                }
+                for i in _Smart_Tqdm(range(n), desc=f'    generating snap {snap_num} halos dict')
+            ]
+
+            del pos, r200c, m200c, gas, stellar, nstar
 
             if verbose:
                 _Progress_Print(msg, ts)
