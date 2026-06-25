@@ -193,7 +193,9 @@ class SIMBA_SightlineSim():
                             'halos_full': sim.halos}
 
         if cache_stars_particles or cache_gas_particles:
+            print('what?')
             self._load_particle_ids(snap_num,stars=cache_stars_particles,gas=cache_stars_particles)
+            print('nah bro')
 
         if return_dict:
 

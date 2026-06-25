@@ -53,11 +53,9 @@ class GalaxyFinder():
         needs_gas = self.gas is not False and (cache is None or 'gas_ids' not in cache)
 
         if needs_reload or needs_stars or needs_gas:
-            print('nah fr')
             self.sim.load_halos(self.sim._get_snap_num(self.snapshot), return_dict=False,
                                 cache_stars_particles=self.stars is not False,
                                 cache_gas_particles=self.gas is not False)
-            print('hello?')
 
         if self.stars is not False:
             self.stars = self.sim.load_data('stars', ['Coordinates', 'Masses','Metallicity','StellarFormationTime'], 
