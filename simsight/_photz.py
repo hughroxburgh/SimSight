@@ -25,7 +25,7 @@ class FZBoostPredictor:
 
         self.best_basis     = np.array(meta['best_basis'])
         self.basis_system   = meta['basis_system']
-        self.z_min          = meta['z_min']
+        self.z_min          = 0.001
         self.z_max          = meta['z_max']
         self.bump_threshold = meta['bump_threshold']
         self.sharpen_alpha  = meta['sharpen_alpha']
