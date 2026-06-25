@@ -6,8 +6,6 @@ from time import time as clock
 from pathlib import Path
 from copy import deepcopy
 from glob import glob
-from joblib import Parallel, delayed
-import multiprocessing
 
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
@@ -199,24 +197,44 @@ class SIMBA_SightlineSim():
 
         if return_dict:
 
-            def _build_halo_dict(i, sim):
-                halo = sim.halos[i]
-                return {
-                    'ID': i,
-                    'Pos':         halo.minpotpos.value.astype(np.float32),
-                    'Radius':      halo.virial_quantities['r200c'].value.astype(np.float32),
-                    'TotalMass':   halo.virial_quantities['m200c'].value.astype(np.float32),
-                    'GasMass':     halo.masses['gas'].value.item(),
-                    'StellarMass': halo.masses['stellar'].value.item(),
-                    'NumStars':    halo.nstar,
-                }
-
             n = len(sim.halos)
-            halos = Parallel(n_jobs=int(multiprocessing.cpu_count()), backend='threading')(
-                delayed(_build_halo_dict)(i, sim)
-                for i in _Smart_Tqdm(range(n), desc=f'    generating snap {snap_num} halos dict')
-            )
 
+            # def _build_halo_dict(i, sim):
+            #     halo = sim.halos[i]
+            #     return {
+            #         'ID': i,
+            #         'Pos':         halo.minpotpos.value.astype(np.float32),
+            #         'Radius':      halo.virial_quantities['r200c'].value.astype(np.float32),
+            #         'TotalMass':   halo.virial_quantities['m200c'].value.astype(np.float32),
+            #         'GasMass':     halo.masses['gas'].value.item(),
+            #         'StellarMass': halo.masses['stellar'].value.item(),
+            #         'NumStars':    halo.nstar,
+            #     }
+
+            # halos = Parallel(n_jobs=int(multiprocessing.cpu_count()), backend='threading')(
+            #     delayed(_build_halo_dict)(i, sim)
+            #     for i in _Smart_Tqdm(range(n), desc=f'    generating snap {snap_num} halos dict')
+            # )
+
+            pos      = sim._halo_data['minpotpos'][:]
+            nstar    = sim._halo_data['nstar'][:]
+            r200c    = sim._halo_dicts['virial_quantities']['r200c'][:]          # or virial_quantities
+            m200c    = sim._halo_dicts['virial_quantities']['m200c'][:]
+            gas_mass = sim._halo_dicts['masses']['gas'][:]
+            stellar  = sim._halo_dicts['masses']['stellar'][:]
+
+            halos = [
+                {
+                    'ID':          i,
+                    'Pos':         pos[i].astype(np.float32),
+                    'Radius':      float(r200c[i]),
+                    'TotalMass':   float(m200c[i]),
+                    'GasMass':     float(gas_mass[i]),
+                    'StellarMass': float(stellar[i]),
+                    'NumStars':    int(nstar[i]),
+                }
+                for i in _Smart_Tqdm(range(n),desc=f'    generating snap {snap_num} halos dict')
+            ]
 
             # n = len(sim.halos)
             # halos = []
