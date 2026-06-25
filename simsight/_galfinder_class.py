@@ -53,15 +53,15 @@ class GalaxyFinder():
         needs_gas = self.gas is not False and (cache is None or 'gas_ids' not in cache)
 
         if needs_reload or needs_stars or needs_gas:
+            print('nah fr')
             self.sim.load_halos(self.sim._get_snap_num(self.snapshot), return_dict=False,
                                 cache_stars_particles=self.stars is not False,
                                 cache_gas_particles=self.gas is not False)
+            print('hello?')
 
         if self.stars is not False:
-            print('yuh')
             self.stars = self.sim.load_data('stars', ['Coordinates', 'Masses','Metallicity','StellarFormationTime'], 
                                             self.sim._get_snap_num(self.snapshot)) if self.stars is None else self.stars
-            print('bruh')
 
             z_form = (1.0 / self.stars['StellarFormationTime']) - 1.0
             t_snap = self.sim.cosmo.age(self.sim.redshifts[self.snapshot]).to(u.Gyr).value
@@ -73,7 +73,6 @@ class GalaxyFinder():
                 self.stars['ParticleIDs'] = self.sim._halo_cache['star_ids']
 
         if self.gas is not False:
-            print('helkl yeah')
             self.gas = self.sim.load_data('gas', ['Coordinates', 'Masses'], self.sim._get_snap_num(self.snapshot)) if self.gas is None else self.gas
             if 'ParticleIDs' not in self.gas:
                 self.gas['ParticleIDs'] = self.sim._halo_cache['gas_ids']
