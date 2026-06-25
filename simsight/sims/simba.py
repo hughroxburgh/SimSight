@@ -120,14 +120,15 @@ class SIMBA_SightlineSim():
 
         return ElectronAbundance
     
-    def load_data(self,particle_type,fields,snapNum,method=None):
+    def load_data(self,particle_type,fields,snapNum,method=None,verbose=True):
         """
         Load data.
         """
 
-        msg = f"    loading {self.name} snapshot {snapNum} data"
-        print(msg,end='\r',flush=True)
-        ts = clock()
+        if verbose:
+            msg = f"    loading {self.name} snapshot {snapNum} data"
+            print(msg,end='\r',flush=True)
+            ts = clock()
 
         fields = deepcopy(fields)
 
@@ -160,7 +161,8 @@ class SIMBA_SightlineSim():
         if 'Density' in fields:
             data['Density'] = data['Density'] * self.hub**2
 
-        _Progress_Print(msg,ts)
+        if verbose:
+            _Progress_Print(msg,ts)
 
         return data
     
@@ -174,9 +176,9 @@ class SIMBA_SightlineSim():
             self.load_halos(snap_num,return_dict=False)
 
         if stars:
-            self._halo_cache['star_ids'] = self.load_data('stars',['ParticleIDs'],snap_num)['ParticleIDs']
+            self._halo_cache['star_ids'] = self.load_data('stars',['ParticleIDs'],snap_num,verbose=False)['ParticleIDs']
         if gas:
-            self._halo_cache['gas_ids'] = self.load_data('gas',['ParticleIDs'],snap_num)['ParticleIDs']
+            self._halo_cache['gas_ids'] = self.load_data('gas',['ParticleIDs'],snap_num,verbose=False)['ParticleIDs']
 
         _Progress_Print(msg,ts)
 
@@ -193,9 +195,7 @@ class SIMBA_SightlineSim():
                             'halos_full': sim.halos}
 
         if cache_stars_particles or cache_gas_particles:
-            print('what?')
             self._load_particle_ids(snap_num,stars=cache_stars_particles,gas=cache_stars_particles)
-            print('nah bro')
 
         if return_dict:
 
