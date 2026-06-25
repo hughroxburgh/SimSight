@@ -199,57 +199,27 @@ class SIMBA_SightlineSim():
 
             n = len(sim.halos)
 
-            # def _build_halo_dict(i, sim):
-            #     halo = sim.halos[i]
-            #     return {
-            #         'ID': i,
-            #         'Pos':         halo.minpotpos.value.astype(np.float32),
-            #         'Radius':      halo.virial_quantities['r200c'].value.astype(np.float32),
-            #         'TotalMass':   halo.virial_quantities['m200c'].value.astype(np.float32),
-            #         'GasMass':     halo.masses['gas'].value.item(),
-            #         'StellarMass': halo.masses['stellar'].value.item(),
-            #         'NumStars':    halo.nstar,
-            #     }
-
-            # halos = Parallel(n_jobs=int(multiprocessing.cpu_count()), backend='threading')(
-            #     delayed(_build_halo_dict)(i, sim)
-            #     for i in _Smart_Tqdm(range(n), desc=f'    generating snap {snap_num} halos dict')
-            # )
-
-            pos      = sim._halo_data['minpotpos'][:]
-            nstar    = sim._halo_data['nstar'][:]
-            r200c    = sim._halo_dicts['virial_quantities']['r200c'][:]          # or virial_quantities
-            m200c    = sim._halo_dicts['virial_quantities']['m200c'][:]
-            gas_mass = sim._halo_dicts['masses']['gas'][:]
-            stellar  = sim._halo_dicts['masses']['stellar'][:]
+            pos      = np.array(sim._halo_data['minpotpos'][:],                        dtype=np.float32)
+            nstar    = np.array(sim._halo_data['nstar'][:],                             dtype=np.int32)
+            r200c    = np.array(sim._halo_dicts['virial_quantities']['r200c'][:],       dtype=np.float32)
+            m200c    = np.array(sim._halo_dicts['virial_quantities']['m200c'][:],       dtype=np.float32)
+            gas_mass = np.array(sim._halo_dicts['masses']['gas'][:],                    dtype=np.float32)
+            stellar  = np.array(sim._halo_dicts['masses']['stellar'][:],                dtype=np.float32)
 
             halos = [
                 {
                     'ID':          i,
-                    'Pos':         pos[i].astype(np.float32),
-                    'Radius':      float(r200c[i]),
-                    'TotalMass':   float(m200c[i]),
-                    'GasMass':     float(gas_mass[i]),
-                    'StellarMass': float(stellar[i]),
-                    'NumStars':    int(nstar[i]),
+                    'Pos':         pos[i],
+                    'Radius':      r200c[i],
+                    'TotalMass':   m200c[i],
+                    'GasMass':     gas_mass[i],
+                    'StellarMass': stellar[i],
+                    'NumStars':    nstar[i],
                 }
-                for i in _Smart_Tqdm(range(n),desc=f'    generating snap {snap_num} halos dict')
+                for i in _Smart_Tqdm(range(n), desc=f'    generating snap {snap_num} halos dict')
             ]
 
-            # n = len(sim.halos)
-            # halos = []
-            # for i in _Smart_Tqdm(range(n),desc=f'    generating snap {snap_num} halos dict'):
-            #     halo = sim.halos[i]
-            #     halos.append({
-            #         'ID': i,
-            #         'Pos' : halo.minpotpos.value.astype(np.float32),
-            #                 'Radius' : halo.virial_quantities['r200c'].value.astype(np.float32),
-            #                 'TotalMass' : halo.virial_quantities['m200c'].value.astype(np.float32),
-            #                 'GasMass' : halo.masses['gas'].value.item(),
-            #                 'StellarMass' : halo.masses['stellar'].value.item(),
-            #                 'NumStars' : halo.nstar
-            #                 # 'GalaxyIDs' : halo.galaxy_index_list
-            #     })
+            del pos, nstar, r200c, m200c, gas_mass, stellar
 
             if verbose:
                 _Progress_Print(msg, ts)
