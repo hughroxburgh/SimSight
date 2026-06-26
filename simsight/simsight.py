@@ -344,12 +344,14 @@ class SightlineSim():
             return sl
 
         if parallel:
-            sightlines = Parallel(n_jobs=self.num_cores, backend='loky')(
+            results = Parallel(n_jobs=self.num_cores, backend='loky')(
                 delayed(_reduce_one)(sl, 100, 20, save_path)
                 for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines')
             )
 
             get_reusable_executor().shutdown(wait=True)
+
+            sightlines[:] = results
 
         else:
             for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines'):
