@@ -143,6 +143,8 @@ class SightlineSim():
                 return None
             
         else:
+            print('hello?')
+            print(not _Is_Interactive())
             if not _Is_Interactive():
                 msg = f"Loading sightlines"
                 ts = clock()
@@ -159,6 +161,8 @@ class SightlineSim():
 
             if not _Is_Interactive():
                 _Progress_Print(msg,ts)
+            
+            print('what?')
 
             return sightlines
                     
