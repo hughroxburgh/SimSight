@@ -127,6 +127,12 @@ class SightlineSim():
         
         elif directory_path is not None:
             if os.path.exists(directory_path):
+                
+                if not _Is_Interactive():
+                    msg = f"Loading sightlines"
+                    ts = clock()
+                    print(msg,end='\r',flush=True)
+
                 files = sorted(glob(f'{directory_path}/*.pkl'))
                 if len(files) > 0:
                     n_files = int(percent*len(files)/100)
@@ -137,19 +143,16 @@ class SightlineSim():
                             SL = pickle.load(f)
                             SL.sightline_idx = sightline_idx
                             sightlines.append(SL)
+                    
+                    if not _Is_Interactive():
+                        _Progress_Print(msg,ts)
+                        
                     return sightlines
             else:
                 print('No sightlines saved in directory_path.',flush=True)
                 return None
             
         else:
-            print('hello?')
-            print(not _Is_Interactive())
-            if not _Is_Interactive():
-                msg = f"Loading sightlines"
-                ts = clock()
-                print(msg,end='\r',flush=True)
-
             n_files = int(percent*len(sl_files)/100)
             sightlines = []
             for file in _Smart_Tqdm(sl_files[:n_files],desc='Loading sightlines'):
@@ -158,11 +161,6 @@ class SightlineSim():
                     SL = pickle.load(f)
                     SL.sightline_idx = sightline_idx
                     sightlines.append(SL)
-
-            if not _Is_Interactive():
-                _Progress_Print(msg,ts)
-            
-            print('what?')
 
             return sightlines
                     
