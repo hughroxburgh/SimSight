@@ -35,6 +35,8 @@ class SightlineSim():
 
         # -- Select Simulation Suite -- #
         self.sim = load_sim(data_path,snap_path_structure,halo_path_structure,fsps_path)
+        print(f'Initialised {self.sim.name}',flush=True)
+        print('\n')
 
         # -- Visualiser -- #
         self.Vis = VisualSim(self.sim)
@@ -127,7 +129,7 @@ class SightlineSim():
         
         elif directory_path is not None:
             if os.path.exists(directory_path):
-                
+
                 if not _Is_Interactive():
                     msg = f"Loading sightlines"
                     ts = clock()
