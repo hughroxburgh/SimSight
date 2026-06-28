@@ -143,6 +143,11 @@ class SightlineSim():
                 return None
             
         else:
+            if not _Is_Interactive():
+                msg = f"Loading sightlines"
+                ts = clock()
+                print(msg,end='\r',flush=True)
+
             n_files = int(percent*len(sl_files)/100)
             sightlines = []
             for file in _Smart_Tqdm(sl_files[:n_files],desc='Loading sightlines'):
@@ -151,6 +156,10 @@ class SightlineSim():
                     SL = pickle.load(f)
                     SL.sightline_idx = sightline_idx
                     sightlines.append(SL)
+
+            if not _Is_Interactive():
+                _Progress_Print(msg,ts)
+
             return sightlines
                     
 
@@ -193,9 +202,12 @@ class SightlineSim():
 
                     'DM' : {'func': Calc_Ray_DM, 
                             'fields': ['Coordinates','Density','Masses','SmoothingLength','StarFormationRate','ElectronAbundance']}}
-               
+        
+        func = mapping[f]['func']
+        fields = mapping[f]['fields']
+        fields = [f for f in fields if f not in self.sim.point_find_fields]
 
-        return mapping[f]['func'], mapping[f]['fields']
+        return func,fields
 
     def _finder_architecture(self,data,findtype,percentile=99.9):
 
@@ -554,10 +566,10 @@ class SightlineSim():
             trueSnapNum = self.sim._get_snap_num(snap)
 
             # -- Load data -- #
-            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
+            point_find_data = self.sim.load_data(particle_type='gas',fields=self.sim.point_find_fields,snapNum=trueSnapNum,method=load_method)
 
             # -- Point finding architecture -- #
-            architecture, radii, coarse_radius, giant_idx, giant_pts, giant_radii = self._finder_architecture(data,findtype)
+            architecture, radii, coarse_radius, giant_idx, giant_pts, giant_radii = self._finder_architecture(point_find_data,findtype)
 
             # -- Allocate point idx to each sub sightline -- #
             self._snapshot_points_in_sightlines(sightlines,snap,architecture,radii,coarse_radius,findtype,
@@ -567,7 +579,10 @@ class SightlineSim():
                 del(architecture)
             
             if (snap == 0) & (plot_sightlines):
-                self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=data['Coordinates'],n_subsightlines=1)
+                self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=point_find_data['Coordinates'],n_subsightlines=1)
+
+            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
+            data = data | point_find_data
 
             # -- Compute function for each sightline -- #
             self._snapshot_compute_sightlines(sightlines,data,func,

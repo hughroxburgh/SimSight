@@ -15,6 +15,8 @@ class TNG_SightlineSim():
         self.cosmo = FlatLambdaCDM(H0=self.hub*100, Om0=header['Omega0'],Ob0=0.0486)
         self.box_size = header['BoxSize']/self.hub
         self.name = 'TNG'
+
+        self.point_find_fields = ['Coordinates','Density','Masses']
         self.f_igm = 0.8195   #0.85 Martizzi+2019, but not super accurate
 
         if fsps_path is None:

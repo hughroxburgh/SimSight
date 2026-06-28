@@ -24,8 +24,11 @@ class SIMBA_SightlineSim():
         self.cosmo = FlatLambdaCDM(H0=sim.simulation.hubble_constant*100, Om0=sim.simulation.omega_matter,Ob0=sim.simulation.omega_baryon)
         self.box_size = sim.simulation.boxsize.value+0
         self.name = 'SIMBA'
+
         self.kernel = 1
+        self.point_find_fields = ['Coordinates','SmoothingLength']
         self.f_igm = 0.87 # Khyrkin+2024
+        
 
         if fsps_path is None:
             self.fsps_path = '/idia/projects/simba/rhoxu/fsps'
