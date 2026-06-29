@@ -176,6 +176,8 @@ class VisualSim():
     
     def distribution(self,sightlines,functype='DM',cutoff=98,bins=100,redshift=None,xlims=None,gif_path=None,environment='Total',data='truth'):
 
+        colours = {'Total':_Get_Colours(3,self.dark_mode)[0],'CGM':_Get_Colours(3,self.dark_mode)[1],'IGM':_Get_Colours(3,self.dark_mode)[2]}
+
         max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment=environment,modelled= 'model' in data )
         redshift_input = np.atleast_1d(redshift if redshift is not None else max_redshift)
         redshifts = [z for z in redshift_input if z <= max_redshift]
@@ -206,7 +208,7 @@ class VisualSim():
                 for j in range(len(all_vals)):
                     vs = all_vals[j][:,i]
                     maxval = np.percentile(vs, cutoff)
-                    ax.hist(vs[vs<maxval],bins=bins,density=True,label=data_source[j],color='dodgerblue')
+                    ax.hist(vs[vs<maxval],bins=bins,density=True,label=data_source[j],color=colours[environment])
                     
                 ax.legend()
 

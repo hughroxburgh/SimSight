@@ -36,8 +36,7 @@ class SightlineSim():
         # -- Select Simulation Suite -- #
         self.sim = load_sim(data_path,snap_path_structure,halo_path_structure,fsps_path)
         print(f'Initialised {self.sim.name}',flush=True)
-        print('\n')
-
+        
         # -- Visualiser -- #
         self.Vis = VisualSim(self.sim)
 
