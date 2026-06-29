@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-plt.rc('text',family='serif')
+plt.rc('font',family='serif')
 
 from matplotlib.lines import Line2D
 import matplotlib.colors as mcolors
