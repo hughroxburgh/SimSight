@@ -929,12 +929,12 @@ class Sightline():
 
         return num_sub_sightlines
 
-    def redshift_reached(self,cosmo,environment='total',observed=False,modelled=False):
+    def redshift_reached(self,cosmo,environment='Total',observed=False,modelled=False):
         """
         Determine maximum redshift reached in computation.
         """
 
-        if environment == 'total':
+        if environment == 'Total':
             halos = False
         else:
             halos = True
@@ -945,19 +945,19 @@ class Sightline():
 
         return z_at_value(cosmo.comoving_distance, full_grid*u.kpc).value if full_grid > 0. else 0.
 
-    def extract_compute(self, cosmo, redshift=None, environment='total',modelled=False):
+    def extract_compute(self, cosmo, redshift=None, environment='Total',modelled=False):
         """
         Extract cumulutive computed results as a function of redshift and environment.
         """
 
-        if (environment != 'total') & (self.sub_CellConditions is None):
+        if (environment != 'Total') & (self.sub_CellConditions is None):
             e = 'Cell partitioning to igm / cgm not complete yet! Call "self.assign_to_halos()"'
             raise ValueError(e)
 
-        condition_map = {'total': [0, 1], 'igm': [0], 'cgm': [1]}
+        condition_map = {'Total': [0, 1], 'IGM': [0], 'CGM': [1]}
         good_conditions = condition_map[environment]
 
-        if environment == 'total':
+        if environment == 'Total':
             halos = False
         else:
             halos = True
@@ -971,7 +971,7 @@ class Sightline():
 
         full_grid  = np.cumsum(np.concatenate(grid[sls]))
         full_compute    = np.concatenate(compute[sls])
-        cell_conditions = np.concatenate(conditions[sls]) if environment != 'total' else np.zeros(len(full_compute))
+        cell_conditions = np.concatenate(conditions[sls]) if environment != 'Total' else np.zeros(len(full_compute))
         
         if redshift is None:
             redshift = self.redshift_reached(cosmo,environment,modelled=modelled)

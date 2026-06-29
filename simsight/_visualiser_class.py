@@ -1,5 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+
+plt.rc('text',family='serif')
+
 from matplotlib.lines import Line2D
 import matplotlib.colors as mcolors
 from contextlib import contextmanager
@@ -36,7 +39,7 @@ class VisualSim():
         with self._style():
             # fig, ax = plt.subplots()
 
-            self.fig = plt.figure(figsize=(10,10),facecolor=self._bkgcolour,edgecolor=self._framecolour)
+            self.fig = plt.figure(figsize=(10,10))
             self.ax = self.fig.add_subplot(projection='3d')
             self.ax.set_xlim3d(0,self.sim.box_size)
             self.ax.set_ylim3d(0,self.sim.box_size)
@@ -73,9 +76,9 @@ class VisualSim():
                 ray = sightline.gen_line(subsightline=i)
                 if colour is not None:
                     if i == 0:
-                        self.ax.scatter(origin[0],origin[1],origin[2],s=10,facecolor=cmap[i],edgecolor='black')
+                        self.ax.scatter(origin[0],origin[1],origin[2],s=10,facecolor=cmap[i],edgecolor='black' if not self.dark_mode else 'white')
                 else:
-                    self.ax.scatter(origin[0],origin[1],origin[2],s=10,facecolor=cmap[i],edgecolor='black')
+                    self.ax.scatter(origin[0],origin[1],origin[2],s=10,facecolor=cmap[i],edgecolor='black' if not self.dark_mode else 'white')
                 self.ax.plot(ray[:,0],ray[:,1],ray[:,2],color=cmap[i])
 
         if halos:
@@ -105,7 +108,7 @@ class VisualSim():
 
     # ------------- Data results visualisation ------------- #
 
-    def fullsky_image(self,sightlines,functype='DM',cmap=None,colour='dodgerblue',cutoff=99.5,redshift=None,gif_path=None,environment='total',modelled=False):
+    def fullsky_image(self,sightlines,functype='DM',cmap=None,colour='dodgerblue',cutoff=99.5,redshift=None,gif_path=None,environment='Total',modelled=False):
 
         import healpy as hp
 
@@ -123,7 +126,7 @@ class VisualSim():
             redshifts.append(max_redshift)
 
         data_source = 'truth' if not modelled else 'modelled'
-        vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source} {environment} compute')])
+        vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} {environment} compute')])
         # if vals.ndim == 1:
         #     vals = vals[:, np.newaxis]
             
@@ -170,7 +173,7 @@ class VisualSim():
 
 
     
-    def distribution(self,sightlines,functype='DM',cutoff=98,bins=100,redshift=None,xlims=None,gif_path=None,environment='total',data='truth'):
+    def distribution(self,sightlines,functype='DM',cutoff=98,bins=100,redshift=None,xlims=None,gif_path=None,environment='Total',data='truth'):
 
 
         max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment=environment,modelled= 'model' in data )
@@ -182,11 +185,11 @@ class VisualSim():
         all_vals = []
         data_source = []
         if 'truth' in data:
-            vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled=False) for sl in tqdm(sightlines,desc=f'Getting truth {environment} compute')])
+            vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled=False) for sl in tqdm(sightlines,desc=f'Getting Truth {environment} Compute')])
             all_vals.append(vals)
             data_source.append('Truth')
         if 'model' in data:
-            vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled=True) for sl in tqdm(sightlines,desc=f'Getting modelled {environment} compute')])
+            vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled=True) for sl in tqdm(sightlines,desc=f'Getting Modelled {environment} Compute')])
             all_vals.append(vals)
             data_source.append('Model')
         
@@ -203,7 +206,7 @@ class VisualSim():
                 for j in range(len(all_vals)):
                     vs = all_vals[j][:,i]
                     maxval = np.percentile(vs, cutoff)
-                    ax.hist(vs[vs<maxval],bins=bins,density=True,label=data_source[j])
+                    ax.hist(vs[vs<maxval],bins=bins,density=True,label=data_source[j],color='dodgerblue')
                     
                 ax.legend()
 
@@ -227,12 +230,12 @@ class VisualSim():
             # duration=1000 * 1/fps
             imageio.mimsave(f'{gif_path}/{functype}_distribution.gif', frames, duration=5000/len(frames))
 
-    def cumulutive_stats(self,sightlines,stat='mean',functype='DM',bins=10,redshift=None,yscale='linear',environment='total',data='truth'):
+    def cumulutive_stats(self,sightlines,stat='mean',functype='DM',bins=10,redshift=None,yscale='linear',environment='Total',data='truth'):
 
-        colours = {'total':'dodgerblue','cgm':'indianred','igm':'mediumseagreen'}
+        colours = {'Total':'dodgerblue','CGM':'indianred','IGM':'mediumseagreen'}
         if environment == 'separate':
-            environments = ['total','cgm','igm']
-            check_env = 'cgm'
+            environments = ['Total','CGM','IGM']
+            check_env = 'CGM'
         else:
             environments = [environment]
             check_env = environment
@@ -261,7 +264,7 @@ class VisualSim():
                 redshifts = np.linspace(0,redshift,bins)
                 
                 for env in environments:
-                    vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=False) for sl in tqdm(sightlines,desc=f'Getting truth {env} compute')])
+                    vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=False) for sl in tqdm(sightlines,desc=f'Getting Truth {env} Compute')])
 
                     func = stat_map[stat]['func']
 
@@ -269,14 +272,14 @@ class VisualSim():
 
                     ax.plot(redshifts,stats,'x-',color=colours[env])
 
-                legend_handles.append(Line2D([0], [0], color='black', linestyle='-',  label='Truth'))
+                legend_handles.append(Line2D([0], [0], color='black' if not self.dark_mode else 'white', linestyle='-',  label='Truth'))
             
             if modelled:
                 redshift = np.nanmin([sightlines[0].redshift_reached(self.sim.cosmo, environment=check_env,modelled=True), np.nan if redshift is None else redshift])
                 redshifts = np.linspace(0,redshift,bins)
                 
                 for env in environments:
-                    vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=True) for sl in tqdm(sightlines,desc=f'Getting modelled {env} compute')])
+                    vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=True) for sl in tqdm(sightlines,desc=f'Getting Mdelled {env} Compute')])
 
                     func = stat_map[stat]['func']
 
@@ -284,22 +287,24 @@ class VisualSim():
 
                     ax.plot(redshifts,stats,'x--',color=colours[env])
 
-                legend_handles.append(Line2D([0], [0], color='black', linestyle='--', label='Model'))
+                legend_handles.append(Line2D([0], [0], color='black' if not self.dark_mode else 'white', linestyle='--', label='Model'))
 
             ax.legend(handles=legend_handles)
 
     
     def halo_partition(self,sightlines,functype='DM',cutoff=98,redshift=None,plottype='hist',gif_path=None,modelled=False):
 
-        max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment='igm',modelled=modelled)
+        max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment='IGM',modelled=modelled)
         redshift_input = np.atleast_1d(redshift if redshift is not None else max_redshift)
         redshifts = [z for z in redshift_input if z <= max_redshift]
         if max(redshift_input) > max_redshift:
             redshifts.append(max_redshift)
 
+        colours = {'CGM':'indianred','IGM':'mediumseagreen'}
+
         data_source = 'truth' if not modelled else 'modelled'
-        dms_cgm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='cgm',modelled=modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source} CGM compute')])
-        dms_igm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='igm',modelled=modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source} IGM compute')])
+        dms_cgm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='CGM',modelled=modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} CGM compute')])
+        dms_igm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='IGM',modelled=modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} IGM compute')])
 
         order = np.argsort(dms_cgm[:, -1]+dms_igm[:, -1])
 
@@ -319,8 +324,8 @@ class VisualSim():
                     x = np.arange(len(dm_tot))
 
                     fig, ax = plt.subplots()
-                    ax.fill_between(x, 0, dm_igm[order], label='IGM')
-                    ax.fill_between(x, dm_igm[order], dm_igm[order] + dm_cgm[order], label='CGM')
+                    ax.fill_between(x, 0, dm_igm[order], label='IGM',color=colours['IGM'])
+                    ax.fill_between(x, dm_igm[order], dm_igm[order] + dm_cgm[order], label='CGM',color=colours['CGM'])
 
                     ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
                     ax.set_xlabel('Sightlines')
@@ -333,8 +338,8 @@ class VisualSim():
                     frac_igm = dm_igm / dm_tot
 
                     fig, ax = plt.subplots()
-                    ax.scatter(dm_tot, frac_igm, s=10, alpha=0.6, label='IGM fraction')
-                    ax.scatter(dm_tot, frac_cgm, s=10, alpha=0.6, label='CGM fraction')
+                    ax.scatter(dm_tot, frac_igm, s=10, alpha=0.6, label='IGM fraction',c=colours['IGM'])
+                    ax.scatter(dm_tot, frac_cgm, s=10, alpha=0.6, label='CGM fraction',c=colours['CGM'])
 
                     ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
                     ax.set_xlabel(f'Total {functype}')
