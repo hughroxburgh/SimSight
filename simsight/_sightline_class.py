@@ -1249,11 +1249,26 @@ class Sightline():
             self.modelled.sub_CellConditions[i] = conditions
             self.modelled.sub_HaloAssignment[i] = assign
 
-    def filter(self,redshift=None,observed=None,direction_vector=None,
-               min_halo_mass=None,max_halo_mass=None,min_halo_ip=None,max_halo_ip=None,min_num_halos=None,max_num_halos=None,
-               ):
+    def filter(self,redshift=None,observed=False,inferred=False,direction_vector=None,
+               min_halo_mass=0,max_halo_mass=1e20,min_halo_ip=0,max_halo_ip=1,min_num_halos=0,max_num_halos=10000):
         
         check = True
 
-        if direction_vector is not None:
-            X = 5
+        if redshift is None:
+            redshift = self.target_redshift
+        
+        halos = self.halo_info(observed=observed,inferred=inferred)
+
+        if len(halos) < min_num_halos or len(halos) > max_num_halos:
+            return False
+
+        for halo in halos.values():
+            if halo['Redshift'] < redshift:
+                if (halo['TotalMass'] < min_halo_mass) or (halo['TotalMass'] > max_halo_mass) or \
+                (halo['ImpactParam']/halo['Radius'] < min_halo_ip) or (halo['TotalMass']/halo['Radius'] > max_halo_ip):
+                    check = False
+                    break
+
+        return check
+
+
