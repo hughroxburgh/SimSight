@@ -1244,6 +1244,11 @@ class Sightline():
             self.modelled.sub_CellConditions[i] = conditions
             self.modelled.sub_HaloAssignment[i] = assign
 
-    def filter(self,redshift=None,observed=None,
+    def filter(self,redshift=None,observed=None,direction_vector=None,
                min_halo_mass=None,max_halo_mass=None,min_halo_ip=None,max_halo_ip=None,min_num_halos=None,max_num_halos=None,
-               direction_vector=None,)
+               ):
+        
+        check = True
+
+        if direction_vector is not None:
+            X = 5

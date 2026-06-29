@@ -2,19 +2,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import matplotlib.colors as mcolors
+from contextlib import contextmanager
 
 from tqdm import tqdm
-
+import imageio
+import io
 from ._utils import _Get_Colours
 
 class VisualSim():
 
-    def __init__(self,sim):
+    def __init__(self,sim,dark_mode=False):
 
         self.sim = sim
 
         self.fig = None
         self.ax = None
+
+        self.dark_mode = dark_mode
+        self._colourstyle()
+
+    @contextmanager
+    def _style(self):
+        style = 'dark_background' if self.dark_mode else 'default'
+        with plt.style.context(style):
+            yield
 
     # ------------- miscellaneous functions ------------- #
 
@@ -23,14 +34,19 @@ class VisualSim():
         Generates a 3D MPL box for plotting.
         """
 
-        self.fig = plt.figure(figsize=(10,10))
-        self.ax = self.fig.add_subplot(projection='3d')
-        self.ax.set_xlim3d(0,self.sim.box_size)
-        self.ax.set_ylim3d(0,self.sim.box_size)
-        self.ax.set_zlim3d(0,self.sim.box_size)
-        self.ax.set_xlabel('X [kpc]')
-        self.ax.set_ylabel('Y [kpc]')
-        self.ax.set_zlabel('Z [kpc]') 
+        self._colourstyle()
+
+        with self._style():
+            # fig, ax = plt.subplots()
+
+            self.fig = plt.figure(figsize=(10,10),facecolor=self._bkgcolour,edgecolor=self._framecolour)
+            self.ax = self.fig.add_subplot(projection='3d')
+            self.ax.set_xlim3d(0,self.sim.box_size)
+            self.ax.set_ylim3d(0,self.sim.box_size)
+            self.ax.set_zlim3d(0,self.sim.box_size)
+            self.ax.set_xlabel('X [kpc]')
+            self.ax.set_ylabel('Y [kpc]')
+            self.ax.set_zlabel('Z [kpc]') 
 
     # ------------- Plotting sightlines ------------- #
 
@@ -96,6 +112,8 @@ class VisualSim():
 
         import healpy as hp
 
+        self._colourstyle()
+
         if cmap is None:
             colors = ["black", colour, "white"]
             cmap = mcolors.LinearSegmentedColormap.from_list("black_colour_white", colors)
@@ -137,22 +155,19 @@ class VisualSim():
 
             maxval = np.percentile(vs, cutoff)
 
-            hp.mollview(m, unit=functype, title=f'{self.sim.name} FullSky {functype} Map to z = {z:.2g}',
-                        badcolor="lightgray",cmap=cmap,max=maxval,min=0)
+            with self._style():
+                hp.mollview(m, unit=functype, title=f'...', 
+                            badcolor="lightgray", cmap=cmap, max=maxval, min=0)
 
-            if gif_path is not None:
-                
-                import imageio
-                import io
-
-                buf = io.BytesIO()
-                plt.savefig(buf, format='png', dpi=100)
-                buf.seek(0)
-                frames.append(imageio.imread(buf))
-                buf.close()
-                plt.close()
-            else:
-                plt.show()
+                if gif_path is not None:
+                    buf = io.BytesIO()
+                    plt.savefig(buf, format='png', dpi=100)
+                    buf.seek(0)
+                    frames.append(imageio.imread(buf))
+                    buf.close()
+                    plt.close()
+                else:
+                    plt.show()
 
         if gif_path is not None:
             imageio.mimsave(f'{gif_path}/{functype}_fullsky.gif', frames, duration=5000/len(frames))
@@ -160,6 +175,8 @@ class VisualSim():
 
     
     def distribution(self,sightlines,functype='DM',cutoff=98,bins=100,redshift=None,xlims=None,gif_path=None,environment='total',data='truth'):
+
+        self._colourstyle()
 
         max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment=environment,modelled= 'model' in data )
         redshift_input = np.atleast_1d(redshift if redshift is not None else max_redshift)
@@ -182,33 +199,33 @@ class VisualSim():
         for i in tqdm(range(len(redshifts))):
             z = redshifts[i]
 
-            fig,ax = plt.subplots()
-            ax.set_title(f'{self.sim.name} {functype} Distribution to z = {z:.2g}')
-            ax.set_xlabel(functype)
-            ax.set_ylabel('Probability Density')
-            for j in range(len(all_vals)):
-                vs = all_vals[j][:,i]
-                maxval = np.percentile(vs, cutoff)
-                ax.hist(vs[vs<maxval],bins=bins,density=True,label=data_source[j])
-                
-            ax.legend()
+            with self._style():
 
-            if xlims is not None:
-                ax.set_xlim(xlims[0],xlims[1])
+                fig,ax = plt.subplots()
+                ax.set_title(f'{self.sim.name} {functype} Distribution to z = {z:.2g}')
+                ax.set_xlabel(functype)
+                ax.set_ylabel('Probability Density')
+                for j in range(len(all_vals)):
+                    vs = all_vals[j][:,i]
+                    maxval = np.percentile(vs, cutoff)
+                    ax.hist(vs[vs<maxval],bins=bins,density=True,label=data_source[j])
+                    
+                ax.legend()
 
-            if gif_path is not None:
-                
-                import imageio
-                import io
+                if xlims is not None:
+                    ax.set_xlim(xlims[0],xlims[1])
 
-                buf = io.BytesIO()
-                fig.savefig(buf, format='png', dpi=100)
-                buf.seek(0)
-                frames.append(imageio.imread(buf))
-                buf.close()
-                plt.close(fig)
-            else:
-                plt.show()
+                if gif_path is not None:
+                    
+
+                    buf = io.BytesIO()
+                    fig.savefig(buf, format='png', dpi=100)
+                    buf.seek(0)
+                    frames.append(imageio.imread(buf))
+                    buf.close()
+                    plt.close(fig)
+                else:
+                    plt.show()
         
         if gif_path is not None:
             # fps = 4
@@ -231,52 +248,53 @@ class VisualSim():
         stat_map = {'mean': {'func':np.nanmean, 'name': 'Mean'},
                         'std' : {'func':np.nanstd, 'name': 'Standard Deviation'}}
 
-        fig,ax = plt.subplots()
-        ax.set_xlabel('Redshift')
-        ax.set_ylabel(f'Cumulutive {stat_map[stat]["name"]} {functype}')
-        ax.set_title(f'{self.sim.name} {stat_map[stat]["name"]} {functype}')
-        if yscale == 'log':
-            ax.set_yscale('log')
+        with self._style():
 
-        legend_handles = []
-        for env in environments:
-            legend_handles.append(Line2D([0], [0], color=colours[env], marker='x', linestyle='none', label=env))
+            fig,ax = plt.subplots()
+            ax.set_xlabel('Redshift')
+            ax.set_ylabel(f'Cumulutive {stat_map[stat]["name"]} {functype}')
+            ax.set_title(f'{self.sim.name} {stat_map[stat]["name"]} {functype}')
+            if yscale == 'log':
+                ax.set_yscale('log')
 
-        if truth:            
-            redshift = np.nanmin([sightlines[0].redshift_reached(self.sim.cosmo, environment=check_env), np.nan if redshift is None else redshift])
-            redshifts = np.linspace(0,redshift,bins)
-            
+            legend_handles = []
             for env in environments:
-                vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=False) for sl in tqdm(sightlines,desc=f'Getting truth {env} compute')])
+                legend_handles.append(Line2D([0], [0], color=colours[env], marker='x', linestyle='none', label=env))
 
-                func = stat_map[stat]['func']
+            if truth:            
+                redshift = np.nanmin([sightlines[0].redshift_reached(self.sim.cosmo, environment=check_env), np.nan if redshift is None else redshift])
+                redshifts = np.linspace(0,redshift,bins)
+                
+                for env in environments:
+                    vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=False) for sl in tqdm(sightlines,desc=f'Getting truth {env} compute')])
 
-                stats = func(vals,axis=0)
+                    func = stat_map[stat]['func']
 
-                ax.plot(redshifts,stats,'x-',color=colours[env])
+                    stats = func(vals,axis=0)
 
-            legend_handles.append(Line2D([0], [0], color='black', linestyle='-',  label='Truth'))
-        
-        if modelled:
-            redshift = np.nanmin([sightlines[0].redshift_reached(self.sim.cosmo, environment=check_env,modelled=True), np.nan if redshift is None else redshift])
-            redshifts = np.linspace(0,redshift,bins)
+                    ax.plot(redshifts,stats,'x-',color=colours[env])
+
+                legend_handles.append(Line2D([0], [0], color='black', linestyle='-',  label='Truth'))
             
-            for env in environments:
-                vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=True) for sl in tqdm(sightlines,desc=f'Getting modelled {env} compute')])
+            if modelled:
+                redshift = np.nanmin([sightlines[0].redshift_reached(self.sim.cosmo, environment=check_env,modelled=True), np.nan if redshift is None else redshift])
+                redshifts = np.linspace(0,redshift,bins)
+                
+                for env in environments:
+                    vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=True) for sl in tqdm(sightlines,desc=f'Getting modelled {env} compute')])
 
-                func = stat_map[stat]['func']
+                    func = stat_map[stat]['func']
 
-                stats = func(vals,axis=0)
+                    stats = func(vals,axis=0)
 
-                ax.plot(redshifts,stats,'x--',color=colours[env])
+                    ax.plot(redshifts,stats,'x--',color=colours[env])
 
-            legend_handles.append(Line2D([0], [0], color='black', linestyle='--', label='Model'))
+                legend_handles.append(Line2D([0], [0], color='black', linestyle='--', label='Model'))
 
-        ax.legend(handles=legend_handles)
+            ax.legend(handles=legend_handles)
 
     
     def halo_partition(self,sightlines,functype='DM',cutoff=98,redshift=None,plottype='hist',gif_path=None,modelled=False):
-
 
         max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment='igm',modelled=modelled)
         redshift_input = np.atleast_1d(redshift if redshift is not None else max_redshift)
@@ -301,49 +319,43 @@ class VisualSim():
 
             dm_tot = dm_cgm + dm_igm
 
-            if plottype=='hist':
+            with self._style():
+                if plottype == 'hist':
+                    x = np.arange(len(dm_tot))
 
-                x = np.arange(len(dm_tot))
+                    fig, ax = plt.subplots()
+                    ax.fill_between(x, 0, dm_igm[order], label='IGM')
+                    ax.fill_between(x, dm_igm[order], dm_igm[order] + dm_cgm[order], label='CGM')
 
-                fig, ax = plt.subplots()
-                ax.fill_between(x, 0, dm_igm[order], label='IGM')
-                ax.fill_between(x, dm_igm[order], dm_igm[order] + dm_cgm[order], label='CGM')
+                    ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
+                    ax.set_xlabel('Sightlines')
+                    ax.set_ylabel(f'{functype}')
+                    ax.set_ylim(0, maxval)
+                    ax.legend()
 
-                ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
-                ax.set_xlabel('Sightlines')
-                ax.set_ylabel(f'{functype}')
-                ax.set_ylim(0,maxval)
-                ax.legend()
-                                
+                elif plottype == 'scatter':
+                    frac_cgm = dm_cgm / dm_tot
+                    frac_igm = dm_igm / dm_tot
 
-            elif plottype=='scatter':
+                    fig, ax = plt.subplots()
+                    ax.scatter(dm_tot, frac_igm, s=10, alpha=0.6, label='IGM fraction')
+                    ax.scatter(dm_tot, frac_cgm, s=10, alpha=0.6, label='CGM fraction')
 
-                frac_cgm = dm_cgm / dm_tot
-                frac_igm = dm_igm / dm_tot
+                    ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
+                    ax.set_xlabel(f'Total {functype}')
+                    ax.set_ylabel(f'Fractional {functype} Contribution')
+                    ax.legend()
 
-                fig,ax = plt.subplots()
-                ax.scatter(dm_tot, frac_igm, s=10, alpha=0.6, label='IGM fraction')
-                ax.scatter(dm_tot, frac_cgm, s=10, alpha=0.6, label='CGM fraction')
-                ax.set_title('Fractional DM Contribution vs Total DM')
+                if gif_path is not None:
 
-                ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
-                ax.set_xlabel(f'Total {functype}')
-                ax.set_ylabel(f'Fractional {functype} Contribution')
-                ax.legend()
-
-            if gif_path is not None:
-                
-                import imageio
-                import io
-                
-                buf = io.BytesIO()
-                fig.savefig(buf, format='png', dpi=100)
-                buf.seek(0)
-                frames.append(imageio.imread(buf))
-                buf.close()
-                plt.close(fig)
-            else:
-                plt.show()
+                    buf = io.BytesIO()
+                    fig.savefig(buf, format='png', dpi=100)
+                    buf.seek(0)
+                    frames.append(imageio.imread(buf))
+                    buf.close()
+                    plt.close(fig)
+                else:
+                    plt.show()
         
         if gif_path is not None:
             imageio.mimsave(f'{gif_path}/{functype}_partition.gif', frames, duration=5000/len(frames))
