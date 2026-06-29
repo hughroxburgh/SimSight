@@ -19,7 +19,6 @@ class VisualSim():
         self.ax = None
 
         self.dark_mode = dark_mode
-        self._colourstyle()
 
     @contextmanager
     def _style(self):
@@ -33,8 +32,6 @@ class VisualSim():
         """
         Generates a 3D MPL box for plotting.
         """
-
-        self._colourstyle()
 
         with self._style():
             # fig, ax = plt.subplots()
@@ -112,7 +109,6 @@ class VisualSim():
 
         import healpy as hp
 
-        self._colourstyle()
 
         if cmap is None:
             colors = ["black", colour, "white"]
@@ -176,7 +172,6 @@ class VisualSim():
     
     def distribution(self,sightlines,functype='DM',cutoff=98,bins=100,redshift=None,xlims=None,gif_path=None,environment='total',data='truth'):
 
-        self._colourstyle()
 
         max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment=environment,modelled= 'model' in data )
         redshift_input = np.atleast_1d(redshift if redshift is not None else max_redshift)
