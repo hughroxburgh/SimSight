@@ -156,7 +156,7 @@ class VisualSim():
             maxval = np.percentile(vs, cutoff)
 
             with self._style():
-                hp.mollview(m, unit=functype, title=f'...', 
+                hp.mollview(m, unit=functype, title=f'{self.sim.name} FullSky {functype} Map to z = {z:.2g}', 
                             badcolor="lightgray", cmap=cmap, max=maxval, min=0)
 
                 if gif_path is not None:
@@ -202,7 +202,7 @@ class VisualSim():
             with self._style():
 
                 fig,ax = plt.subplots()
-                ax.set_title(f'{self.sim.name} {functype} Distribution to z = {z:.2g}')
+                ax.set_title(f'{self.sim.name} {environment} {functype} Distribution to z = {z:.2g}')
                 ax.set_xlabel(functype)
                 ax.set_ylabel('Probability Density')
                 for j in range(len(all_vals)):

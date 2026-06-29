@@ -673,7 +673,7 @@ class Sightline():
         else:
             raise ValueError('No sub sightlines! Run .partition()!')
         
-    def plot_subsightline(self,idx,points=None,halos=True,compute=True):
+    def plot_subsightline(self,idx,points=None,halos=True,compute=True,dark_mode=False):
         """
         Plot the halos / coordinates in the transformed basis of a given sub sightline. Also plots the "compute".
         """
@@ -686,76 +686,79 @@ class Sightline():
 
             zlims = [0,self.sub_Lengths[idx]]
 
-            fig, ax = plt.subplots(ncols=3,figsize=(12,8))
-            if compute:
-                if len(self.sub_Compute[0]) > 0:       
-                    plt.close()
-                    fig, ax = plt.subplots(ncols=4,figsize=(12,8))
+            with plt.style.context('dark_background' if dark_mode else 'default'):
+                fig, ax = plt.subplots(ncols=3,figsize=(12,8))
+                if compute:
+                    if len(self.sub_Compute[0]) > 0:       
+                        plt.close()
+                        fig, ax = plt.subplots(ncols=4,figsize=(12,8))
 
-                    positions = np.concatenate([[0], np.cumsum(self.sub_Grid[idx])])
-                    y = np.repeat(positions, 2)[1:-1]   # duplicate edges, drop first and last to match density
-                    x = np.repeat(self.sub_Compute[idx], 2) 
-                    ax[3].plot(x,y)
-                    ax[3].set_ylim(zlims[0],zlims[1])
-                    ax[3].set_xlabel('Computed Value')
-                    ax[3].set_ylabel('z [ckpc]')
+                        positions = np.concatenate([[0], np.cumsum(self.sub_Grid[idx])])
+                        y = np.repeat(positions, 2)[1:-1]   # duplicate edges, drop first and last to match density
+                        x = np.repeat(self.sub_Compute[idx], 2) 
+                        ax[3].plot(x,y)
+                        ax[3].set_ylim(zlims[0],zlims[1])
+                        ax[3].set_xlabel('Computed Value')
+                        ax[3].set_ylabel('z [ckpc]')
 
-            subSL = self.get_subsightline(idx)
+                subSL = self.get_subsightline(idx)
 
-            ax[0].axvline(0,alpha=0.5,c='k')
-            ax[0].axhline(0,alpha=0.5,c='k')
-            ax[0].set_aspect('equal')
-            ax[0].set_xlabel('x [ckpc]')
-            ax[0].set_ylabel('y [ckpc]')
+                ax[0].axvline(0,alpha=0.5,c='k')
+                ax[0].axhline(0,alpha=0.5,c='k')
+                ax[0].set_aspect('equal')
+                ax[0].set_xlabel('x [ckpc]')
+                ax[0].set_ylabel('y [ckpc]')
 
-            ax[1].axvline(0,alpha=0.5,c='k')
-            ax[1].set_aspect('equal')
-            ax[1].set_xlabel('x [ckpc]')
-            ax[1].set_ylabel('z [ckpc]')
-            ax[1].set_ylim(zlims[0],zlims[1])
+                ax[1].axvline(0,alpha=0.5,c='k')
+                ax[1].set_aspect('equal')
+                ax[1].set_xlabel('x [ckpc]')
+                ax[1].set_ylabel('z [ckpc]')
+                ax[1].set_ylim(zlims[0],zlims[1])
 
-            ax[2].axvline(0,alpha=0.5,c='k')
-            ax[2].set_aspect('equal')
-            ax[2].set_xlabel('y [ckpc]')
-            ax[2].set_ylabel('z [ckpc]')
-            ax[2].set_ylim(zlims[0],zlims[1])
-        
-            if points is not None:
-                in_points = points[self.sub_PointsIdx[idx]]
-                transformed_points = Transform_Points(subSL,in_points)
-                ax[0].scatter(transformed_points[:,0],transformed_points[:,1],s=1)
-                ax[1].scatter(transformed_points[:,0],transformed_points[:,2],s=1)
-                ax[2].scatter(transformed_points[:,1],transformed_points[:,2],s=1)
+                ax[2].axvline(0,alpha=0.5,c='k')
+                ax[2].set_aspect('equal')
+                ax[2].set_xlabel('y [ckpc]')
+                ax[2].set_ylabel('z [ckpc]')
+                ax[2].set_ylim(zlims[0],zlims[1])
+            
+                if points is not None:
+                    in_points = points[self.sub_PointsIdx[idx]]
+                    transformed_points = Transform_Points(subSL,in_points)
+                    ax[0].scatter(transformed_points[:,0],transformed_points[:,1],s=1)
+                    ax[1].scatter(transformed_points[:,0],transformed_points[:,2],s=1)
+                    ax[2].scatter(transformed_points[:,1],transformed_points[:,2],s=1)
 
-            if halos:
+                if halos:
 
-                if any(h is not None for h in self.sub_Halos[idx]):
+                    if any(h is not None for h in self.sub_Halos[idx]):
 
-                    coms = np.array([h['Pos'] for h in self.sub_Halos[idx]])
-                    coms = Transform_Points(subSL,coms)
+                        coms = np.array([h['Pos'] for h in self.sub_Halos[idx]])
+                        coms = Transform_Points(subSL,coms)
 
-                    max_r = max(max(h['Radius'] for h in self.sub_Halos[idx]),500)
-                    max_xy = np.max(np.abs(coms[:, :2])) + max_r
-                
-                    for i in range(len(self.sub_Halos[idx])):
-                        x,y,z = coms[i]
-
-                        patch = Circle((x,y),radius=self.sub_Halos[idx][i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
-                        ax[0].add_patch(patch)
-
-                        patch = Circle((x,z),radius=self.sub_Halos[idx][i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
-                        ax[1].add_patch(patch)
-
-                        patch = Circle((y,z),radius=self.sub_Halos[idx][i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
-                        ax[2].add_patch(patch)
+                        max_r = max(max(h['Radius'] for h in self.sub_Halos[idx]),500)
+                        max_xy = np.max(np.abs(coms[:, :2])) + max_r
                     
-                    ax[0].set_xlim(-max_xy, max_xy)
-                    ax[0].set_ylim(-max_xy, max_xy)
-                    ax[1].set_xlim(-max_xy, max_xy)
-                    ax[2].set_xlim(-max_xy, max_xy)
+                        for i in range(len(self.sub_Halos[idx])):
+                            x,y,z = coms[i]
+
+                            patch = Circle((x,y),radius=self.sub_Halos[idx][i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
+                            ax[0].add_patch(patch)
+
+                            patch = Circle((x,z),radius=self.sub_Halos[idx][i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
+                            ax[1].add_patch(patch)
+
+                            patch = Circle((y,z),radius=self.sub_Halos[idx][i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
+                            ax[2].add_patch(patch)
+                        
+                        ax[0].set_xlim(-max_xy, max_xy)
+                        ax[0].set_ylim(-max_xy, max_xy)
+                        ax[1].set_xlim(-max_xy, max_xy)
+                        ax[2].set_xlim(-max_xy, max_xy)
+            
+                plt.show()
 
                     
-    def plot_compute(self,idx=None,data='compute',with_model=False,return_data=False,logspace=True,mode='normal'):
+    def plot_compute(self,idx=None,data='compute',with_model=False,return_data=False,logspace=True,mode='normal',dark_mode=False):
         """
         Combines all computed subsightlines into one non-cumulutive profile, coloured by subsightline.
         """
@@ -781,60 +784,62 @@ class Sightline():
                     print('Model is on resolution with different grid! Values will look weird!')
             else:
                 with_model = False
-                
-        plt.figure(figsize=(8,4))
-        plt.xlabel("Distance along ray")
         
-        if data == 'compute':
-            if mode == 'cumulutive':
-                plt.ylabel('Cumulutive DM')
-            else:
-                plt.ylabel('DM')
-        else:
-            if mode == 'cumulutive':
-                plt.ylabel('Cumulutive Density')
-            else:
-                plt.ylabel('Density')
-
-        if logspace:
-            plt.yscale('log')
-
-        xs = []
-        ys = []
-        cumulated_length = 0
-        model_cumulated_value = 0
-        cumulated_value = 0
-        for i in range(len(lengths)):
-            x = np.cumsum(lengths[i]) + cumulated_length
-            if mode != 'cumulutive':
-                y = computed[i]
-            else:
-                y = np.cumsum(computed[i])
-
-            plt.step(x, y+cumulated_value, color=cmap[i], where='post')
-
-            if with_model:
-                model_x = np.cumsum(model_lengths[i]) + cumulated_length
-                if mode != 'cumulutive':
-                    model_y = model_computed[i]
+        with plt.style.context('dark_background' if dark_mode else 'default'):
+            plt.figure(figsize=(8,4))
+            plt.xlabel("Distance along ray")
+            
+            if data == 'compute':
+                if mode == 'cumulutive':
+                    plt.ylabel('Cumulutive DM')
                 else:
-                    model_y = np.cumsum(model_computed[i])
-                    
-                plt.step(model_x, model_y+model_cumulated_value, color='k', alpha=0.5, linestyle='--')
+                    plt.ylabel('DM')
+            else:
+                if mode == 'cumulutive':
+                    plt.ylabel('Cumulutive Density')
+                else:
+                    plt.ylabel('Density')
 
-            cumulated_length += np.nansum(lengths[i])
-            xs.extend(x)
-            ys.extend(y)
-            if mode == 'cumulutive':
-                cumulated_value += y[-1]
-                model_cumulated_value += model_y[-1]
+            if logspace:
+                plt.yscale('log')
 
-            plt.axvline(x[-1],alpha=0.3,c=cmap[i],linestyle=':')
+            xs = []
+            ys = []
+            cumulated_length = 0
+            model_cumulated_value = 0
+            cumulated_value = 0
+            for i in range(len(lengths)):
+                x = np.cumsum(lengths[i]) + cumulated_length
+                if mode != 'cumulutive':
+                    y = computed[i]
+                else:
+                    y = np.cumsum(computed[i])
 
-        plt.xlim(0,cumulated_length)
+                plt.step(x, y+cumulated_value, color=cmap[i], where='post')
 
-        if return_data:
-            return np.array(xs),np.array(ys)
+                if with_model:
+                    model_x = np.cumsum(model_lengths[i]) + cumulated_length
+                    if mode != 'cumulutive':
+                        model_y = model_computed[i]
+                    else:
+                        model_y = np.cumsum(model_computed[i])
+                        
+                    plt.step(model_x, model_y+model_cumulated_value, color='k', alpha=0.5, linestyle='--')
+
+                cumulated_length += np.nansum(lengths[i])
+                xs.extend(x)
+                ys.extend(y)
+                if mode == 'cumulutive':
+                    cumulated_value += y[-1]
+                    model_cumulated_value += model_y[-1]
+
+                plt.axvline(x[-1],alpha=0.3,c=cmap[i],linestyle=':')
+
+            plt.xlim(0,cumulated_length)
+            plt.show()
+
+            if return_data:
+                return np.array(xs),np.array(ys)
         
 
 
