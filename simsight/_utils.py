@@ -5,21 +5,31 @@ import sys
 from time import time as clock
 from tqdm import tqdm
 
-def _Get_Colours(num):
+def _Get_Colours(num,dark_mode=False):
     """
     Used for colouring sightlines blue -> red.
     """
 
-    if num < 3 :
-        colours = ['blue','red']
-    elif num == 3:
-        colours = ['blue','forestgreen','red']
-    elif num == 4:
-        colours = ['blue','forestgreen','tab:orange','red']
+    if dark_mode:
+        if num < 3:
+            colours = ['deepskyblue', 'tomato']
+        elif num == 3:
+            colours = ['deepskyblue', 'mediumspringgreen', 'tomato']
+        elif num == 4:
+            colours = ['deepskyblue', 'mediumspringgreen', 'gold', 'tomato']
     else:
-        cmap = plt.cm.jet  
+        if num < 3:
+            colours = ['dodgerblue', 'indianred']
+        elif num == 3:
+            colours = ['dodgerblue', 'mediumseagreen', 'indianred']
+        elif num == 4:
+            colours = ['dodgerblue', 'mediumseagreen', 'tab:orange', 'indianred']
+
+    if num >= 5:
+        cmap = plt.cm.jet if dark_mode else plt.cm.turbo
         cmaplist = np.array([cmap(i) for i in range(cmap.N)])
-        colours = cmaplist[np.linspace(30,len(cmaplist)-30,num).astype(int)]
+        colours = cmaplist[np.linspace(30, len(cmaplist) - 30, num).astype(int)]
+
     return colours
 
 

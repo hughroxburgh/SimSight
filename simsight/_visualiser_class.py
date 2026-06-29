@@ -12,6 +12,7 @@ import imageio
 import io
 from ._utils import _Get_Colours
 
+
 class VisualSim():
 
     def __init__(self,sim,dark_mode=False):
@@ -56,7 +57,7 @@ class VisualSim():
             n_subsightlines = sightline.num_sub_sightlines
 
         if colour is None:
-            cmap = _Get_Colours(n_subsightlines)
+            cmap = _Get_Colours(n_subsightlines,dark_mode=self.dark_mode)
         else:
             if isinstance(colour, str):
                 cmap = np.full(n_subsightlines, colour, dtype=object) 
@@ -98,7 +99,7 @@ class VisualSim():
 
         idx = np.random.choice(len(sightlines),size=n_sightlines, replace=False)
 
-        colours = _Get_Colours(n_sightlines)
+        colours = _Get_Colours(n_sightlines,dark_mode=self.dark_mode)
 
         self.plot3d()
         for ii,idx in enumerate(idx):
@@ -175,7 +176,6 @@ class VisualSim():
     
     def distribution(self,sightlines,functype='DM',cutoff=98,bins=100,redshift=None,xlims=None,gif_path=None,environment='Total',data='truth'):
 
-
         max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment=environment,modelled= 'model' in data )
         redshift_input = np.atleast_1d(redshift if redshift is not None else max_redshift)
         redshifts = [z for z in redshift_input if z <= max_redshift]
@@ -232,7 +232,7 @@ class VisualSim():
 
     def cumulutive_stats(self,sightlines,stat='mean',functype='DM',bins=10,redshift=None,yscale='linear',environment='Total',data='truth'):
 
-        colours = {'Total':'dodgerblue','CGM':'indianred','IGM':'mediumseagreen'}
+        colours = {'Total':_Get_Colours(3,self.dark_mode)[0],'CGM':_Get_Colours(3,self.dark_mode)[1],'IGM':_Get_Colours(3,self.dark_mode)[2]}
         if environment == 'separate':
             environments = ['Total','CGM','IGM']
             check_env = 'CGM'
@@ -291,6 +291,8 @@ class VisualSim():
 
             ax.legend(handles=legend_handles)
 
+            plt.show()
+
     
     def halo_partition(self,sightlines,functype='DM',cutoff=98,redshift=None,plottype='hist',gif_path=None,modelled=False):
 
@@ -300,7 +302,8 @@ class VisualSim():
         if max(redshift_input) > max_redshift:
             redshifts.append(max_redshift)
 
-        colours = {'CGM':'indianred','IGM':'mediumseagreen'}
+        colours = {'CGM':_Get_Colours(3,self.dark_mode)[1],'IGM':_Get_Colours(3,self.dark_mode)[2]}
+
 
         data_source = 'truth' if not modelled else 'modelled'
         dms_cgm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='CGM',modelled=modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} CGM compute')])
