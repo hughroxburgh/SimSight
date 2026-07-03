@@ -379,12 +379,11 @@ class VisualSim():
 
 
     def halo_partition(self, sightlines, functype='DM', cutoff=98, redshift=None, plottype='hist',
-                    gif_path=None, modelled=False,
-                    filt=None, sweep_param=None, sweep_values=None, sweep_cmap='viridis'):
+                        gif_path=None, modelled=False, filt=None):
 
-        if sweep_param is not None and plottype == 'hist':
-            raise ValueError("sweep_param isn't supported with plottype='hist' (stacked areas from "
-                            "multiple groups would overlap unreadably) — use plottype='scatter' to sweep.")
+        if filt is not None:
+            mask = self.parent.filter_sightlines(sightlines, **filt)
+            sightlines = sightlines[mask]
 
         max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment='IGM', modelled=modelled)
         redshift_input = np.atleast_1d(redshift if redshift is not None else max_redshift)
@@ -393,46 +392,30 @@ class VisualSim():
             redshifts.append(max_redshift)
 
         colours = {'CGM':_Get_Colours(3,self.dark_mode)[1],'IGM':_Get_Colours(3,self.dark_mode)[2]}
+
         data_source = 'truth' if not modelled else 'modelled'
+        dms_cgm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='CGM',modelled=modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} CGM compute')])
+        dms_igm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='IGM',modelled=modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} IGM compute')])
 
-        groups = self._resolve_filter(sightlines, filt=filt, sweep_param=sweep_param,
-                                    sweep_values=sweep_values, cmap=sweep_cmap)
-        sweeping = sweep_param is not None
+        order = np.argsort(dms_cgm[:, -1]+dms_igm[:, -1])
 
-        # Precompute per group
-        group_data = {}
-        for label, group_sightlines, sweep_color in groups:
-            if len(group_sightlines) == 0:
-                print(f'Skipping {label}: filter left 0 sightlines')
-                continue
-            dms_cgm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='CGM',modelled=modelled)
-                                for sl in tqdm(group_sightlines, desc=f'Getting {data_source.capitalize()} CGM compute'
-                                                + (f' [{label}]' if label else ''))])
-            dms_igm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='IGM',modelled=modelled)
-                                for sl in tqdm(group_sightlines, desc=f'Getting {data_source.capitalize()} IGM compute'
-                                                + (f' [{label}]' if label else ''))])
-            group_data[label] = (dms_cgm, dms_igm, sweep_color)
-
-        if plottype == 'hist':
-            # single-group behaviour, unchanged from original
-            label, (dms_cgm, dms_igm, _) = next(iter(group_data.items()))
-            order = np.argsort(dms_cgm[:, -1] + dms_igm[:, -1])
-            maxval = np.percentile(dms_cgm[:, -1] + dms_igm[:, -1], cutoff)
+        maxval = np.percentile(dms_cgm[:, -1]+dms_igm[:, -1], cutoff)
 
         frames = []
         for i in tqdm(range(len(redshifts))):
             z = redshifts[i]
+            dm_cgm = dms_cgm[:,i]
+            dm_igm = dms_igm[:,i]
+
+            dm_tot = dm_cgm + dm_igm
 
             with self._style():
-
                 if plottype == 'hist':
-                    dm_cgm = dms_cgm[:,i]
-                    dm_igm = dms_igm[:,i]
-                    x = np.arange(len(dm_cgm))
+                    x = np.arange(len(dm_tot))
 
                     fig, ax = plt.subplots()
-                    ax.fill_between(x, 0, dm_igm[order], label='IGM', color=colours['IGM'])
-                    ax.fill_between(x, dm_igm[order], dm_igm[order] + dm_cgm[order], label='CGM', color=colours['CGM'])
+                    ax.fill_between(x, 0, dm_igm[order], label='IGM',color=colours['IGM'])
+                    ax.fill_between(x, dm_igm[order], dm_igm[order] + dm_cgm[order], label='CGM',color=colours['CGM'])
 
                     ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
                     ax.set_xlabel('Sightlines')
@@ -441,38 +424,20 @@ class VisualSim():
                     ax.legend()
 
                 elif plottype == 'scatter':
+                    frac_cgm = dm_cgm / dm_tot
+                    frac_igm = dm_igm / dm_tot
+
                     fig, ax = plt.subplots()
-
-                    for label, (dms_cgm, dms_igm, sweep_color) in group_data.items():
-                        dm_cgm = dms_cgm[:,i]
-                        dm_igm = dms_igm[:,i]
-                        dm_tot = dm_cgm + dm_igm
-                        frac_cgm = dm_cgm / dm_tot
-                        frac_igm = dm_igm / dm_tot
-
-                        if sweeping:
-                            ax.scatter(dm_tot, frac_igm, s=10, alpha=0.6, marker='o', color=sweep_color,
-                                    label=f'{label} IGM' if i == 0 else None)
-                            ax.scatter(dm_tot, frac_cgm, s=10, alpha=0.6, marker='^', color=sweep_color,
-                                    label=f'{label} CGM' if i == 0 else None)
-                        else:
-                            ax.scatter(dm_tot, frac_igm, s=10, alpha=0.6, label='IGM fraction', c=colours['IGM'])
-                            ax.scatter(dm_tot, frac_cgm, s=10, alpha=0.6, label='CGM fraction', c=colours['CGM'])
+                    ax.scatter(dm_tot, frac_igm, s=10, alpha=0.6, label='IGM fraction',c=colours['IGM'])
+                    ax.scatter(dm_tot, frac_cgm, s=10, alpha=0.6, label='CGM fraction',c=colours['CGM'])
 
                     ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
                     ax.set_xlabel(f'Total {functype}')
                     ax.set_ylabel(f'Fractional {functype} Contribution')
-
-                    if sweeping:
-                        legend_handles = []
-                        for label, (_, _, sweep_color) in group_data.items():
-                            legend_handles.append(Line2D([0], [0], marker='o', color='none', markerfacecolor=sweep_color,
-                                                        label=f'{label} (IGM=o, CGM=^)', markersize=8))
-                        ax.legend(handles=legend_handles)
-                    else:
-                        ax.legend()
+                    ax.legend()
 
                 if gif_path is not None:
+
                     buf = io.BytesIO()
                     fig.savefig(buf, format='png', dpi=100)
                     buf.seek(0)
