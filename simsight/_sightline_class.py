@@ -1270,10 +1270,10 @@ class Sightline():
                 if (halo['TotalMass'] > max_halo_mass):
                     check = False 
                     break
-                if type(halo['ImpactParam']) != str and (halo['ImpactParam']/halo['Radius'] < min_halo_ip):
+                if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] < min_halo_ip):
                     check = False 
                     break
-                if type(halo['ImpactParam']) != str and (halo['ImpactParam']/halo['Radius'] > max_halo_ip):
+                if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] > max_halo_ip):
                     check = False 
                     break
 
