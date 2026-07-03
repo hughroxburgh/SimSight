@@ -778,7 +778,7 @@ class SightlineSim():
             _Progress_Print(msg,ts)
 
 
-    def filter_sightlines(self,sightlines,observed=False,redshift=None,dvec_score=None,
+    def filter_sightlines(self,sightlines,observed=False,redshift=None,dvec_thresh=None,
                           min_halo_mass=0,max_halo_mass=1e20,
                           min_halo_ip=0,max_halo_ip=1,
                           min_halo_gasfrac=0,max_halo_gasfrac=1,
@@ -786,7 +786,7 @@ class SightlineSim():
         
         mask = np.ones(len(sightlines), dtype=bool)
 
-        if dvec_score is not None:
+        if dvec_thresh is not None:
 
             l_max = np.float32(self.sim.cosmo.comoving_distance(
                 redshift if redshift is not None else sightlines[0].target_redshift
@@ -861,7 +861,7 @@ class SightlineSim():
             # Normalize by box size (as in the paper) and keep only sightlines whose
             # closest self-approach is comfortably far relative to the box, i.e.
             # "clean" enough sightlines per the requested dvec_score threshold
-            mask &= (eps_min / self.sim.box_size) >= dvec_score
+            mask &= eps_min >= dvec_thresh
 
         where = np.where(mask)[0]
         for i,sl in enumerate(sightlines[mask]):
