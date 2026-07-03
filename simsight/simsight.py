@@ -181,7 +181,7 @@ class SightlineSim():
                     if not _Is_Interactive():
                         _Progress_Print(msg,ts)
                         
-                    return sightlines
+                    return np.array(sightlines)
             else:
                 print('No sightlines saved in directory_path.',flush=True)
                 return None
@@ -787,36 +787,80 @@ class SightlineSim():
         mask = np.ones(len(sightlines), dtype=bool)
 
         if dvec_score is not None:
-            print('Filtering sightlines based on direction vector')
-            l_max    = np.float32(self.sim.cosmo.comoving_distance(redshift if redshift is not None else sightlines[0].target_redshift).value*1000)
-        
+
+            l_max = np.float32(self.sim.cosmo.comoving_distance(
+                redshift if redshift is not None else sightlines[0].target_redshift
+            ).value * 1000)
+
+            # How many periodic box replicas we need in each direction to cover
+            # a sphere of radius l_max, plus a small safety margin
             n_max = int(np.ceil(l_max / self.sim.box_size)) + 2
+
+            # Build the lattice of periodic image offsets: v = ..., -2L, -1L, 0, 1L, 2L, ...
+            # then take the full 3D outer product to get every combination (i*L, j*L, k*L)
             v = np.arange(-n_max, n_max + 1, dtype=np.float32) * self.sim.box_size
             ii, jj, kk = np.meshgrid(v, v, v, indexing="ij")
             grid = np.stack([ii.ravel(), jj.ravel(), kk.ravel()], axis=1)
+
+            # Squared distance of each lattice/image point from the origin (the ray's start)
             grid_sq = np.sum(grid ** 2, axis=1)
+
+            # Drop the origin itself (a ray trivially "intersects" its own starting box copy,
+            # that's not a meaningful self-intersection) and drop any image points farther
+            # than l_max away (they're outside the ray's integration length, irrelevant)
             keep = np.any(grid != 0, axis=1) & (grid_sq <= l_max ** 2)
             grid, grid_sq = grid[keep], grid_sq[keep]
 
-            dvecs  = np.array([sl.direction_vector for sl in sightlines], dtype=np.float32)
+            # --- Precision fix: promote the geometry arrays to float64 here ---
+            # grid_sq and (later) proj**2 are both ~O(l_max^2), which can be ~1e13
+            # in these units. The quantity we actually care about, pd2 = grid_sq - proj^2,
+            # is only ~O(eps_min^2) — many orders of magnitude smaller than the two
+            # numbers being subtracted. In float32 (~7 sig figs) that subtraction loses
+            # essentially all precision exactly where it matters (near-zero pd2, i.e.
+            # near self-intersections). float64 (~16 sig figs) keeps the residual clean.
+            grid = grid.astype(np.float64)
+            grid_sq = grid_sq.astype(np.float64)
 
-            lengths = np.array([sl.length for sl in sightlines], dtype=np.float32)  # (N,)
-            eps_min = np.full(len(sightlines), np.inf, dtype=np.float32)
-            INF32   = np.finfo(np.float32).max
+            dvecs = np.array([sl.direction_vector for sl in sightlines], dtype=np.float64)
+            lengths = np.array([sl.length for sl in sightlines], dtype=np.float64)
 
-            chunk=512
+            eps_min = np.full(len(sightlines), np.inf, dtype=np.float64)
 
-            for start in _Smart_Tqdm(range(0, len(sightlines), chunk),desc='    calculating direction vector scores'):
-                nh      = dvecs[start : start + chunk]       # (B, 3)
-                l_chunk = lengths[start : start + chunk]     # (B,)
-                proj    = grid @ nh.T                        # (G, B)
+            chunk = 512
+
+            # Process sightlines in batches to limit peak memory (grid × chunk arrays)
+            for start in range(0, len(sightlines), chunk):
+                nh      = dvecs[start : start + chunk]       # (B, 3) direction vectors in this batch
+                l_chunk = lengths[start : start + chunk]     # (B,) integration lengths in this batch
+
+                
+                proj = grid @ nh.T   # Project every grid/image point onto each ray direction:
+
+                # Only image points that project to a positive lambda within the ray's
+                # actual length count — the ray doesn't exist before lambda=0 or after L_max.
+                # 1e-6 avoids flagging the origin/near-origin numerically as "in range".
                 in_range = (proj > 1e-6) & (proj <= l_chunk[None, :])
-                pd2     = grid_sq[:, None] - proj ** 2
-                np.maximum(pd2, 0.0, out=pd2)
-                pd2[~in_range] = INF32
-                best    = pd2.min(axis=0)
-                eps_min[start : start + chunk] = np.sqrt(np.minimum(best, INF32))
 
+                # Perpendicular distance squared via Pythagoras:
+                # |l_j|^2 = proj^2 + pd^2  =>  pd^2 = |l_j|^2 - proj^2
+                pd2 = grid_sq[:, None] - proj ** 2
+
+                # Guard against tiny negative values from floating point roundoff
+                # (should be much rarer/smaller now that we're in float64)
+                np.maximum(pd2, 0.0, out=pd2)
+
+                # Image points outside the valid lambda range don't count as
+                # potential self-intersections — push them to +inf so they never win the min
+                pd2[~in_range] = np.inf
+
+                # For each sightline in this batch, the closest approach distance
+                # over all periodic images is eps_min
+                best = pd2.min(axis=0)
+                eps_min[start : start + chunk] = np.sqrt(best)
+
+            # Normalize by box size (as in the paper) and keep only sightlines whose
+            # closest self-approach is comfortably far relative to the box, i.e.
+            # "clean" enough sightlines per the requested dvec_score threshold
             mask &= (eps_min / self.sim.box_size) >= dvec_score
 
         where = np.where(mask)[0]
