@@ -41,7 +41,7 @@ class VisualSim():
             mask = self.parent.filter_sightlines(sightlines, **base_kwargs)
             return [(None, sightlines[mask], None)]
 
-        if not sweep_values:
+        if sweep_values is None or len(sweep_values) == 0:
             raise ValueError("sweep_values must be provided when sweep_param is set")
 
         cmap_obj = plt.get_cmap(cmap)
@@ -376,7 +376,7 @@ class VisualSim():
             ax.legend(handles=legend_handles)
 
             plt.show()
-            
+
 
     def halo_partition(self, sightlines, functype='DM', cutoff=98, redshift=None, plottype='hist',
                     gif_path=None, modelled=False,
