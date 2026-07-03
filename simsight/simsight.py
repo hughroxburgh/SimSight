@@ -38,7 +38,7 @@ class SightlineSim():
         print(f'Initialised {self.sim.name}',flush=True)
         
         # -- Visualiser -- #
-        self.Vis = VisualSim(self.sim)
+        self.Vis = VisualSim(self)
 
     
     # ------------- generating / partitioning sightlines ------------- #
