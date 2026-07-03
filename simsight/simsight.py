@@ -113,6 +113,39 @@ class SightlineSim():
 
         return sightlines
     
+    def calculate_dvec_scores(self,sightlines):
+
+        l_max    = max(sl.length for sl in sightlines)
+        
+        n_max = int(np.ceil(l_max / self.sim.box_size)) + 2
+        v = np.arange(-n_max, n_max + 1, dtype=np.float32) * self.sim.box_size
+        ii, jj, kk = np.meshgrid(v, v, v, indexing="ij")
+        grid = np.stack([ii.ravel(), jj.ravel(), kk.ravel()], axis=1)
+        grid_sq = np.sum(grid ** 2, axis=1)
+        keep = np.any(grid != 0, axis=1) & (grid_sq <= l_max ** 2)
+        grid, grid_sq = grid[keep], grid_sq[keep]
+
+        dvecs  = np.array([sl.direction_vector for sl in sightlines], dtype=np.float32)
+
+        lengths = np.array([sl.length for sl in sightlines], dtype=np.float32)  # (N,)
+        eps_min = np.full(N, np.inf, dtype=np.float32)
+        INF32   = np.finfo(np.float32).max
+
+        chunk=512
+
+        for start in _Smart_Tqdm(range(0, len(sightlines), chunk),desc='Calculating direction vector scores'):
+            nh      = dvecs[start : start + chunk]       # (B, 3)
+            l_chunk = lengths[start : start + chunk]     # (B,)
+            proj    = grid @ nh.T                        # (G, B)
+            in_range = (proj > 1e-6) & (proj <= l_chunk[None, :])
+            pd2     = grid_sq[:, None] - proj ** 2
+            np.maximum(pd2, 0.0, out=pd2)
+            pd2[~in_range] = INF32
+            best    = pd2.min(axis=0)
+            eps_min[start : start + chunk] = np.sqrt(np.minimum(best, INF32))
+
+        mask &= (eps_min / box_size) >= min_direction_score
+    
 
 
     # ------------- Loading / saving sightlines ------------- #
@@ -163,7 +196,7 @@ class SightlineSim():
                     SL.sightline_idx = sightline_idx
                     sightlines.append(SL)
 
-            return sightlines
+            return np.array(sightlines)
                     
 
     def save_sightlines(self, sightlines, save_path):
@@ -608,9 +641,9 @@ class SightlineSim():
                 self.save_sightlines(sightlines,save_path)
 
         if delete_data:
-            return sightlines
+            return np.array(sightlines)
         else:
-            return sightlines, data, architecture 
+            return np.array(sightlines), data, architecture 
 
 
 
@@ -743,3 +776,55 @@ class SightlineSim():
 
         if not _Is_Interactive():
             _Progress_Print(msg,ts)
+
+
+    def filter_sightlines(self,sightlines,observed=False,redshift=None,dvec_score=None,
+                          min_halo_mass=0,max_halo_mass=1e20,
+                          min_halo_ip=0,max_halo_ip=1,
+                          min_halo_gasfrac=0,max_halo_gasfrac=1,
+                          min_num_halos=0,max_num_halos=10000):
+        
+        mask = np.ones(len(sightlines), dtype=bool)
+
+        if dvec_score is not None:
+            print('Filtering sightlines based on direction vector')
+            l_max    = np.float32(self.sim.cosmo.comoving_distance(redshift if redshift is not None else sightlines[0].target_redshift).value*1000)
+        
+            n_max = int(np.ceil(l_max / self.sim.box_size)) + 2
+            v = np.arange(-n_max, n_max + 1, dtype=np.float32) * self.sim.box_size
+            ii, jj, kk = np.meshgrid(v, v, v, indexing="ij")
+            grid = np.stack([ii.ravel(), jj.ravel(), kk.ravel()], axis=1)
+            grid_sq = np.sum(grid ** 2, axis=1)
+            keep = np.any(grid != 0, axis=1) & (grid_sq <= l_max ** 2)
+            grid, grid_sq = grid[keep], grid_sq[keep]
+
+            dvecs  = np.array([sl.direction_vector for sl in sightlines], dtype=np.float32)
+
+            lengths = np.array([sl.length for sl in sightlines], dtype=np.float32)  # (N,)
+            eps_min = np.full(len(sightlines), np.inf, dtype=np.float32)
+            INF32   = np.finfo(np.float32).max
+
+            chunk=512
+
+            for start in _Smart_Tqdm(range(0, len(sightlines), chunk),desc='    calculating direction vector scores'):
+                nh      = dvecs[start : start + chunk]       # (B, 3)
+                l_chunk = lengths[start : start + chunk]     # (B,)
+                proj    = grid @ nh.T                        # (G, B)
+                in_range = (proj > 1e-6) & (proj <= l_chunk[None, :])
+                pd2     = grid_sq[:, None] - proj ** 2
+                np.maximum(pd2, 0.0, out=pd2)
+                pd2[~in_range] = INF32
+                best    = pd2.min(axis=0)
+                eps_min[start : start + chunk] = np.sqrt(np.minimum(best, INF32))
+
+            mask &= (eps_min / self.sim.box_size) >= dvec_score
+
+        where = np.where(mask)[0]
+        for i,sl in enumerate(sightlines[mask]):
+            mask[where[i]] = sl.filter(redshift=redshift,observed=observed,
+                                       min_halo_mass=min_halo_mass,max_halo_mass=max_halo_mass,
+                                       min_halo_ip=min_halo_ip,max_halo_ip=max_halo_ip,
+                                       min_halo_gasfrac=min_halo_gasfrac,max_halo_gasfrac=max_halo_gasfrac,
+                                       min_num_halos=min_num_halos,max_num_halos=max_num_halos)
+            
+        return mask

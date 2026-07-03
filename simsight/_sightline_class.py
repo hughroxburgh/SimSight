@@ -1250,7 +1250,10 @@ class Sightline():
             self.modelled.sub_HaloAssignment[i] = assign
 
     def filter(self,redshift=None,observed=False,inferred=False,direction_vector=None,
-               min_halo_mass=0,max_halo_mass=1e20,min_halo_ip=0,max_halo_ip=1,min_num_halos=0,max_num_halos=10000):
+               min_halo_mass=0,max_halo_mass=1e20,
+               min_halo_ip=0,max_halo_ip=1,
+               min_halo_gasfrac=0,max_halo_gasfrac=1,
+               min_num_halos=0,max_num_halos=10000):
         
         check = True
 
@@ -1274,6 +1277,12 @@ class Sightline():
                     check = False 
                     break
                 if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] > max_halo_ip):
+                    check = False 
+                    break
+                if (halo['GasMass']/halo['TotalMass'] < min_halo_gasfrac):
+                    check = False 
+                    break
+                if (halo['GasMass']/halo['TotalMass'] > max_halo_gasfrac):
                     check = False 
                     break
 
