@@ -1264,9 +1264,17 @@ class Sightline():
 
         for halo in halos.values():
             if 'Redshift' not in halo.keys() or halo['Redshift'] < redshift:
-                if (halo['TotalMass'] < min_halo_mass) or (halo['TotalMass'] > max_halo_mass) or \
-                (halo['ImpactParam']/halo['Radius'] < min_halo_ip) or (halo['ImpactParam']/halo['Radius'] > max_halo_ip):
-                    check = False
+                if (halo['TotalMass'] < min_halo_mass):
+                    check = False 
+                    break
+                if (halo['TotalMass'] > max_halo_mass):
+                    check = False 
+                    break
+                if type(halo['ImpactParam']) != str and (halo['ImpactParam']/halo['Radius'] < min_halo_ip):
+                    check = False 
+                    break
+                if type(halo['ImpactParam']) != str and (halo['ImpactParam']/halo['Radius'] > max_halo_ip):
+                    check = False 
                     break
 
         return check
