@@ -17,8 +17,8 @@ from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive
 
 class SightlineSim():
 
-    def __init__(self,data_path,snap_path_structure=None,halo_path_structure=None,
-                 parallel=False,num_cores=None,backend='threading',fsps_path=None):
+    def __init__(self,data_path,num_cores=None,backend='threading',verbose=False,
+                 snap_path_structure=None,halo_path_structure=None,fsps_path=None):
         """
         data_path : where the data is stored on the servers. As long as the words 'TNG' or 'SIMBA' are inside, the class will try to conform to those standards.
         parallel : run things in parallel -- SEEMS TO BE WORSE SO JUST LEAVE FALSE FOR NOW
@@ -26,8 +26,9 @@ class SightlineSim():
 
         # -- Set up init -- #
         self.data_path = data_path  
-        self.parallel = parallel
+        self.verbose = verbose
         self.backend = backend
+        self.verbose=verbose
         if num_cores is None:
             self.num_cores = int(multiprocessing.cpu_count())
         else:
@@ -171,7 +172,7 @@ class SightlineSim():
                 if len(files) > 0:
                     n_files = int(percent*len(files)/100)
                     sightlines = []
-                    for file in _Smart_Tqdm(files[:n_files],desc='Loading sightlines'):
+                    for file in _Smart_Tqdm(files[:n_files],desc='Loading sightlines',show_mem=self.verbose):
                         sightline_idx = int(file.split('_')[-1].split('.pkl')[0])
                         with open(file,'rb') as f:
                             SL = pickle.load(f)
@@ -179,7 +180,7 @@ class SightlineSim():
                             sightlines.append(SL)
                     
                     if not _Is_Interactive():
-                        _Progress_Print(msg,ts)
+                        _Progress_Print(msg,ts,show_mem=self.verbose)
                         
                     return np.array(sightlines)
             else:
@@ -189,7 +190,7 @@ class SightlineSim():
         else:
             n_files = int(percent*len(sl_files)/100)
             sightlines = []
-            for file in _Smart_Tqdm(sl_files[:n_files],desc='Loading sightlines'):
+            for file in _Smart_Tqdm(sl_files[:n_files],desc='Loading sightlines',show_mem=self.verbose):
                 sightline_idx = int(file.split('_')[-1].split('.pkl')[0])
                 with open(file,'rb') as f:
                     SL = pickle.load(f)
@@ -213,7 +214,7 @@ class SightlineSim():
 
         saved_files = Parallel(n_jobs=self.num_cores, backend='loky')(
             delayed(_save_one)(sl)
-            for sl in _Smart_Tqdm(sightlines, desc='    saving sightlines')
+            for sl in _Smart_Tqdm(sightlines, desc='    saving sightlines',show_mem=self.verbose)
         )
 
         get_reusable_executor().shutdown(wait=True)
@@ -224,7 +225,7 @@ class SightlineSim():
                 os.remove(file)
 
         if not _Is_Interactive():
-            _Progress_Print(msg, ts)
+            _Progress_Print(msg, ts,show_mem=self.verbose)
 
 
     # ------------- Computation architecture ------------- #
@@ -264,7 +265,7 @@ class SightlineSim():
             msg = f"    generating KDTree"
             print(msg,end='\r')
             tree = cKDTree(data['Coordinates'])
-            _Progress_Print(msg,ts)
+            _Progress_Print(msg,ts,show_mem=self.verbose)
 
             return tree, radii, coarse_radius, giant_idx, giant_pts, giant_radii
 
@@ -305,7 +306,7 @@ class SightlineSim():
                         if k >= 0}
             del order
 
-            _Progress_Print(msg,ts)
+            _Progress_Print(msg,ts,show_mem=self.verbose)
 
             return {'voxels':voxels,
                     'coords':data['Coordinates'],
@@ -328,14 +329,14 @@ class SightlineSim():
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
                 delayed(Points_In_Sightline)(sl, snapshot, architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
-                for sl in _Smart_Tqdm(sightlines, desc=f"    finding points in sightlines [snap {snapshot}]")
+                for sl in _Smart_Tqdm(sightlines, desc=f"    finding points in sightlines [snap {snapshot}]",show_mem=self.verbose)
             )
         else:
-            for sl in _Smart_Tqdm(sightlines, desc=f"    finding points in sightlines [snap {snapshot}]"):
+            for sl in _Smart_Tqdm(sightlines, desc=f"    finding points in sightlines [snap {snapshot}]",show_mem=self.verbose):
                 Points_In_Sightline(sl,snapshot,architecture,radii,coarse_radius,findtype,giant_idx,giant_pts,giant_radii)
 
         if not _Is_Interactive():
-            _Progress_Print(msg,ts)
+            _Progress_Print(msg,ts,show_mem=self.verbose)
 
 
     def _snapshot_compute_sightlines(self, sightlines, data, func, snapshot,parallel=False):
@@ -353,10 +354,11 @@ class SightlineSim():
         if parallel:
             results = Parallel(n_jobs=self.num_cores, backend='threading')(
                 delayed(Compute_Sightline)(sl, self.sim, data, func, snapshot)
-                for sl in _Smart_Tqdm(sightlines, desc=f"    computing snapshot sightlines [snap {snapshot}]")
+                for sl in _Smart_Tqdm(sightlines, desc=f"    computing snapshot sightlines [snap {snapshot}]",show_mem=self.verbose)
             )
         else:
-            results = [Compute_Sightline(sl, self.sim, data, func, snapshot) for sl in _Smart_Tqdm(sightlines, desc=f"    computing snapshot sightlines [snap {snapshot}]")]
+            results = [Compute_Sightline(sl, self.sim, data, func, snapshot) 
+                       for sl in _Smart_Tqdm(sightlines, desc=f"    computing snapshot sightlines [snap {snapshot}]",show_mem=self.verbose)]
 
         for sl, sl_results in zip(sightlines, results):
             for sub_idx, compute, density, lengths, ids in sl_results:
@@ -366,7 +368,7 @@ class SightlineSim():
                 sl.sub_Cells[sub_idx] = ids
 
         if not _Is_Interactive():
-            _Progress_Print(msg,ts)
+            _Progress_Print(msg,ts,show_mem=self.verbose)
 
 
     def _snapshot_reduce_sightlines(self, sightlines, save_path,parallel=False):
@@ -394,7 +396,7 @@ class SightlineSim():
         if parallel:
             results = Parallel(n_jobs=self.num_cores, backend='loky')(
                 delayed(_reduce_one)(sl, 100, 20, save_path)
-                for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines')
+                for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines',show_mem=self.verbose)
             )
 
             get_reusable_executor().shutdown(wait=True)
@@ -402,11 +404,11 @@ class SightlineSim():
             sightlines[:] = results
 
         else:
-            for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines'):
+            for i in _Smart_Tqdm(range(len(sightlines)), desc='    reducing sightlines',show_mem=self.verbose):
                 sightlines[i].reduce(grid_resolution=100,cgm_buffer=20,save_points_path=save_path)
                 
         if not _Is_Interactive():
-            _Progress_Print(msg,ts)
+            _Progress_Print(msg,ts,show_mem=self.verbose)
 
 
     def _snapshot_find_halos(self, sightlines, snap, halos, com, radii, tree, max_radius,parallel=False):
@@ -433,15 +435,15 @@ class SightlineSim():
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
                 delayed(Halos_In_Sightline)(sl, snap, halos, com, radii, tree, max_radius)
-                for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines')
+                for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines',show_mem=self.verbose)
             )
         else:
-            for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines'):
+            for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines',show_mem=self.verbose):
                 Halos_In_Sightline(sl, snap, halos, com, radii, tree, max_radius)
             # inactive sightlines untouched — already in sightlines list
 
         if not _Is_Interactive():
-            _Progress_Print(msg, ts)
+            _Progress_Print(msg, ts,show_mem=self.verbose)
 
 
     # ------------- Main functions ------------- #
@@ -674,7 +676,7 @@ class SightlineSim():
                 print(msg,end='\r',flush=True)
                 ts = clock()
                 data = self.sim.load_data(particle_type='gas',fields=['ParticleIDs'],snapNum=trueSnapNum)
-                _Progress_Print(msg,ts)
+                _Progress_Print(msg,ts,show_mem=self.verbose)
 
                 for sl in _Smart_Tqdm(sightlines,desc='    assigning halo contribution'):
                     sl.assign_to_halos(method=method,particle_ids = data['ParticleIDs'], snapshot=snap,sim=self.sim)
@@ -711,6 +713,11 @@ class SightlineSim():
             galfinder = GalaxyFinder(snap, self.sim)
             interp_cache = load_grids_and_interps(grid_path,self.sim.redshifts[snap])
 
+            if not _Is_Interactive():
+                msg = f"    observing halos in sightlines"
+                ts = clock()
+                print(msg,end='\r',flush=True)
+
             if parallel:
                 sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
                     delayed(sl.observe_halos)(galfinder,interp_cache=interp_cache,filter_cache=filter_cache) 
@@ -719,6 +726,9 @@ class SightlineSim():
             else:
                 for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]',show_mem=verbose):
                     sl.observe_halos(galfinder,interp_cache=interp_cache,filter_cache=filter_cache)
+
+            if not _Is_Interactive():
+                _Progress_Print(msg,ts,show_mem=self.verbose)
 
     def infer_halos_in_sightlines(self,sightlines,parallel=False,
                                   redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit'):
@@ -743,10 +753,10 @@ class SightlineSim():
 
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                delayed(sl.infer_halos)(inference,filters) for sl in _Smart_Tqdm(sightlines,desc=f'Inferring halos in sightlines')
+                delayed(sl.infer_halos)(inference,filters) for sl in _Smart_Tqdm(sightlines,desc=f'Inferring halos in sightlines',show_mem=self.verbose)
                 )
         else:
-            for sl in _Smart_Tqdm(sightlines, desc=f'Inferring halos in sightlines'):
+            for sl in _Smart_Tqdm(sightlines, desc=f'Inferring halos in sightlines',show_mem=self.verbose):
                 sl.infer_halos(inference,filters)
 
 
@@ -778,14 +788,14 @@ class SightlineSim():
 
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                delayed(sl.model_sightline)(inference,filters,verbose=False) for sl in _Smart_Tqdm(sightlines,desc='Modelling sightlines')
+                delayed(sl.model_sightline)(inference,filters,verbose=False) for sl in _Smart_Tqdm(sightlines,desc='Modelling sightlines',show_mem=self.verbose)
                 )
         else:
-            for sl in _Smart_Tqdm(sightlines, desc='Modelling sightlines'):
+            for sl in _Smart_Tqdm(sightlines, desc='Modelling sightlines',show_mem=self.verbose):
                 sl.model_sightline(inference,filters,verbose=False)
 
         if not _Is_Interactive():
-            _Progress_Print(msg,ts)
+            _Progress_Print(msg,ts,show_mem=self.verbose)
 
 
     def filter_sightlines(self,sightlines,observed=False,redshift=None,dvec_thresh=None,

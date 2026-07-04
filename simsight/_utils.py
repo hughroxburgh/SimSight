@@ -61,12 +61,29 @@ def _Is_Interactive():
     except NameError:
         return sys.stdout.isatty()
 
-def _Progress_Print(msg,time_start):
+def _Progress_Print(msg, time_start, show_mem=False):
+
+    def _mem_str():
+        try:
+            import psutil, os
+            proc = psutil.Process(os.getpid())
+            rss_gb = proc.memory_info().rss / 1e9
+            return f", mem={rss_gb:.2f}GB"
+        except ImportError:
+            try:
+                import resource
+                peak_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                peak_gb = peak_kb / 1e6 if sys.platform != 'darwin' else peak_kb / 1e9
+                return f", peak_mem={peak_gb:.2f}GB"
+            except Exception:
+                return ""
+
+    mem_str = _mem_str() if show_mem else ""
 
     if _Is_Interactive():
-        print(f"{msg} -- Done ({clock()-time_start:.0f}s)",flush=True)
+        print(f"{msg} -- Done ({clock()-time_start:.0f}s{mem_str})", flush=True)
     else:
-        print(f" -- Done ({clock()-time_start:.0f}s)",flush=True)
+        print(f" -- Done ({clock()-time_start:.0f}s{mem_str})", flush=True)
 
 def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60, show_mem=False):
 
