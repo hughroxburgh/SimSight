@@ -400,7 +400,7 @@ class GalaxyFinder():
         return clusters,masses
     
 
-    def cluster_mags(self, cluster, redshift, grid_path, filters=['lsst_g','lsst_r','lsst_i','lsst_z'], apply_dust=True):
+    def cluster_mags(self, cluster, redshift, grid_path, filter_cache=None,filters=['lsst_g','lsst_r','lsst_i','lsst_z'], apply_dust=True):
 
         import os
         os.environ["SPS_HOME"] = self.sim.fsps_path
@@ -448,8 +448,12 @@ class GalaxyFinder():
         # -- Calculate the absolute magnitudes using the rest wavelength or the observed wavelength -- #
         absolute_mags_obs = {}
         absolute_mags_rest = {}
+
         for band in filters:
-            wave_filt, trans = fsps.get_filter(band).transmission
+            if filter_cache is not None and band in filter_cache:
+                wave_filt, trans = filter_cache[band]
+            else:
+                wave_filt, trans = fsps.get_filter(band).transmission
 
             # Transmission in rest frame or observed frame 
             T_rest = np.interp(wavelength, wave_filt, trans, left=0.0, right=0.0)   
@@ -539,7 +543,7 @@ class GalaxyFinder():
 
     #     return cluster
     
-    def process_halo(self,halo_id,sightline,redshift,grid_path,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],apply_dust=True,plot=True,verbose=True):
+    def process_halo(self,halo_id,sightline,redshift,grid_path,filter_cache=None,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],apply_dust=True,plot=True,verbose=True):
 
         halo_info,stars,centres = self.cluster_stars(halo_id, alpha=0.86, linking_length=20, min_stars=10, mass_frac=0.9, sig_frac=0.2, plot=plot,verbose=verbose)
 
@@ -550,7 +554,7 @@ class GalaxyFinder():
         galaxy_app_mags = []
         galaxy_abs_mags = []
         for cluster in clusters:
-            proc_cluster = self.cluster_mags(cluster,redshift,grid_path,filters,apply_dust)
+            proc_cluster = self.cluster_mags(cluster,redshift,grid_path,filter_cache,filters,apply_dust)
             galaxy_app_mags.append(proc_cluster['ApparentMags'])
             galaxy_abs_mags.append(proc_cluster['AbsoluteMags'])
 

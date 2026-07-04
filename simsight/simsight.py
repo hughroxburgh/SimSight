@@ -685,6 +685,14 @@ class SightlineSim():
                                     num_snaps=None, single_snap=None,parallel=False):
 
         from ._galfinder_class import GalaxyFinder
+        import os
+        os.environ["SPS_HOME"] = self.fsps_path
+        import fsps
+
+        filter_cache = {}
+        for band in filters:
+            wave_filt, trans = fsps.get_filter(band).transmission
+            filter_cache[band] = (np.asarray(wave_filt), np.asarray(trans))
 
         if single_snap is not None:
             start_snap = single_snap
@@ -704,11 +712,11 @@ class SightlineSim():
 
             if parallel:
                 sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                    delayed(sl.observe_halos)(galfinder,grid_path,filters) for sl in _Smart_Tqdm(sightlines,desc=f'    observing halos in sightlines [snap {snap}]')
+                    delayed(sl.observe_halos)(galfinder,grid_path,filter_cache=filter_cache) for sl in _Smart_Tqdm(sightlines,desc=f'    observing halos in sightlines [snap {snap}]')
                     )
             else:
                 for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]'):
-                    sl.observe_halos(galfinder,grid_path,filters)
+                    sl.observe_halos(galfinder,grid_path,filter_cache=filter_cache)
 
     def infer_halos_in_sightlines(self,sightlines,parallel=False,
                                   redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit'):
