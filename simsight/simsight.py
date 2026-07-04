@@ -686,7 +686,7 @@ class SightlineSim():
 
         from ._galfinder_class import GalaxyFinder
         import os
-        os.environ["SPS_HOME"] = self.fsps_path
+        os.environ["SPS_HOME"] = self.sim.fsps_path
         import fsps
 
         filter_cache = {}
