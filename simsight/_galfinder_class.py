@@ -604,7 +604,7 @@ class GalaxyFinder():
                      filter_cache=None,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],
                      apply_dust=True,plot=True,verbose=True):
 
-        halo_info,stars,centres = self.cluster_stars(halo_id, alpha=0.86, linking_length=20, min_stars=10, mass_frac=0.9, sig_frac=0.2, plot=plot,verbose=verbose)
+        halo_info,stars,centres = self.cluster_stars(halo_id,plot=plot,verbose=verbose)
 
         stars,tCentres = self.resolve_clusters(sightline=sightline,redshift=redshift,stars=stars,centres=centres,lsst_fwhm=0.7,merge_threshold = 0.3,plot=plot,verbose=verbose)
 
