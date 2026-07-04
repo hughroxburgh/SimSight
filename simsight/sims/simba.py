@@ -43,7 +43,7 @@ class SIMBA_SightlineSim():
 
         return 151-trueSnapNum
 
-    def get_redshifts(self):
+    def get_redshifts(self,snap_idx=None):
 
         redshifts = np.array([0,1.6742000e-02, 3.3612000e-02, 5.0617000e-02, 6.7760000e-02, 8.5046000e-02, 1.0247900e-01, 1.2006500e-01,
                         1.3780700e-01, 1.5571200e-01, 1.7378400e-01, 1.9202900e-01, 2.1045100e-01, 2.2905700e-01, 2.4785200e-01, 2.6684200e-01,
@@ -65,13 +65,16 @@ class SIMBA_SightlineSim():
                         1.1428765e+01, 1.1839961e+01, 1.2271910e+01, 1.2726037e+01, 1.3203888e+01, 1.3707152e+01, 1.4237665e+01, 1.4797437e+01,
                         1.5388664e+01, 1.6013753e+01, 1.6675347e+01, 1.7376352e+01, 1.8119968e+01, 1.8909730e+01, 1.9749544e+01, 9.9000000e+01])
 
-        files = sorted(glob(f'{self.data_path}/{self.snap_path_structure}_*.hdf5'))
-        idx = []
-        for f in files[::-1]:
-            snapNum = int(f.split('_')[-1][:3])
-            idx.append(151 - snapNum)
+        if snap_idx is None:
+            files = sorted(glob(f'{self.data_path}/{self.snap_path_structure}_*.hdf5'))
+            idx = []
+            for f in files[::-1]:
+                snapNum = int(f.split('_')[-1][:3])
+                idx.append(151 - snapNum)
 
-        self.snap_idx = np.array(idx)
+            self.snap_idx = np.array(idx)
+        else:
+            self.snap_idx = snap_idx
 
         self.redshifts = redshifts[self.snap_idx]
     
