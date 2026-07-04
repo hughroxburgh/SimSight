@@ -684,7 +684,7 @@ class SightlineSim():
 
 
     def observe_halos_in_sightlines(self,sightlines,grid_path,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],
-                                    num_snaps=None, single_snap=None,parallel=False,verbose=False):
+                                    num_snaps=None, single_snap=None,parallel=False):
 
         from ._galfinder_class import GalaxyFinder, load_grids_and_interps
         import os
@@ -721,10 +721,10 @@ class SightlineSim():
             if parallel:
                 sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
                     delayed(sl.observe_halos)(galfinder,interp_cache=interp_cache,filter_cache=filter_cache) 
-                    for sl in _Smart_Tqdm(sightlines,desc=f'    observing halos in sightlines [snap {snap}]',show_mem=verbose)
+                    for sl in _Smart_Tqdm(sightlines,desc=f'    observing halos in sightlines [snap {snap}]',show_mem=self.verbose)
                     )
             else:
-                for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]',show_mem=verbose):
+                for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]',show_mem=self.verbose):
                     sl.observe_halos(galfinder,interp_cache=interp_cache,filter_cache=filter_cache)
 
             if not _Is_Interactive():
