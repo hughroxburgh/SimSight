@@ -1,8 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-plt.rc('font',family='serif')
-
 from matplotlib.lines import Line2D
 import matplotlib.colors as mcolors
 from matplotlib.patches import Patch
@@ -30,6 +28,15 @@ class VisualSim():
     def _style(self):
         style = 'dark_background' if self.dark_mode else 'default'
         with plt.style.context(style):
+            plt.rcParams.update({
+                'font.family': 'serif',
+                'font.size': 14,
+                'axes.labelsize': 14,
+                'axes.titlesize': 15,
+                'xtick.labelsize': 10,
+                'ytick.labelsize': 10,
+                'legend.fontsize': 12,
+            })
             yield
 
     def _resolve_filter(self, sightlines, filt=None, sweep_param=None, sweep_values=None, cmap='viridis'):
@@ -52,7 +59,19 @@ class VisualSim():
             kwargs[sweep_param] = val
             mask = self.parent.filter_sightlines(sightlines, **kwargs)
             color = cmap_obj(i / max(n - 1, 1))
-            results.append((f'{sweep_param}={val}', sightlines[mask], color))
+
+            if isinstance(val, (int, float)) and abs(val) >= 100000:
+                exponent = int(np.floor(np.log10(abs(val))))
+                mantissa = val / 10**exponent
+                if abs(mantissa) >= 10:
+                    mantissa /= 10
+                    exponent += 1
+                mantissa_str = f'{int(mantissa)}' if mantissa == int(mantissa) else f'{mantissa:.2g}'
+                val_str = rf'${mantissa_str}\times10^{{{exponent}}}$'
+            else:
+                val_str = str(val)
+
+            results.append((f'{sweep_param}={val_str}', sightlines[mask], color))
         return results
 
     # ------------- miscellaneous functions ------------- #
