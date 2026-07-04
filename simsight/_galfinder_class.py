@@ -14,18 +14,44 @@ from scipy.interpolate import RegularGridInterpolator
 from ._compute import Transform_Points
 from ._utils import _Progress_Print
 
-def load_grids(path,redshift):
-
-    metallicity_grid = f'{path}/metallicity_grid.npy'
-    ages_grid = f'{path}/ages_grid.npy'
-    wavelength_grid = f'{path}/wavelength_grid.npy'
-    mass_frac_grid = f'{path}/mass_fraction_grid.npy'
+def load_grids_and_interps(path, redshift):
+    metallicity_grid_path = f'{path}/metallicity_grid.npy'
+    ages_grid_path = f'{path}/ages_grid.npy'
+    wavelength_grid_path = f'{path}/wavelength_grid.npy'
+    mass_frac_grid_path = f'{path}/mass_fraction_grid.npy'
     spec_path = f'{path}/fsps_spec_grid_z{redshift:.3f}.npy'
     cf_path = f'{path}/cf_grid.npy'
 
-    return (np.load(spec_path), np.load(wavelength_grid),
-            np.load(metallicity_grid), np.load(ages_grid),
-            np.load(mass_frac_grid), np.load(cf_path))
+    spectra_grid = np.load(spec_path)
+    wavelength = np.load(wavelength_grid_path)
+    metallicity_grid = np.load(metallicity_grid_path)
+    age_grid = np.load(ages_grid_path)
+    mass_frac_grid = np.load(mass_frac_grid_path)
+    dust_grid = np.load(cf_path)
+
+    log_tage_axis = np.log10(age_grid)
+
+    mass_frac_interp = RegularGridInterpolator(
+        (metallicity_grid, log_tage_axis), mass_frac_grid,
+        method='linear', bounds_error=False, fill_value=None
+    )
+    spectra_interp = RegularGridInterpolator(
+        (metallicity_grid, log_tage_axis), spectra_grid,
+        method='linear', bounds_error=False, fill_value=None
+    )
+    cf_interp = RegularGridInterpolator(
+        (log_tage_axis,), dust_grid,
+        method='linear', bounds_error=False, fill_value=None
+    )
+
+    return {
+        'mass_frac_interp': mass_frac_interp,
+        'spectra_interp': spectra_interp,
+        'cf_interp': cf_interp,
+        'metallicity_grid': metallicity_grid,
+        'age_grid': age_grid,
+        'wavelength': wavelength,
+    }
 
 
 class GalaxyFinder():
@@ -400,14 +426,24 @@ class GalaxyFinder():
         return clusters,masses
     
 
-    def cluster_mags(self, cluster, redshift, grid_path, filter_cache=None,filters=['lsst_g','lsst_r','lsst_i','lsst_z'], apply_dust=True):
+    def cluster_mags(self, cluster, redshift, 
+                     interp_cache=None, interp_path=None, 
+                     filter_cache=None,filters=['lsst_g','lsst_r','lsst_i','lsst_z'], 
+                     apply_dust=True):
 
         import os
         os.environ["SPS_HOME"] = self.sim.fsps_path
         import fsps
 
-        # -- Load FSPS and Dust Attenuation Grids -- #
-        spectra_grid, wavelength, metallicity_grid, age_grid, mass_frac_grid, dust_grid = load_grids(grid_path, self.sim.redshifts[self.snapshot])
+        if interp_cache is None:
+            interp_cache = load_grids_and_interps(interp_path, self.sim.redshifts[self.snapshot])
+
+        mass_frac_interp = interp_cache['mass_frac_interp']
+        spectra_interp = interp_cache['spectra_interp']
+        cf_interp = interp_cache['cf_interp']
+        metallicity_grid = interp_cache['metallicity_grid']
+        age_grid = interp_cache['age_grid']
+        wavelength = interp_cache['wavelength']
 
         # -- Extract star properties -- #
         log_solar_metallicities = np.log10(cluster['Metallicity'] / 0.0127)
@@ -419,33 +455,22 @@ class GalaxyFinder():
 
         query_pts = np.column_stack([log_metallicities, log_ages])
 
-        log_tage_axis = np.log10(age_grid)
-
         # -- Recover initial masses from surviving mass fraction -- #
-        mass_frac_interp = RegularGridInterpolator(
-            (metallicity_grid, log_tage_axis), mass_frac_grid,
-            method='linear', bounds_error=False, fill_value=None
-        )
         surviving_fractions = mass_frac_interp(query_pts)
         initial_masses = (cluster['Masses'] * 1e10) / surviving_fractions
 
         # -- Interpolate spectra at star properties -- #
-        spectra_interp = RegularGridInterpolator(
-            (metallicity_grid, log_tage_axis), spectra_grid,
-            method='linear', bounds_error=False, fill_value=None
-        )
         spectra = spectra_interp(query_pts)
 
         # -- Apply Charlot & Fall attenuation per particle -- #
         if apply_dust:
-            cf_interp = RegularGridInterpolator((log_tage_axis,), dust_grid, method='linear', bounds_error=False, fill_value=None)
             atten = cf_interp(log_ages[:, None])
             spectra = spectra * atten
 
         # -- Scale by initial mass and sum over particles -- #
-        L_nu = np.nansum(initial_masses[:, None] * spectra, axis=0)         # Luminosity density, units: Lsun/Hz 
+        L_nu = np.nansum(initial_masses[:, None] * spectra, axis=0)
 
-        # -- Calculate the absolute magnitudes using the rest wavelength or the observed wavelength -- #
+        # -- Calculate the absolute magnitudes -- #
         absolute_mags_obs = {}
         absolute_mags_rest = {}
 
@@ -455,11 +480,9 @@ class GalaxyFinder():
             else:
                 wave_filt, trans = fsps.get_filter(band).transmission
 
-            # Transmission in rest frame or observed frame 
-            T_rest = np.interp(wavelength, wave_filt, trans, left=0.0, right=0.0)   
-            T_obs = np.interp(wavelength, wave_filt / (1 + redshift), trans, left=0.0, right=0.0)   
+            T_rest = np.interp(wavelength, wave_filt, trans, left=0.0, right=0.0)
+            T_obs = np.interp(wavelength, wave_filt / (1 + redshift), trans, left=0.0, right=0.0)
 
-            # Produce band averaged L_nu
             for T, store, z in [(T_obs, absolute_mags_obs, redshift), (T_rest, absolute_mags_rest, 0)]:
                 num = np.trapz(L_nu * T / wavelength**2, wavelength)
                 den = np.trapz(T / wavelength**2, wavelength)
@@ -468,19 +491,16 @@ class GalaxyFinder():
                     store[band] = np.nan
                     continue
 
-                L_nu_bandavg = float((num / den) * (1+z))  # incorporates the boosting from the scrunching of frequency 
+                L_nu_bandavg = float((num / den) * (1 + z))
+                store[band] = -2.5 * np.log10(L_nu_bandavg) - 32.36 if L_nu_bandavg > 0 else np.nan
 
-                # Convert to AB magnitude 
-                store[band] = -2.5 * np.log10(L_nu_bandavg) - 32.36 if L_nu_bandavg > 0 else np.nan   # Derived from AB magnitude zeropoint
-        
         cluster['AbsoluteMags'] = absolute_mags_rest
-        # cluster['AbsoluteMagsObs'] = absolute_mags_obs
 
-        # -- Calculate apparent magnitudes using the distance modulus and luminosity distance -- #
         D_L = self.sim.cosmo.luminosity_distance(redshift).to('pc').value
-        distance_modulus = 5 * np.log10(D_L / 10)  # Convert Mpc to pc for distance modulus
+        distance_modulus = 5 * np.log10(D_L / 10)
 
-        apparent_mags = {band: mag + distance_modulus if not np.isnan(mag) else np.nan for band, mag in absolute_mags_obs.items()}
+        apparent_mags = {band: mag + distance_modulus if not np.isnan(mag) else np.nan
+                        for band, mag in absolute_mags_obs.items()}
 
         cluster['ApparentMags'] = apparent_mags
 
@@ -543,7 +563,10 @@ class GalaxyFinder():
 
     #     return cluster
     
-    def process_halo(self,halo_id,sightline,redshift,grid_path,filter_cache=None,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],apply_dust=True,plot=True,verbose=True):
+    def process_halo(self,halo_id,sightline,redshift,
+                     interp_cache=None,interp_path=None,
+                     filter_cache=None,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],
+                     apply_dust=True,plot=True,verbose=True):
 
         halo_info,stars,centres = self.cluster_stars(halo_id, alpha=0.86, linking_length=20, min_stars=10, mass_frac=0.9, sig_frac=0.2, plot=plot,verbose=verbose)
 
@@ -554,7 +577,10 @@ class GalaxyFinder():
         galaxy_app_mags = []
         galaxy_abs_mags = []
         for cluster in clusters:
-            proc_cluster = self.cluster_mags(cluster,redshift,grid_path,filter_cache,filters,apply_dust)
+            proc_cluster = self.cluster_mags(cluster,redshift,
+                                             interp_cache,interp_path,
+                                             filter_cache,filters,
+                                             apply_dust)
             galaxy_app_mags.append(proc_cluster['ApparentMags'])
             galaxy_abs_mags.append(proc_cluster['AbsoluteMags'])
 

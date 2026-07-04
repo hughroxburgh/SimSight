@@ -68,16 +68,32 @@ def _Progress_Print(msg,time_start):
     else:
         print(f" -- Done ({clock()-time_start:.0f}s)",flush=True)
 
-def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60):
-    
+def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60, show_mem=False):
+
+    def _mem_str():
+        try:
+            import psutil, os
+            proc = psutil.Process(os.getpid())
+            rss_gb = proc.memory_info().rss / 1e9
+            return f", mem={rss_gb:.2f}GB"
+        except ImportError:
+            try:
+                import resource
+                # ru_maxrss is KB on Linux, bytes on macOS
+                peak_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                peak_gb = peak_kb / 1e6 if sys.platform != 'darwin' else peak_kb / 1e9
+                return f", peak_mem={peak_gb:.2f}GB"
+            except Exception:
+                return ""
+
     if _Is_Interactive():
         yield from tqdm(iterable, desc=desc, total=total)
         return
-    
+
     if total is None:
         iterable = list(iterable)
         total = len(iterable)
-    
+
     t_start = clock()
     t_last = t_start
 
@@ -89,9 +105,11 @@ def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60):
             elapsed = t_now - t_start
             rate = (i + 1) / elapsed if elapsed > 0 else 0
             rate_str = f"{rate:.1f} it/s" if rate < 1000 else f"{rate/1000:.2f}k it/s"
-            print(f"[{pct:3d}%] {desc} ({i+1}/{total}, {rate_str})", file=sys.stderr)
+            mem_str = _mem_str() if show_mem else ""
+            print(f"[{pct:3d}%] {desc} ({i+1}/{total}, {rate_str}{mem_str})", file=sys.stderr)
             t_last = t_now
-    
+
     elapsed = clock() - t_start
-    print(f"[100%] {desc} ({total}/{total}, {elapsed:.1f}s total)", file=sys.stderr)
+    mem_str = _mem_str() if show_mem else ""
+    print(f"[100%] {desc} ({total}/{total}, {elapsed:.1f}s total{mem_str})", file=sys.stderr)
     print('\n', file=sys.stderr)

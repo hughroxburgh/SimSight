@@ -1024,7 +1024,12 @@ class Sightline():
 
     # ------------- Observing / Modelling Sightline ------------- #
 
-    def observe_halos(self, galaxyfinder, grid_path, filter_cache=None,filters=['lsst_g','lsst_r','lsst_i','lsst_z']):
+    def observe_halos(self, galaxyfinder, 
+                      interp_path=None,interp_cache=None,
+                      filter_cache=None,filters=['lsst_g','lsst_r','lsst_i','lsst_z']):
+        
+        if interp_cache is None and interp_path is None:
+            raise ValueError('Supply path to interpolation grids!')
 
         limiting_mags = np.array([LIMITING_MAGS[key] for key in filters])
     
@@ -1051,7 +1056,10 @@ class Sightline():
 
                         if halo['NumStars'] >= galaxyfinder.nstars_limit:
 
-                            observed_halo = galaxyfinder.process_halo(halo['ID'], subsl, redshift, grid_path, filter_cache, filters, apply_dust=True, plot=False, verbose=False)
+                            observed_halo = galaxyfinder.process_halo(halo['ID'], subsl, redshift, 
+                                                                      interp_cache=interp_cache,interp_path=interp_path,
+                                                                      filter_cache=filter_cache, filters=filters, 
+                                                                      apply_dust=True, plot=False, verbose=False)
 
                             n = len(observed_halo['GalaxyStellarMasses'])
 

@@ -682,9 +682,9 @@ class SightlineSim():
 
 
     def observe_halos_in_sightlines(self,sightlines,grid_path,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],
-                                    num_snaps=None, single_snap=None,parallel=False):
+                                    num_snaps=None, single_snap=None,parallel=False,verbose=False):
 
-        from ._galfinder_class import GalaxyFinder
+        from ._galfinder_class import GalaxyFinder, load_grids_and_interps
         import os
         os.environ["SPS_HOME"] = self.sim.fsps_path
         import fsps
@@ -709,14 +709,16 @@ class SightlineSim():
             print(f'------Snapshot {snap}------',flush=True)
 
             galfinder = GalaxyFinder(snap, self.sim)
+            interp_cache = load_grids_and_interps(grid_path,self.sim.redshifts[snap])
 
             if parallel:
                 sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                    delayed(sl.observe_halos)(galfinder,grid_path,filter_cache=filter_cache) for sl in _Smart_Tqdm(sightlines,desc=f'    observing halos in sightlines [snap {snap}]')
+                    delayed(sl.observe_halos)(galfinder,interp_cache=interp_cache,filter_cache=filter_cache) 
+                    for sl in _Smart_Tqdm(sightlines,desc=f'    observing halos in sightlines [snap {snap}]',show_mem=verbose)
                     )
             else:
-                for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]'):
-                    sl.observe_halos(galfinder,grid_path,filter_cache=filter_cache)
+                for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]',show_mem=verbose):
+                    sl.observe_halos(galfinder,interp_cache=interp_cache,filter_cache=filter_cache)
 
     def infer_halos_in_sightlines(self,sightlines,parallel=False,
                                   redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit'):
