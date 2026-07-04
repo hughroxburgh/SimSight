@@ -166,7 +166,8 @@ class SIMBA_SightlineSim():
             data['Coordinates'] = data['Coordinates'] / self.hub
         if 'Density' in fields:
             data['Density'] = data['Density'] * self.hub**2
-
+        if 'Masses' in fields:
+            data['Masses']          /= self.hub
         if verbose:
             _Progress_Print(msg,ts)
 

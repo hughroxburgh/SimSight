@@ -13,7 +13,7 @@ import numpy as np
 
 from .sims import load_sim
 from ._visualiser_class import VisualSim
-from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive
+from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive,Cleanup_Memory
 
 class SightlineSim():
 
@@ -726,6 +726,8 @@ class SightlineSim():
             else:
                 for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]',show_mem=self.verbose):
                     sl.observe_halos(galfinder,interp_cache=interp_cache,filter_cache=filter_cache)
+
+            Cleanup_Memory(verbose=self.verbose)
 
             if not _Is_Interactive():
                 _Progress_Print(msg,ts,show_mem=self.verbose)

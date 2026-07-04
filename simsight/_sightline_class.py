@@ -1094,7 +1094,7 @@ class Sightline():
                     self.sub_Halos[i] = [None]
 
                 self.sub_Observed[i] = True
-
+        
         return self
 
 

@@ -4,6 +4,8 @@ from numba import njit
 import sys
 from time import time as clock
 from tqdm import tqdm
+import gc
+import ctypes
 
 def _Get_Colours(num,dark_mode=False):
     """
@@ -130,3 +132,39 @@ def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60, show_mem=False):
     mem_str = _mem_str() if show_mem else ""
     print(f"[100%] {desc} ({total}/{total}, {elapsed:.1f}s total{mem_str})", file=sys.stderr)
     print('\n', file=sys.stderr)
+
+
+
+def Cleanup_Memory(verbose=False):
+    """
+    Force garbage collection and return freed memory to the OS where possible.
+    Safe to call periodically in long-running jobs (e.g. between sightlines/snapshots)
+    to prevent glibc's malloc arenas from accumulating freed-but-unreturned memory.
+    """
+    if verbose:
+        import psutil, os
+        proc = psutil.Process(os.getpid())
+        rss_before = proc.memory_info().rss / 1e9
+
+    # clear any dangling exception state that can pin whole call stacks
+    sys.last_traceback = None
+    sys.last_value = None
+    sys.last_type = None
+
+    collected = gc.collect()
+
+    trimmed = 0
+    if sys.platform.startswith('linux'):
+        try:
+            libc = ctypes.CDLL("libc.so.6")
+            trimmed = libc.malloc_trim(0)
+        except OSError:
+            pass  # not available on this platform/libc
+
+    if verbose:
+        rss_after = proc.memory_info().rss / 1e9
+        print(f"[cleanup_memory] gc collected {collected} objects, "
+              f"malloc_trim={'freed' if trimmed else 'nothing to free'}, "
+              f"RSS {rss_before:.2f} GB -> {rss_after:.2f} GB", flush=True)
+
+    return trimmed

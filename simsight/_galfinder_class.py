@@ -9,6 +9,7 @@ from shapely.affinity import scale, rotate
 from collections import defaultdict
 from astropy import units as u
 from scipy.interpolate import RegularGridInterpolator
+from scipy.spatial import cKDTree
 
 
 from ._compute import Transform_Points
@@ -168,7 +169,9 @@ class GalaxyFinder():
         return halo_info, stars, gas 
 
     
-    def cluster_stars(self, halo_id, alpha=0.86, linking_length=20, min_stars=10, mass_frac=0.9, sig_frac=0.2, stars=None, plot=True,verbose=True):
+    def cluster_stars(self, halo_id, alpha=0.86, linking_length=20, 
+                      min_stars=10, max_stars_for_dbscan=100000, cluster_mass_frac=0.9, mass_capture_frac=0.8, min_cluster_mass=0,
+                      stars=None, plot=True,verbose=True):
 
         halo_info,stars,_ = self.load_halo(halo_id,verbose)
 
@@ -181,9 +184,28 @@ class GalaxyFinder():
         delta[delta < -box_size / 2] += box_size
 
         stars['Coordinates'] = halo_info['Pos'] + delta
+        n_total = len(stars['Coordinates'])
+        if n_total > max_stars_for_dbscan:
+            # Subsample for clustering, then propagate labels to the rest via nearest-centroid
+            rng = np.random.default_rng(0)
+            sub_idx = rng.choice(n_total, size=max_stars_for_dbscan, replace=False)
+            sub_coords = stars['Coordinates'][sub_idx]
 
-        cluster = DBSCAN(eps=linking_length_comoving, min_samples=min_stars).fit(stars['Coordinates'])
-        labels = cluster.labels_.copy()
+            cluster = DBSCAN(eps=linking_length_comoving, min_samples=min_stars).fit(sub_coords)
+            sub_labels = cluster.labels_.copy()
+
+            # assign full label array: subsampled stars get their real labels,
+            # everyone else gets assigned to nearest subsampled star's label (cheap KDTree lookup)
+            tree = cKDTree(sub_coords)
+            _, nearest_sub_idx = tree.query(stars['Coordinates'], k=1)
+            labels = sub_labels[nearest_sub_idx]
+
+            if verbose:
+                print(f"[cluster_stars] halo {halo_id}: {n_total} stars exceeds {max_stars_for_dbscan}, "
+                    f"subsampled for DBSCAN, propagated via nearest-centroid")
+        else:
+            cluster = DBSCAN(eps=linking_length_comoving, min_samples=min_stars).fit(stars['Coordinates'])
+            labels = cluster.labels_.copy()
 
         unique_clusters = np.unique(labels[labels != -1])
 
@@ -210,16 +232,30 @@ class GalaxyFinder():
 
             count = 0
             fraction = np.nansum(stars['Masses'][labels != -1]) / np.nansum(stars['Masses'])
-            while fraction < mass_frac and count < 100:
+            while fraction < cluster_mass_frac and count < 100:
                 wider_linking = linking_length_comoving * (3 + count)
                 labels[noise_mask] = np.where(min_dists < wider_linking, nearest, -1)
                 fraction = np.nansum(stars['Masses'][labels != -1]) / np.nansum(stars['Masses'])
                 count += 1
 
             # apply significance threshold
+            # cluster_masses = np.array([np.nansum(stars['Masses'][labels == c]) for c in unique_clusters])
+            # max_mass = cluster_masses.max()
+            # significant = unique_clusters[cluster_masses > sig_frac * max_mass]
+
             cluster_masses = np.array([np.nansum(stars['Masses'][labels == c]) for c in unique_clusters])
-            max_mass = cluster_masses.max()
-            significant = unique_clusters[cluster_masses > sig_frac * max_mass]
+            order = np.argsort(cluster_masses)[::-1]  # descending
+            sorted_masses = cluster_masses[order]
+            sorted_clusters = unique_clusters[order]
+
+            cumulative_frac = np.cumsum(sorted_masses) / np.nansum(cluster_masses)
+
+            # take the smallest set of clusters that captures at least `mass_capture_frac` of clustered mass
+            n_needed = np.searchsorted(cumulative_frac, mass_capture_frac) + 1
+
+              # solar masses, or whatever floor makes sense physically
+            significant = sorted_clusters[:n_needed]
+            significant = significant[cluster_masses[np.searchsorted(unique_clusters, significant)] > min_cluster_mass]
 
         if plot:
             fraction = np.nansum(stars['Masses'][labels != -1]) / np.nansum(stars['Masses'])
