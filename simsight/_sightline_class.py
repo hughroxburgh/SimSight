@@ -857,7 +857,7 @@ class Sightline():
         for i in range(num_sub_sightlines):
 
             self.sub_HaloAssignment[i] = np.full(self.sub_Grid[i].shape[0],-1)
-            self.sub_CellConditions[i] = np.full(self.sub_Grid[i].shape[0],0)
+            self.sub_CellConditions[i] = np.full(self.sub_Grid[i].shape[0],0).astype('int8')
 
             if self.sub_Halos[i] == [None]:
                 continue

@@ -63,7 +63,7 @@ class SIMBA_SightlineSim():
                         6.8489310e+00, 7.0544630e+00, 7.2681450e+00, 7.4904150e+00,   7.7217420e+00, 7.9626280e+00, 8.2136080e+00, 8.4752570e+00,
                         8.7481910e+00, 9.0330710e+00, 9.3306070e+00, 9.6415620e+00, 9.9667590e+00, 1.0307082e+01, 1.0663489e+01, 1.1037011e+01,
                         1.1428765e+01, 1.1839961e+01, 1.2271910e+01, 1.2726037e+01, 1.3203888e+01, 1.3707152e+01, 1.4237665e+01, 1.4797437e+01,
-                        1.5388664e+01, 1.6013753e+01, 1.6675347e+01, 1.7376352e+01, 1.8119968e+01, 1.8909730e+01, 1.9749544e+01, 9.9000000e+01])
+                        1.5388664e+01, 1.6013753e+01, 1.6675347e+01, 1.7376352e+01, 1.8119968e+01, 1.8909730e+01, 1.9749544e+01, 9.9000000e+01]).astype(np.float32)
 
         if snap_idx is None:
             files = sorted(glob(f'{self.data_path}/{self.snap_path_structure}_*.hdf5'))
@@ -167,7 +167,7 @@ class SIMBA_SightlineSim():
         if 'Density' in fields:
             data['Density'] = data['Density'] * self.hub**2
         if 'Masses' in fields:
-            data['Masses']          /= self.hub
+            data['Masses']  /= self.hub
         if verbose:
             _Progress_Print(msg,ts)
 

@@ -226,7 +226,7 @@ def Find_Line_Elements(points,length):
     ray.compute_ray_segments(tree) 
     ids,lengths = ray.extract_line_elements()
 
-    return ids,lengths
+    return ids,lengths.astype(np.float32)
 
 
 

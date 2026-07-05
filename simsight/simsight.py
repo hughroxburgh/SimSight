@@ -727,10 +727,11 @@ class SightlineSim():
                 for sl in _Smart_Tqdm(sightlines, desc=f'    observing halos in sightline [snap {snap}]',show_mem=self.verbose):
                     sl.observe_halos(galfinder,interp_cache=interp_cache,filter_cache=filter_cache)
 
-            Cleanup_Memory(verbose=self.verbose)
-
             if not _Is_Interactive():
                 _Progress_Print(msg,ts,show_mem=self.verbose)
+            
+            Cleanup_Memory()#verbose=self.verbose)
+
 
     def infer_halos_in_sightlines(self,sightlines,parallel=False,
                                   redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit'):

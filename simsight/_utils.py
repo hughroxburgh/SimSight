@@ -163,7 +163,7 @@ def Cleanup_Memory(verbose=False):
 
     if verbose:
         rss_after = proc.memory_info().rss / 1e9
-        print(f"[cleanup_memory] gc collected {collected} objects, "
+        print(f"    [cleanup_memory] gc collected {collected} objects, "
               f"malloc_trim={'freed' if trimmed else 'nothing to free'}, "
               f"RSS {rss_before:.2f} GB -> {rss_after:.2f} GB", flush=True)
 
