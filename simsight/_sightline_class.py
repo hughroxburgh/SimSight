@@ -1046,6 +1046,16 @@ class Sightline():
                     observed_halos_i = []
                     for halo in self.sub_Halos[i]:
 
+                        halo_info = deepcopy(halo)
+
+                        if halo['ImpactParam'] == None and i == 0:
+                            halo_info['ObservedGalaxies'] = None
+                            halo_info['Redshift'] = 0
+                            observed_halos_i.append(halo_info)
+                            
+                            continue    
+
+
                         prelength = np.nansum(self.sub_Lengths[:i])
                         subsl = self.get_subsightline(i)
                         halo_dist = Transform_Points(subsl, halo['Pos'])[2]
