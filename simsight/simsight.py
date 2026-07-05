@@ -227,6 +227,8 @@ class SightlineSim():
         if not _Is_Interactive():
             _Progress_Print(msg, ts,show_mem=self.verbose)
 
+        Cleanup_Memory()
+
 
     # ------------- Computation architecture ------------- #
 
@@ -307,6 +309,8 @@ class SightlineSim():
             del order
 
             _Progress_Print(msg,ts,show_mem=self.verbose)
+
+            Cleanup_Memory()
 
             return {'voxels':voxels,
                     'coords':data['Coordinates'],
@@ -410,6 +414,8 @@ class SightlineSim():
         if not _Is_Interactive():
             _Progress_Print(msg,ts,show_mem=self.verbose)
 
+        Cleanup_Memory()
+
 
     def _snapshot_find_halos(self, sightlines, snap, halos, com, radii, tree, max_radius,parallel=False):
         """
@@ -444,6 +450,8 @@ class SightlineSim():
 
         if not _Is_Interactive():
             _Progress_Print(msg, ts,show_mem=self.verbose)
+
+        Cleanup_Memory()
 
 
     # ------------- Main functions ------------- #
@@ -615,6 +623,8 @@ class SightlineSim():
             
             if delete_data:
                 del(architecture)
+
+            Cleanup_Memory()
             
             if (snap == 0) & (plot_sightlines):
                 self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=point_find_data['Coordinates'],n_subsightlines=1)
@@ -628,6 +638,8 @@ class SightlineSim():
             
             if delete_data:
                 del(data)
+
+            Cleanup_Memory()
 
             # -- Find halos in sightlines -- #
             if find_halos:
@@ -684,7 +696,7 @@ class SightlineSim():
 
 
     def observe_halos_in_sightlines(self,sightlines,grid_path,filters=['lsst_g','lsst_r','lsst_i','lsst_z'],
-                                    num_snaps=None, single_snap=None,parallel=False):
+                                    num_snaps=None, single_snap=None,parallel=False,save_interval=5,save_path=None):
 
         from ._galfinder_class import GalaxyFinder, load_grids_and_interps
         import os
@@ -706,7 +718,7 @@ class SightlineSim():
             )
             start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False, observed=True)] for sl in sightlines])
 
-        for snap in range(start_snap,snaps_required):
+        for ii,snap in enumerate(range(start_snap,snaps_required)):
             print('\n',flush=True)
             print(f'------Snapshot {snap}------',flush=True)
 
@@ -731,6 +743,10 @@ class SightlineSim():
                 _Progress_Print(msg,ts,show_mem=self.verbose)
             
             Cleanup_Memory()#verbose=self.verbose)
+
+            if save_path is not None:
+                if (ii+1)%save_interval == 0 or snap == snaps_required - 1:
+                    self.save_sightlines(sightlines,save_path)            
 
 
     def infer_halos_in_sightlines(self,sightlines,parallel=False,
