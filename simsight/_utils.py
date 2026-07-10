@@ -63,7 +63,7 @@ def _Is_Interactive():
     except NameError:
         return sys.stdout.isatty()
 
-def _Progress_Print(msg, time_start, show_mem=False):
+def _Progress_Print(msg, time_start):
 
     def _mem_str():
         try:
@@ -80,14 +80,14 @@ def _Progress_Print(msg, time_start, show_mem=False):
             except Exception:
                 return ""
 
-    mem_str = _mem_str() if show_mem else ""
+    mem_str = _mem_str()
 
     if _Is_Interactive():
         print(f"{msg} -- Done ({clock()-time_start:.0f}s{mem_str})", flush=True)
     else:
         print(f" -- Done ({clock()-time_start:.0f}s{mem_str})", flush=True)
 
-def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60, show_mem=False):
+def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60):
 
     def _mem_str():
         try:
@@ -124,12 +124,12 @@ def _Smart_Tqdm(iterable, desc="", total=None, every_sec=60, show_mem=False):
             elapsed = t_now - t_start
             rate = (i + 1) / elapsed if elapsed > 0 else 0
             rate_str = f"{rate:.1f} it/s" if rate < 1000 else f"{rate/1000:.2f}k it/s"
-            mem_str = _mem_str() if show_mem else ""
+            mem_str = _mem_str()
             print(f"[{pct:3d}%] {desc} ({i+1}/{total}, {rate_str}{mem_str})", file=sys.stderr)
             t_last = t_now
 
     elapsed = clock() - t_start
-    mem_str = _mem_str() if show_mem else ""
+    mem_str = _mem_str()
     print(f"[100%] {desc} ({total}/{total}, {elapsed:.1f}s total{mem_str})", file=sys.stderr)
     print('\n', file=sys.stderr)
 

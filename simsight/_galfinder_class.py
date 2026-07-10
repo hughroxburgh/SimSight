@@ -13,7 +13,7 @@ from scipy.spatial import cKDTree
 
 
 from ._compute import Transform_Points
-from ._utils import _Progress_Print
+from ._utils import _Progress_Print,Cleanup_Memory
 
 def load_grids_and_interps(path, redshift):
     metallicity_grid_path = f'{path}/metallicity_grid.npy'
