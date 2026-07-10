@@ -364,7 +364,7 @@ class SightlineSim():
             return sl
 
         if parallel:
-            results = Parallel(n_jobs=self.num_cores, backend='loky')(
+            results = Parallel(n_jobs=self.num_cores, backend='loky',max_nbytes=None)(
                 delayed(_reduce_one)(sl, 100, 20, save_path)
                 for sl in _Smart_Tqdm(sightlines, desc='    reducing sightlines',show_mem=self.verbose)
             )
@@ -533,7 +533,7 @@ class SightlineSim():
 
     def run_many_sightlines(self,n_sightlines=None,redshift=None,sightlines=None,method='random',origin=None,
                             functype='DM',findtype='tree',load_method='custom',
-                            delete_data=True,save_path=None,plot_sightlines=False,reduce_sightlines=False,find_halos=False,
+                            delete_data=True,save_path=None,plot_sightlines=False,reduce_sightlines=False,find_halos=False,save_pointsidx=True,
                             parallel_slgen=False,parallel_findpts=False,parallel_compute=False,parallel_halos=False,parallel_reduce=False):
                             
         """
@@ -638,7 +638,7 @@ class SightlineSim():
 
                 # -- Reduce Sightlines -- #
                 if reduce_sightlines:
-                    self._snapshot_reduce_sightlines(sightlines,save_path,parallel_reduce)
+                    self._snapshot_reduce_sightlines(sightlines,save_path if save_pointsidx else None,parallel_reduce)
 
             # -- Save sightlines -- #
             if save_path is not None:
