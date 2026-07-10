@@ -596,7 +596,7 @@ class SightlineSim():
             trueSnapNum = self.sim._get_snap_num(snap)
 
             point_find_data = None
-            if ptfind_check:
+            if not ptfind_check:
 
                 # -- Load data -- #
                 point_find_data = self.sim.load_data(particle_type='gas',fields=self.sim.point_find_fields,snapNum=trueSnapNum,method=load_method)
@@ -616,7 +616,7 @@ class SightlineSim():
             if (snap == 0) & (plot_sightlines):
                 self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=point_find_data['Coordinates'],n_subsightlines=1)
 
-            if compute_check:
+            if not compute_check:
                 
                 fields = fields + self.sim.point_find_fields if point_find_data is None else fields
                 data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
