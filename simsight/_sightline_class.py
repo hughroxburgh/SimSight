@@ -922,12 +922,14 @@ class Sightline():
                     self.sub_HaloAssignment[i][inside_array] = halo['ID']
                     self.sub_CellConditions[i][inside_array] = 1
 
-    def subsightline_reached(self,grid=True,halos=False,assigned=False,observed=False,inferred=False,modelled=False):
+    def subsightline_reached(self,ptfind=True,grid=True,halos=False,assigned=False,observed=False,inferred=False,modelled=False):
 
-        checks = []                 
+        checks = []    
+        if ptfind:
+            checks.append(next((i for i, h in enumerate(self.sub_PointsIdx)  if len(h) == 0), self.num_sub_sightlines))
         if grid:
             #checks.append(next((i for i, h in enumerate(self.sub_Grid)  if len(h) == 0), self.num_sub_sightlines))
-            checks.append(next((i for i, h in enumerate(self.sub_Grid)  if len(h) == 0), len(self.sub_Grid)))
+            checks.append(next((i for i, h in enumerate(self.sub_Grid)  if len(h) == 0), self.num_sub_sightlines))
         if halos:
             checks.append(next((i for i, h in enumerate(self.sub_Halos) if h == []), self.num_sub_sightlines))
         if assigned:

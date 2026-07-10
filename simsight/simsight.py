@@ -435,6 +435,10 @@ class SightlineSim():
 
         for snap in range(start_snap, snaps_required):
 
+            halofind_check = snap < min([sl.sub_Snapshots[sl.subsightline_reached(grid=False,halos=True)-1] for sl in sightlines])
+            if not halofind_check:
+                continue
+
             trueSnapNum = self.sim._get_snap_num(snap)
 
             if announce:
@@ -577,41 +581,55 @@ class SightlineSim():
         start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=True,halos=find_halos)] for sl in sightlines])
 
         for snap in range(start_snap,snaps_required):
+            
+            # -- Check snap completion -- #
+            ptfind_check = snap < min([sl.sub_Snapshots[sl.subsightline_reached(grid=False)-1] for sl in sightlines])
+            compute_check = snap < min([sl.sub_Snapshots[sl.subsightline_reached(grid=True)-1] for sl in sightlines])
+            final_check = all(sl.subsightline_reached(grid=True) == sl.num_sub_sightlines for sl in sightlines) # passes if everything is complete
+
+            if final_check:     
+                continue
 
             print('\n',flush=True)
             print(f'------Snapshot {snap}------',flush=True)
         
             trueSnapNum = self.sim._get_snap_num(snap)
 
-            # -- Load data -- #
-            point_find_data = self.sim.load_data(particle_type='gas',fields=self.sim.point_find_fields,snapNum=trueSnapNum,method=load_method)
+            point_find_data = None
+            if ptfind_check:
 
-            # -- Point finding architecture -- #
-            architecture, radii, coarse_radius, giant_idx, giant_pts, giant_radii = self._finder_architecture(point_find_data,findtype)
+                # -- Load data -- #
+                point_find_data = self.sim.load_data(particle_type='gas',fields=self.sim.point_find_fields,snapNum=trueSnapNum,method=load_method)
 
-            # -- Allocate point idx to each sub sightline -- #
-            self._snapshot_points_in_sightlines(sightlines,snap,architecture,radii,coarse_radius,findtype,
-                                                giant_idx,giant_pts,giant_radii,parallel_findpts)
-            
-            if delete_data:
-                del(architecture)
+                # -- Point finding architecture -- #
+                architecture, radii, coarse_radius, giant_idx, giant_pts, giant_radii = self._finder_architecture(point_find_data,findtype)
 
-            Cleanup_Memory()
+                # -- Allocate point idx to each sub sightline -- #
+                self._snapshot_points_in_sightlines(sightlines,snap,architecture,radii,coarse_radius,findtype,
+                                                    giant_idx,giant_pts,giant_radii,parallel_findpts)
+                
+                if delete_data:
+                    del(architecture)
+
+                Cleanup_Memory()
             
             if (snap == 0) & (plot_sightlines):
                 self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=point_find_data['Coordinates'],n_subsightlines=1)
 
-            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
-            data = data | point_find_data
+            if compute_check:
+                
+                fields = fields + self.sim.point_find_fields if point_find_data is None else fields
+                data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
+                data = data if point_find_data is None else data | point_find_data
 
-            # -- Compute function for each sightline -- #
-            self._snapshot_compute_sightlines(sightlines,data,func,
-                                              snap,parallel_compute)
-            
-            if delete_data:
-                del(data)
+                # -- Compute function for each sightline -- #
+                self._snapshot_compute_sightlines(sightlines,data,func,
+                                                snap,parallel_compute)
+                
+                if delete_data:
+                    del(data)
 
-            Cleanup_Memory()
+                Cleanup_Memory()
 
             # -- Find halos in sightlines -- #
             if find_halos:
