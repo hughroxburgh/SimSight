@@ -577,7 +577,7 @@ class Sightline():
                 if not modelled:
                     arrs[-1][i] = source.sub_Cells[i]
                 continue
-            for k in range(6):
+            for k in range(5 if modelled else 6):
                 arrs[k][i] = np.empty(0)
 
             # -- Prepend any CGM before the first IGM segment -- #
