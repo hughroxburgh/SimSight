@@ -468,6 +468,267 @@ class VisualSim():
 
         if gif_path is not None:
             imageio.mimsave(f'{gif_path}/{functype}_partition.gif', frames, duration=5000/len(frames))
+
+    
+    def halo_visibility(self, sightlines, parameter='redshift', parameter2=None,
+                     plottype='fraction', entity='galaxy', weight='count',
+                     status_only=None, bins=10, filt=None, sweep_param=None,
+                     sweep_values=None, sweep_cmap='viridis',
+                     xscale='linear', yscale='linear'):
+
+
+        if entity not in ('galaxy', 'halo'):
+            raise ValueError(f"entity must be 'galaxy' or 'halo', got '{entity}'")
+        if entity == 'galaxy' and (weight == 'compute' or parameter.lower() == 'compute' or parameter2.lower() == 'compute'):
+            raise ValueError("entity='galaxy' can't be combined with weight/parameter='compute' "
+                            "(DM/Compute is only tracked per-halo, not per-galaxy) — "
+                            "use entity='halo' for DM-weighted fractions, or weight='count' for galaxies.")
+        if status_only is not None and status_only not in (1, 0, -1):
+            raise ValueError(f"status_only must be None, 1, 0, or -1, got '{status_only}'")
+        if sweep_param is not None and (sweep_values is None or len(sweep_values) < 2):
+            raise ValueError("sweep_param requires sweep_values with at least 2 edges "
+                            "(defining len(sweep_values)-1 groups), e.g. sweep_values=[1e9, 1e10, 1e11]")
+        if plottype == 'hist' and sweep_param is not None and status_only is None:
+            raise ValueError("plottype='hist' with sweep_param requires status_only to be set "
+                            "(sweep colour and status colour can't both be encoded at once).")
+
+        FILT_KEYS = {
+            'min_redshift':      lambda h, g, v: h['Redshift'] >= v,
+            'max_redshift':      lambda h, g, v: h['Redshift'] <= v,
+            'min_halo_mass':     lambda h, g, v: h['TotalMass'] >= v,
+            'max_halo_mass':     lambda h, g, v: h['TotalMass'] <= v,
+            'min_stellar_mass':  lambda h, g, v: h['StellarMass'] >= v,
+            'max_stellar_mass':  lambda h, g, v: h['StellarMass'] <= v,
+            'min_impact_param':  lambda h, g, v: h['ImpactParam'] >= v,
+            'max_impact_param':  lambda h, g, v: h['ImpactParam'] <= v,
+            'min_gal_mass':      lambda h, g, v: g is not None and g['StellarMass'] >= v,
+            'max_gal_mass':      lambda h, g, v: g is not None and g['StellarMass'] <= v,
+        }
+
+        if filt is not None and not isinstance(filt, dict):
+            raise ValueError("filt must be a dict of {key: value}, e.g. {'max_halo_mass': 1e11}. "
+                            f"Valid keys: {list(FILT_KEYS)}")
+        if filt is not None:
+            for key in filt:
+                if key not in FILT_KEYS:
+                    raise ValueError(f"Unknown filt key '{key}'. Valid keys: {list(FILT_KEYS)}")
+
+        def passes_filt(halo, galaxy, filt):
+            if filt is None:
+                return True
+            for key, value in filt.items():
+                if not FILT_KEYS[key](halo, galaxy, value):
+                    return False
+            return True
+
+        palette = _Get_Colours(4, self.dark_mode)[1:]
+        status_colours = {1: palette[0], 0: palette[1], -1: palette[2]}
+        status_labels = {1: 'Visible', 0: 'Partial', -1: 'Invisible'}
+        statuses = (status_only,) if status_only is not None else (1, 0, -1)
+
+        need_compute = (weight == 'compute' or parameter.lower() == 'compute' or parameter2.lower() == 'compute')
+        sweeping = sweep_param is not None
+
+        if sweeping:
+            cmap = plt.get_cmap(sweep_cmap)
+            n_sweep = len(sweep_values) - 1
+            sweep_colours = [cmap(i / max(n_sweep - 1, 1)) for i in range(n_sweep)]
+            sweep_labels = [f'{sweep_param} [{sweep_values[i]:.3g}, {sweep_values[i+1]:.3g})'
+                            for i in range(n_sweep)]
+
+        # ---- helpers -------------------------------------------------------
+
+        def halo_status(halo):
+            galaxies = halo['ObservedGalaxies'] or []
+            vis = [g['Visible'] for g in galaxies]
+            if len(vis) == 0:
+                return -1
+            if all(v == -1 for v in vis):
+                return -1
+            if any(v == -1 for v in vis) or max(vis) == 0:
+                return 0
+            return 1
+
+        def get_param(halo, galaxy, key):
+            key_l = key.lower()
+            halo_map = {'redshift': halo['Redshift'],
+                        'totalmass': halo['TotalMass'],
+                        'gasmass': halo['GasMass'],
+                        'stellarmass': halo['StellarMass'],
+                        'numstars': halo['NumStars'],
+                        'impactparam': halo['ImpactParam']/halo['Radius'] if halo['ImpactParam'] is not None else None,
+                        'radius': halo['Radius'],
+                        'compute': halo['Compute']}
+            galaxy_map = {'stellarmass': galaxy['StellarMass'] if galaxy else None,
+                        'masslightratio': galaxy['MassLightRatio'] if galaxy else None}
+            if galaxy is not None and key_l in galaxy_map and galaxy_map[key_l] is not None:
+                return galaxy_map[key_l]
+            if key_l in halo_map:
+                return halo_map[key_l]
+            raise ValueError(f"Unknown parameter '{key}'")
+
+        def sweep_bin(halo, galaxy):
+            """Return the sweep group index for this halo/galaxy, or None if out of range."""
+            val = get_param(halo, galaxy, sweep_param)
+            idx = np.digitize([val], sweep_values)[0] - 1
+            if idx < 0 or idx >= n_sweep:
+                return None
+            return idx
+
+        def iter_records(sl):
+            """Yield (param, param2, status, weight_val, sweep_idx) for each entity in a sightline,
+            after applying filt at the halo/galaxy level."""
+            halos = sl.halo_info(with_compute=need_compute)
+            for halo in halos.values():
+                if entity == 'halo':
+                    if not passes_filt(halo, None, filt):
+                        continue
+                    s_idx = sweep_bin(halo, None) if sweeping else None
+                    if sweeping and s_idx is None:
+                        continue
+                    status = halo_status(halo)
+                    w = halo.get('Compute', 1.0) if need_compute else 1.0
+                    p1 = get_param(halo, None, parameter)
+                    p2 = get_param(halo, None, parameter2) if parameter2 else None
+                    yield p1, p2, status, w, s_idx
+                else:  # galaxy-level
+                    for gal in (halo['ObservedGalaxies'] or []):
+                        if not passes_filt(halo, gal, filt):
+                            continue
+                        s_idx = sweep_bin(halo, gal) if sweeping else None
+                        if sweeping and s_idx is None:
+                            continue
+                        status = gal['Visible']
+                        p1 = get_param(halo, gal, parameter)
+                        p2 = get_param(halo, gal, parameter2) if parameter2 else None
+                        yield p1, p2, status, 1.0, s_idx
+
+        records = []
+        for sl in tqdm(sightlines, desc=f'Gathering {entity} visibility'):
+            records.extend(iter_records(sl))
+
+        with self._style():
+
+            fig, ax = plt.subplots()
+            title_suffix = f' ({status_labels[status_only]} only)' if status_only is not None else ''
+            ax.set_title(f'{self.sim.name} {entity.capitalize()} Visibility{title_suffix}')
+            if xscale == 'log':
+                ax.set_xscale('log')
+            if yscale == 'log':
+                ax.set_yscale('log')
+
+            legend_handles = []
+
+            if len(records) == 0:
+                print('No halos/galaxies passed the given filt/sweep_values.')
+                plt.show()
+                return
+
+            p1_arr = np.array([r[0] for r in records], dtype=float)
+            p2_arr = np.array([r[1] for r in records], dtype=float) if parameter2 else None
+            status_arr = np.array([r[2] for r in records])
+            w_arr = np.array([r[3] for r in records], dtype=float)
+            sweep_idx_arr = np.array([r[4] for r in records]) if sweeping else None
+
+            sweep_groups = range(n_sweep) if sweeping else [None]
+
+            for s_idx in sweep_groups:
+
+                if sweeping:
+                    group_mask = sweep_idx_arr == s_idx
+                    if not np.any(group_mask):
+                        print(f'Skipping sweep group {sweep_labels[s_idx]}: 0 entries')
+                        continue
+                    sweep_color = sweep_colours[s_idx]
+                    label = sweep_labels[s_idx]
+                else:
+                    group_mask = np.ones(len(records), dtype=bool)
+                    sweep_color = None
+                    label = None
+
+                gp1, gp2 = p1_arr[group_mask], (p2_arr[group_mask] if parameter2 else None)
+                gstatus, gw = status_arr[group_mask], w_arr[group_mask]
+
+                # ---- fraction plot ----
+                if plottype == 'fraction':
+                    edges = np.linspace(np.nanmin(gp1), np.nanmax(gp1), bins + 1)
+                    centers = 0.5 * (edges[:-1] + edges[1:])
+                    bin_idx = np.digitize(gp1, edges) - 1
+                    bin_idx = np.clip(bin_idx, 0, bins - 1)
+
+                    for status in statuses:
+                        frac = np.full(bins, np.nan)
+                        for b in range(bins):
+                            in_bin = bin_idx == b
+                            total_w = gw[in_bin].sum()
+                            if total_w > 0:
+                                status_w = gw[in_bin & (gstatus == status)].sum()
+                                frac[b] = status_w / total_w
+                        line_color = sweep_color if sweeping else status_colours[status]
+                        ls = {1: '-', 0: '--', -1: ':'}[status]
+                        ax.plot(centers, frac, ls, marker='x', color=line_color)
+
+                    ax.set_xlabel(parameter.capitalize())
+                    ylab = 'Fraction of DM' if weight == 'compute' else 'Fraction of Galaxies'
+                    ax.set_ylabel(ylab)
+
+                    if not sweeping:
+                        for status in statuses:
+                            legend_handles.append(Line2D([0], [0], color=status_colours[status],
+                                                        linestyle={1: '-', 0: '--', -1: ':'}[status],
+                                                        marker='x', label=status_labels[status]))
+                    else:
+                        legend_handles.append(Line2D([0], [0], color=sweep_color, linestyle='-', label=label))
+
+                # ---- scatter plot ----
+                elif plottype == 'scatter':
+                    if parameter2 is None:
+                        raise ValueError("plottype='scatter' requires parameter2 to be set")
+                    for status in reversed(statuses) if status_only is None else statuses:
+                        mask = gstatus == status
+                        if not np.any(mask):
+                            continue
+                        color = sweep_color if sweeping else status_colours[status]
+                        ax.scatter(gp1[mask], gp2[mask], color=color, s=1, alpha=0.5,
+                                label=(status_labels[status] if (not sweeping and status_only is None) else None))
+                    ax.set_xlabel(parameter.capitalize())
+                    ax.set_ylabel(parameter2.capitalize())
+                    if not sweeping and status_only is None:
+                        legend_handles = [Line2D([0], [0], marker='o', linestyle='none',
+                                                color=status_colours[s], label=status_labels[s])
+                                        for s in (-1, 0, 1)]
+                    elif sweeping:
+                        legend_handles.append(Line2D([0], [0], marker='o', linestyle='none',
+                                                    color=sweep_color, label=label))
+
+                # ---- histogram ----
+                elif plottype == 'hist':
+                    edges = np.linspace(np.nanmin(gp1), np.nanmax(gp1), bins + 1)
+                    for status in statuses:
+                        mask = gstatus == status
+                        line_color = sweep_color if sweeping else status_colours[status]
+                        ax.hist(gp1[mask], bins=edges, weights=gw[mask] if need_compute else None,
+                                histtype='step', color=line_color,
+                                label=(status_labels[status] if (not sweeping and status_only is None) else None),
+                                linewidth=1.5)
+                    ax.set_xlabel(parameter.capitalize())
+                    ax.set_ylabel('DM' if weight == 'compute' else 'Count')
+                    if not sweeping and status_only is None:
+                        legend_handles = [Line2D([0], [0], color=status_colours[s], label=status_labels[s])
+                                        for s in (1, 0, -1)]
+                    elif sweeping:
+                        legend_handles.append(Line2D([0], [0], color=sweep_color, linestyle='-', label=label))
+
+                else:
+                    raise ValueError(f"Unknown plottype '{plottype}'")
+
+            ax.legend(handles=legend_handles if legend_handles else None)
+            plt.show()
+
+        
+
+
+
         
     # def distribution(self,sightlines,functype='DM',cutoff=98,bins=100,redshift=None,xlims=None,gif_path=None,environment='Total',data='truth'):
 

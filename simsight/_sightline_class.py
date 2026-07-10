@@ -514,7 +514,7 @@ class Sightline():
 
         np.save(f'{save_path}/{save_name}', np.array(saved, dtype=object), allow_pickle=True)
     
-    def reduce(self,grid_resolution,cgm_buffer,inplace=True,save_points_path=None):
+    def reduce(self,grid_resolution,cgm_buffer,inplace=True,modelled=False,save_points_path=None):
         """
         Reduce resolution of IGM component and remmove PointsIdx. Only do after halo_assigment is complete.
         """
@@ -522,16 +522,23 @@ class Sightline():
         if save_points_path is not None:
             self._save_pointsidx(save_points_path)
 
+        source = self.modelled if modelled else self
+
         new_Grid, new_Density, new_Compute, new_HaloAssignment, new_CellConditions,new_Cells,new_PointsIdx = [[[] for _ in range(self.num_sub_sightlines)] for _ in range(7)]
-        arrs = [new_Grid, new_Density, new_Compute, new_HaloAssignment, new_CellConditions, new_Cells]
+        arrs = [new_Grid, new_Density, new_Compute, new_HaloAssignment, new_CellConditions]
+        if not modelled:
+            arrs.append(new_Cells)
+
+        
 
         def append_seg(i, s, e):
-            arrs[0][i] = np.concatenate([arrs[0][i], self.sub_Grid[i][s:e]])
-            arrs[1][i] = np.concatenate([arrs[1][i], self.sub_Density[i][s:e]])
-            arrs[2][i] = np.concatenate([arrs[2][i], self.sub_Compute[i][s:e]])
-            arrs[3][i] = np.concatenate([arrs[3][i], self.sub_HaloAssignment[i][s:e]])
-            arrs[4][i] = np.concatenate([arrs[4][i], self.sub_CellConditions[i][s:e]])
-            arrs[5][i] = np.concatenate([arrs[5][i], self.sub_Cells[i][s:e]])
+            arrs[0][i] = np.concatenate([arrs[0][i], source.sub_Grid[i][s:e]])
+            arrs[1][i] = np.concatenate([arrs[1][i], source.sub_Density[i][s:e]])
+            arrs[2][i] = np.concatenate([arrs[2][i], source.sub_Compute[i][s:e]])
+            arrs[3][i] = np.concatenate([arrs[3][i], source.sub_HaloAssignment[i][s:e]])
+            arrs[4][i] = np.concatenate([arrs[4][i], source.sub_CellConditions[i][s:e]])
+            if not modelled:
+                arrs[5][i] = np.concatenate([arrs[5][i], source.sub_Cells[i][s:e]])
 
         def append_igm(i, grid, density, compute):
             arrs[0][i] = np.concatenate([arrs[0][i], grid])
@@ -539,30 +546,36 @@ class Sightline():
             arrs[2][i] = np.concatenate([arrs[2][i], compute])
             arrs[3][i] = np.concatenate([arrs[3][i], np.ones_like(grid)*-1])
             arrs[4][i] = np.concatenate([arrs[4][i], np.zeros_like(grid)])
-            arrs[5][i] = np.concatenate([arrs[5][i], np.ones_like(grid)*-1])
+            if not modelled:
+                arrs[5][i] = np.concatenate([arrs[5][i], np.ones_like(grid)*-1])
 
-        n_subsightlines = self.subsightline_reached(grid=True,halos=True)
+        n_subsightlines = self.subsightline_reached(grid=True,halos=True,modelled=modelled)
         for i in range(n_subsightlines):
 
             new_PointsIdx[i] = ['Removed']
 
-            median_length = np.nanmedian(self.sub_Grid[i])
+            median_length = np.nanmedian(source.sub_Grid[i])
             downsample_factor = int(grid_resolution // median_length)
             if downsample_factor <= 1:
-                for k, src in enumerate([self.sub_Grid[i], self.sub_Density[i], self.sub_Compute[i],
-                                        self.sub_HaloAssignment[i], self.sub_CellConditions[i], self.sub_Cells[i]]):
+                for k, src in enumerate([source.sub_Grid[i], source.sub_Density[i], source.sub_Compute[i],
+                                        source.sub_HaloAssignment[i], source.sub_CellConditions[i]]):
                     arrs[k][i] = src
+                if not modelled:
+                    arrs[-1][i] = source.sub_Cells[i]
                 continue
 
-            is_igm = (self.sub_CellConditions[i] == 0)
+            is_igm = (source.sub_CellConditions[i] == 0)
             switches = np.diff(is_igm.astype(int), prepend=0, append=0)
             igm_starts = np.where(switches ==  1)[0]
             igm_stops  = np.where(switches == -1)[0]
 
             # -- Initialise arrays -- #
             if len(igm_starts) == 0:
-                for k, src in enumerate([self.sub_Grid[i], self.sub_Density[i], self.sub_Compute[i], self.sub_HaloAssignment[i], self.sub_CellConditions[i], self.sub_Cells[i]]):
+                for k, src in enumerate([source.sub_Grid[i], source.sub_Density[i], source.sub_Compute[i], 
+                                         source.sub_HaloAssignment[i], source.sub_CellConditions[i]]):
                     arrs[k][i] = src
+                if not modelled:
+                    arrs[-1][i] = source.sub_Cells[i]
                 continue
             for k in range(6):
                 arrs[k][i] = np.empty(0)
@@ -573,7 +586,7 @@ class Sightline():
             # -- Go through each IGM segment and downsample -- #
             for j, (start, stop) in enumerate(zip(igm_starts, igm_stops)):
                 has_left_cgm  = start > 0
-                has_right_cgm = stop < len(self.sub_Grid[i])
+                has_right_cgm = stop < len(source.sub_Grid[i])
 
                 buf_start = min(start + cgm_buffer, stop) if has_left_cgm  else start
                 buf_stop  = max(stop - cgm_buffer, start) if has_right_cgm else stop
@@ -582,14 +595,14 @@ class Sightline():
 
                 if buf_stop > buf_start:          # downsampled core
                     idx = np.arange(0, buf_stop - buf_start, downsample_factor)
-                    grid = np.add.reduceat(self.sub_Grid[i][buf_start:buf_stop], idx)
-                    compute = np.add.reduceat(self.sub_Compute[i][buf_start:buf_stop], idx)
+                    grid = np.add.reduceat(source.sub_Grid[i][buf_start:buf_stop], idx)
+                    compute = np.add.reduceat(source.sub_Compute[i][buf_start:buf_stop], idx)
 
                     # counts = np.diff(np.append(idx, buf_stop - buf_start))
                     # density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop], idx) / counts
 
-                    dl               = self.sub_Grid[i][buf_start:buf_stop]
-                    weighted_density = np.add.reduceat(self.sub_Density[i][buf_start:buf_stop] * dl, idx)
+                    dl               = source.sub_Grid[i][buf_start:buf_stop]
+                    weighted_density = np.add.reduceat(source.sub_Density[i][buf_start:buf_stop] * dl, idx)
                     total_dl         = np.add.reduceat(dl, idx)
                     density          = weighted_density / total_dl
 
@@ -602,26 +615,30 @@ class Sightline():
                     append_seg(i, stop, igm_starts[j+1])  
 
             # -- Append any CGM after the final IGM segment -- #
-            append_seg(i, igm_stops[-1], len(self.sub_Grid[i]))  
+            append_seg(i, igm_stops[-1], len(source.sub_Grid[i]))  
 
         if inplace:
-            self.sub_Grid[:n_subsightlines]           = new_Grid[:n_subsightlines]
-            self.sub_Density[:n_subsightlines]        = new_Density[:n_subsightlines]
-            self.sub_Compute[:n_subsightlines]        = new_Compute[:n_subsightlines]
-            self.sub_HaloAssignment[:n_subsightlines] = new_HaloAssignment[:n_subsightlines]
-            self.sub_CellConditions[:n_subsightlines] = new_CellConditions[:n_subsightlines]
-            self.sub_Cells[:n_subsightlines]          = new_Cells[:n_subsightlines]
-            self.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
-            
+            source.sub_Grid[:n_subsightlines]           = new_Grid[:n_subsightlines]
+            source.sub_Density[:n_subsightlines]        = new_Density[:n_subsightlines]
+            source.sub_Compute[:n_subsightlines]        = new_Compute[:n_subsightlines]
+            source.sub_HaloAssignment[:n_subsightlines] = new_HaloAssignment[:n_subsightlines]
+            source.sub_CellConditions[:n_subsightlines] = new_CellConditions[:n_subsightlines]
+            source.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
+            if not modelled:
+                source.sub_Cells[:n_subsightlines]          = new_Cells[:n_subsightlines]
         else:
             sl = deepcopy(self)
-            sl.sub_Grid[:n_subsightlines]           = new_Grid[:n_subsightlines]
-            sl.sub_Density[:n_subsightlines]        = new_Density[:n_subsightlines]
-            sl.sub_Compute[:n_subsightlines]        = new_Compute[:n_subsightlines]
-            sl.sub_HaloAssignment[:n_subsightlines] = new_HaloAssignment[:n_subsightlines]
-            sl.sub_CellConditions[:n_subsightlines] = new_CellConditions[:n_subsightlines]
-            sl.sub_Cells[:n_subsightlines]          = new_Cells[:n_subsightlines]
-            sl.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
+            source = sl.modelled if modelled else source
+
+            source.sub_Grid[:n_subsightlines]           = new_Grid[:n_subsightlines]
+            source.sub_Density[:n_subsightlines]        = new_Density[:n_subsightlines]
+            source.sub_Compute[:n_subsightlines]        = new_Compute[:n_subsightlines]
+            source.sub_HaloAssignment[:n_subsightlines] = new_HaloAssignment[:n_subsightlines]
+            source.sub_CellConditions[:n_subsightlines] = new_CellConditions[:n_subsightlines]
+            source.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
+            if not modelled:
+                source.sub_Cells[:n_subsightlines]          = new_Cells[:n_subsightlines]
+
             return sl
 
     # ------------- Sightline information readout / plotting ------------- #
@@ -1232,7 +1249,7 @@ class Sightline():
 
 
 
-    def model_sightline(self, inference, filters=None,verbose=True):
+    def model_sightline(self, inference, filters=None,verbose=True,reduce=None):
 
         self._initialise_modelled(inference)
 
@@ -1266,6 +1283,9 @@ class Sightline():
             self.modelled.sub_Compute[i] = compute
             self.modelled.sub_CellConditions[i] = conditions
             self.modelled.sub_HaloAssignment[i] = assign
+
+        if reduce is not None:
+            self.reduce(reduce,modelled=True)
 
     def filter(self,redshift=None,observed=False,inferred=False,direction_vector=None,
                min_halo_mass=0,max_halo_mass=1e20,

@@ -114,40 +114,6 @@ class SightlineSim():
 
         return sightlines
     
-    def calculate_dvec_scores(self,sightlines):
-
-        l_max    = max(sl.length for sl in sightlines)
-        
-        n_max = int(np.ceil(l_max / self.sim.box_size)) + 2
-        v = np.arange(-n_max, n_max + 1, dtype=np.float32) * self.sim.box_size
-        ii, jj, kk = np.meshgrid(v, v, v, indexing="ij")
-        grid = np.stack([ii.ravel(), jj.ravel(), kk.ravel()], axis=1)
-        grid_sq = np.sum(grid ** 2, axis=1)
-        keep = np.any(grid != 0, axis=1) & (grid_sq <= l_max ** 2)
-        grid, grid_sq = grid[keep], grid_sq[keep]
-
-        dvecs  = np.array([sl.direction_vector for sl in sightlines], dtype=np.float32)
-
-        lengths = np.array([sl.length for sl in sightlines], dtype=np.float32)  # (N,)
-        eps_min = np.full(N, np.inf, dtype=np.float32)
-        INF32   = np.finfo(np.float32).max
-
-        chunk=512
-
-        for start in _Smart_Tqdm(range(0, len(sightlines), chunk),desc='Calculating direction vector scores'):
-            nh      = dvecs[start : start + chunk]       # (B, 3)
-            l_chunk = lengths[start : start + chunk]     # (B,)
-            proj    = grid @ nh.T                        # (G, B)
-            in_range = (proj > 1e-6) & (proj <= l_chunk[None, :])
-            pd2     = grid_sq[:, None] - proj ** 2
-            np.maximum(pd2, 0.0, out=pd2)
-            pd2[~in_range] = INF32
-            best    = pd2.min(axis=0)
-            eps_min[start : start + chunk] = np.sqrt(np.minimum(best, INF32))
-
-        mask &= (eps_min / box_size) >= min_direction_score
-    
-
 
     # ------------- Loading / saving sightlines ------------- #
 
