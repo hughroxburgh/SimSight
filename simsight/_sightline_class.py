@@ -514,7 +514,7 @@ class Sightline():
 
         np.save(f'{save_path}/{save_name}', np.array(saved, dtype=object), allow_pickle=True)
     
-    def reduce(self,grid_resolution,cgm_buffer,inplace=True,modelled=False,save_points_path=None):
+    def reduce(self,grid_resolution,cgm_buffer=20,inplace=True,modelled=False,save_points_path=None):
         """
         Reduce resolution of IGM component and remmove PointsIdx. Only do after halo_assigment is complete.
         """

@@ -745,7 +745,7 @@ class SightlineSim():
                 sl.infer_halos(inference,filters)
 
 
-    def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',igm_background='smooth_truth',density_smooth_kernel=1000):
+    def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',igm_background='smooth_truth',density_smooth_kernel=1000,reduce=None):
 
         from ._inference_class import Inference
 
@@ -773,11 +773,11 @@ class SightlineSim():
 
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                delayed(sl.model_sightline)(inference,filters,verbose=False) for sl in _Smart_Tqdm(sightlines,desc='Modelling sightlines',show_mem=self.verbose)
+                delayed(sl.model_sightline)(inference,filters,verbose=False,reduce=reduce) for sl in _Smart_Tqdm(sightlines,desc='Modelling sightlines',show_mem=self.verbose)
                 )
         else:
             for sl in _Smart_Tqdm(sightlines, desc='Modelling sightlines',show_mem=self.verbose):
-                sl.model_sightline(inference,filters,verbose=False)
+                sl.model_sightline(inference,filters,verbose=False,reduce=reduce)
 
         if not _Is_Interactive():
             _Progress_Print(msg,ts,show_mem=self.verbose)
