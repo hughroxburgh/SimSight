@@ -457,7 +457,7 @@ class SightlineSim():
             del(halos,radii,com,tree)
 
             
-    def run_single_sightline(self,redshift,origin=None,direction_vector=None,functype='DM',
+    def run_single_sightline(self,sightline=None,redshift=None,origin=None,direction_vector=None,functype='DM',
                              delete_data=True,save_path=None,plot_sightline=False):
         
         from ._compute import Compute_Sightline
@@ -466,7 +466,6 @@ class SightlineSim():
         # -- Select function to calculate and corresponding data fields needed -- #
         func,fields = self._choose_function(functype)
         
-        sightline = None
         if save_path is not None:
             sightline = self.load_sightlines(save_path)[0]
 
@@ -475,10 +474,7 @@ class SightlineSim():
             sightline.partition(self.sim)
 
         snaps_required = len(np.unique(sightline.sub_BoxRedshifts))
-        for idx,subPoints in enumerate(sightline.sub_PointsIdx):
-            if len(subPoints) == 0:
-                break
-        start_snap = sightline.sub_Snapshots[idx]
+        start_snap = sightline.sub_Snapshots[sightline.subsightline_reached(grid=True)]
 
         for snap in range(start_snap,snaps_required):
             print('\n',flush=True)
@@ -486,18 +482,23 @@ class SightlineSim():
         
             trueSnapNum = self.sim._get_snap_num(snap)
 
-            # -- Load data -- #
-            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum)
+            point_find_data = self.sim.load_data(particle_type='gas',fields=self.sim.point_find_fields,snapNum=trueSnapNum,method='custom')
+
+            # # -- Load data -- #
+            # data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum)
 
             # -- Define particle radii and the maximum radius to search within -- #
-            radii = self.sim.radius_mapping(data)
+            radii = self.sim.radius_mapping(point_find_data)
             coarse_radius = np.percentile(radii,99.9)
 
-            Points_In_Sightline(sightline,snap,data['Coordinates'],radii,coarse_radius,findtype='cylinder')
+            Points_In_Sightline(sightline,snap,point_find_data['Coordinates'],radii,coarse_radius,findtype='cylinder')
 
             if (snap == 0) & (plot_sightline):
                 self.Vis.plot3d()
                 self.Vis.plot_sightline(sightline,data['Coordinates'])
+
+            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method='custom')
+            data = data | point_find_data
 
             results = Compute_Sightline(sightline, self.sim, data, func, snap)
 
