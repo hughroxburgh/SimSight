@@ -479,7 +479,7 @@ class SightlineSim():
         for snap in range(start_snap,snaps_required):
 
             reached_check = sightline.sub_Snapshots[sightline.subsightline_reached(grid=True)-1]
-            if snap < reached_check:
+            if snap <= reached_check:
                 continue
 
             print('\n',flush=True)
