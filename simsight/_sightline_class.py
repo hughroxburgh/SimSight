@@ -623,9 +623,10 @@ class Sightline():
             source.sub_Compute[:n_subsightlines]        = new_Compute[:n_subsightlines]
             source.sub_HaloAssignment[:n_subsightlines] = new_HaloAssignment[:n_subsightlines]
             source.sub_CellConditions[:n_subsightlines] = new_CellConditions[:n_subsightlines]
-            source.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
             if not modelled:
                 source.sub_Cells[:n_subsightlines]          = new_Cells[:n_subsightlines]
+                source.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
+
         else:
             sl = deepcopy(self)
             source = sl.modelled if modelled else source
@@ -635,9 +636,9 @@ class Sightline():
             source.sub_Compute[:n_subsightlines]        = new_Compute[:n_subsightlines]
             source.sub_HaloAssignment[:n_subsightlines] = new_HaloAssignment[:n_subsightlines]
             source.sub_CellConditions[:n_subsightlines] = new_CellConditions[:n_subsightlines]
-            source.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
             if not modelled:
                 source.sub_Cells[:n_subsightlines]          = new_Cells[:n_subsightlines]
+                source.sub_PointsIdx[:n_subsightlines]      = new_PointsIdx[:n_subsightlines]
 
             return sl
 
