@@ -566,7 +566,7 @@ class SightlineSim():
                 sl.extend(self.sim,redshift)    # check to see if desired redshift longer than loaded, and extend whilst saving loaded data
             if (n_sightlines > len(sightlines)) & (method=='random'):   # if more sightlines wanted, extend list of sightlines
                 sightlines.extend(self._generate_and_partition_sightlines(n_sightlines-len(sightlines),redshift,parallel_slgen,method,origin))
-            elif all(sl.redshift_reached(self.sim.cosmo) > redshift or len(sl.sub_Compute[-1]) > 0 for sl in sightlines):   # if all sightlines are completely full, return sightlines
+            elif all(sl.subsightline_reached(grid=True,halos=find_halos) == sl.num_sub_sightlines for sl in sightlines):   # if all sightlines are completely full, return sightlines
                 print('Sightlines already processed!')
                 if delete_data:
                     return sightlines
