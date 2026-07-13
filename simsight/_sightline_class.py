@@ -554,8 +554,14 @@ class Sightline():
 
             new_PointsIdx[i] = ['Removed']
 
-            median_length = np.nanmedian(source.sub_Grid[i])
-            downsample_factor = int(grid_resolution // median_length)
+            is_igm = (source.sub_CellConditions[i] == 0)
+
+            if np.any(is_igm):
+                median_length = np.nanmedian(source.sub_Grid[i][is_igm])
+                downsample_factor = int(grid_resolution // median_length)
+            else:
+                downsample_factor = 0  # no IGM cells -> nothing to reduce, falls into the <=1 branch below
+
             if downsample_factor <= 1:
                 for k, src in enumerate([source.sub_Grid[i], source.sub_Density[i], source.sub_Compute[i],
                                         source.sub_HaloAssignment[i], source.sub_CellConditions[i]]):
@@ -564,7 +570,6 @@ class Sightline():
                     arrs[-1][i] = source.sub_Cells[i]
                 continue
 
-            is_igm = (source.sub_CellConditions[i] == 0)
             switches = np.diff(is_igm.astype(int), prepend=0, append=0)
             igm_starts = np.where(switches ==  1)[0]
             igm_stops  = np.where(switches == -1)[0]
@@ -572,7 +577,7 @@ class Sightline():
             # -- Initialise arrays -- #
             if len(igm_starts) == 0:
                 for k, src in enumerate([source.sub_Grid[i], source.sub_Density[i], source.sub_Compute[i], 
-                                         source.sub_HaloAssignment[i], source.sub_CellConditions[i]]):
+                                        source.sub_HaloAssignment[i], source.sub_CellConditions[i]]):
                     arrs[k][i] = src
                 if not modelled:
                     arrs[-1][i] = source.sub_Cells[i]
