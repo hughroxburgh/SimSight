@@ -143,7 +143,7 @@ class SightlineSim():
                             SL.sightline_idx = sightline_idx
 
                         if with_pidx:
-                            if all(SL.sub_PointsIdx[i] == 'Removed' for i in range(SL.subsightline_reached(grid=True,halos=True))):
+                            if all(SL.sub_PointsIdx[i] == ['Removed'] for i in range(SL.subsightline_reached(grid=True,halos=True))):
                                 path = f'{directory_path}/sightline_{sightline_idx}_PointsIdx.npy'
                                 if os.path.exists(path):
                                     SL.sub_PointsIdx = np.load(path,allow_pickle=True).tolist()
