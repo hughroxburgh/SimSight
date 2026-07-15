@@ -115,7 +115,7 @@ class SightlineSim():
 
     # ------------- Loading / saving sightlines ------------- #
 
-    def load_sightlines(self,directory_path=None,percent=100,sl_files=None):
+    def load_sightlines(self,directory_path=None,percent=100,sl_files=None,with_pidx=False):
 
         import pickle
         import os
@@ -141,7 +141,19 @@ class SightlineSim():
                         with open(file,'rb') as f:
                             SL = pickle.load(f)
                             SL.sightline_idx = sightline_idx
-                            sightlines.append(SL)
+
+                        if with_pidx:
+                            if all(SL.sub_PointsIdx[i] == 'Removed' for i in range(SL.subsightline_reached(grid=True,halos=True))):
+                                path = f'{directory_path}/sightline_{sightline_idx}_PointsIdx.npy'
+                                if os.path.exists(path):
+                                    SL.sub_PointsIdx = np.load(path,allow_pickle=True).tolist()
+                                else:
+                                    e = f'No stored PointsIdx found for sightline {sightline_idx}'
+                                    raise FileExistsError(e)
+
+                        sightlines.append(SL)
+
+
                     
                     if not _Is_Interactive():
                         _Progress_Print(msg,ts)
