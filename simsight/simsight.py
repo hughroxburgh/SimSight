@@ -637,6 +637,7 @@ class SightlineSim():
                 Cleanup_Memory()
 
             # -- Find halos in sightlines -- #
+            ran_halos = False
             if find_halos:
                 ran_halos = self.find_halos_in_sightlines(sightlines,parallel=parallel_halos,single_snap=snap,announce=False)
                 self.assign_sightline_to_halos(sightlines)
