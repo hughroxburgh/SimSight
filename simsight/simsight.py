@@ -435,7 +435,10 @@ class SightlineSim():
 
             halofind_check = snap < min([sl.sub_Snapshots[sl.subsightline_reached(grid=False,halos=True)-1] for sl in sightlines])
             if not halofind_check:
-                continue
+                if single_snap is not None:
+                    return False
+                else:
+                    continue
 
             trueSnapNum = self.sim._get_snap_num(snap)
 
@@ -457,6 +460,8 @@ class SightlineSim():
                 print('\n', flush=True)
 
             del(halos,radii,com,tree)
+
+        return True
 
             
     def run_single_sightline(self,sightline=None,redshift=None,origin=None,direction_vector=None,functype='DM',
@@ -633,7 +638,7 @@ class SightlineSim():
 
             # -- Find halos in sightlines -- #
             if find_halos:
-                self.find_halos_in_sightlines(sightlines,parallel=parallel_halos,single_snap=snap,announce=False)
+                ran_halos = self.find_halos_in_sightlines(sightlines,parallel=parallel_halos,single_snap=snap,announce=False)
                 self.assign_sightline_to_halos(sightlines)
 
                 # -- Reduce Sightlines -- #
@@ -641,7 +646,7 @@ class SightlineSim():
                     self._snapshot_reduce_sightlines(sightlines,save_path if save_pointsidx else None,parallel_reduce)
 
             # -- Save sightlines -- #
-            if save_path is not None:
+            if save_path is not None and (not ptfind_check or not compute_check or ran_halos):
                 self.save_sightlines(sightlines,save_path)
 
         if delete_data:
