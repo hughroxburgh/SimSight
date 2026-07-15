@@ -642,7 +642,7 @@ class SightlineSim():
                 self.assign_sightline_to_halos(sightlines)
 
                 # -- Reduce Sightlines -- #
-                if reduce_sightlines:
+                if reduce_sightlines and (not compute_check or ran_halos):
                     self._snapshot_reduce_sightlines(sightlines,save_path if save_pointsidx else None,parallel_reduce)
 
             # -- Save sightlines -- #
