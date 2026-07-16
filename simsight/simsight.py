@@ -937,8 +937,8 @@ class SightlineSim():
         inference = Inference(self.sim)
         inference.model_params = sightlines[0].modelled.model_params
 
-        sigma_igm = inference.build_sigma_igm_of_z(sightlines, self.cosmo, redshift)
-        sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.cosmo, redshift, f_gas_ref=self.sim.f_gas)
+        sigma_igm = inference.build_sigma_igm_of_z(sightlines, self.sim.cosmo, redshift)
+        sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.sim.cosmo, redshift, f_gas_ref=self.sim.f_gas)
         sigma_model = np.sqrt(sigma_igm**2 + sigma_halo**2)
 
         param_names = list(priors.keys())
@@ -957,7 +957,7 @@ class SightlineSim():
 
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, inference.log_probability,
-            args=(sightlines, self.cosmo, priors, redshift, sigma_model)
+            args=(sightlines, self.sim.cosmo, priors, redshift, sigma_model)
         )
         sampler.run_mcmc(pos, nsteps, progress=True)
  
