@@ -525,7 +525,7 @@ class Inference:
         ])
         dm_halo_model = np.array([
             s.extract_compute(cosmo, redshift=redshift, environment='CGM', modelled=True,
-                            f_gas=f_gas_ref, f_igm=0.0)
+                            fgas=f_gas_ref, figm=0.0)
             for s in sightlines
         ])
 
@@ -537,7 +537,7 @@ class Inference:
         for sl in sightlines:
             true_dm = sl.extract_compute(cosmo, redshift=redshift, environment='Total')
             model_dm = sl.extract_compute(cosmo, redshift=redshift, environment='Total',
-                                        modelled=True, f_gas=f_gas, f_igm=f_igm)
+                                        modelled=True, fgas=f_gas, figm=f_igm)
             resid = true_dm - model_dm
             total += -0.5 * (resid**2 / sigma_model**2 + np.log(2*np.pi*sigma_model**2))
         return total
