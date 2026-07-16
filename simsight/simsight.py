@@ -940,6 +940,7 @@ class SightlineSim():
         sigma_igm = inference.build_sigma_igm_of_z(sightlines, self.sim.cosmo, redshift)
         sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.sim.cosmo, redshift, f_gas_ref=self.sim.f_gas)
         sigma_model = np.sqrt(sigma_igm**2 + sigma_halo**2)
+        print(f'sigma_igm = {sigma_igm}, sigma_halo = {sigma_halo}, sigma_model = {sigma_model}')
 
         param_names = list(priors.keys())
         ndim = len(param_names)
