@@ -593,7 +593,7 @@ class Inference:
         ])
         dm_halo_model_cumulative = np.array([
             s.extract_compute(cosmo, redshift=z_edges, environment='CGM', modelled=True,
-                            f_gas=f_gas_ref, f_igm=0.0)
+                            fgas=f_gas_ref, figm=0.0)
             for s in tqdm(sightlines, desc='building sigma_halo2')
         ])
 
