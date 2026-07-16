@@ -944,7 +944,7 @@ class SightlineSim():
         print(f'sigma_igm = {sigma_igm}, sigma_halo = {sigma_halo}, sigma_model = {sigma_model}')
 
         print('\n')
-        dm_halo_unit = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='CGM',
+        dm_cgm_unit = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='CGM',
                                                 modelled=True, f_gas=1.0, f_igm=1.0) for sl in tqdm(sightlines,desc='calculating fgas = 1.0 CGM DM')])
         dm_igm_unit = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='IGM',
                                                 modelled=True, f_gas=1.0, f_igm=1.0) for sl in tqdm(sightlines,desc='calculating figm = 1.0 IGM DM')])
@@ -968,7 +968,7 @@ class SightlineSim():
 
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, inference.log_probability,
-            args=(sightlines, self.sim.cosmo, priors, redshift, sigma_model)
+            args=(dm_cgm_unit, dm_igm_unit, dm_total_true, priors, sigma_model)
         )
         sampler.run_mcmc(pos, nsteps, progress=True)
  

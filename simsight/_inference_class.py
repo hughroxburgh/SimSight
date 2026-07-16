@@ -550,11 +550,9 @@ class Inference:
                 return -np.inf
         return 0.0
 
-    def log_probability(self, theta, sightlines, cosmo, priors,
-                     redshift=None, sigma_model=None):
+    def log_probability(self, theta, dm_cgm_unit, dm_igm_unit, dm_total_true, priors, sigma_model):
         lp = self.log_prior(theta, priors)
         if not np.isfinite(lp):
             return -np.inf
-        ll = self.log_likelihood(theta, sightlines, cosmo,
-                                redshift=redshift, sigma_model=sigma_model)
+        ll = self.log_likelihood(theta, dm_cgm_unit, dm_igm_unit, dm_total_true, sigma_model)
         return lp + ll
