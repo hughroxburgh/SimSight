@@ -919,3 +919,48 @@ class SightlineSim():
                                        min_num_halos=min_num_halos,max_num_halos=max_num_halos)
             
         return mask
+    
+
+
+
+
+    def run_mcmc(self,sightlines,priors,redshift=None,nwalkers=32, nsteps=4000, burnin=500,initial_guess=None, seed=None):
+
+        import emcee
+        from ._inference_class import Inference
+
+        if min([sl.subsightline_reached(modelled=True) for sl in sightlines]) == 0:
+            raise ValueError('Sightlines not fully modelled!')
+        if redshift is None:
+            redshift = sightlines[0].target_redshift
+
+        inference = Inference(self.sim)
+        inference.model_params = sightlines[0].model_params
+
+        sigma_igm = inference.build_sigma_igm_of_z(sightlines, self.cosmo, redshift)
+        sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.cosmo, redshift, f_gas_ref=self.sim.f_gas)
+        sigma_model = np.sqrt(sigma_igm**2 + sigma_halo**2)
+
+        param_names = list(priors.keys())
+        ndim = len(param_names)
+
+        if initial_guess is None:
+            initial_guess = tuple(
+                0.5 * (lo + hi) for lo, hi in priors.values()
+            )
+
+        rng = np.random.default_rng(seed)
+        pos = np.array(initial_guess) + 1e-2 * rng.standard_normal((nwalkers, ndim))
+        # clip into prior bounds
+        for j, (lo, hi) in enumerate(priors.values()):
+            pos[:, j] = np.clip(pos[:, j], lo + 1e-6, hi - 1e-6)
+
+        sampler = emcee.EnsembleSampler(
+            nwalkers, ndim, inference.log_probability,
+            args=(sightlines, self.cosmo, priors, redshift, sigma_model)
+        )
+        sampler.run_mcmc(pos, nsteps, progress=True)
+ 
+        flat_samples = sampler.get_chain(discard=burnin, thin=10, flat=True)
+ 
+        return sampler, flat_samples, param_names

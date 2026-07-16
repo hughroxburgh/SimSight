@@ -12,7 +12,7 @@ from scipy.spatial.distance import cdist
 from astropy.cosmology import z_at_value
 import astropy.units as u
 
-from ._compute import Transform_Points
+from ._compute import Transform_Points, Density_To_DM
 from ._utils import _Get_Colours
 
 LIMITING_MAGS = {
@@ -786,7 +786,8 @@ class Sightline():
                 plt.show()
 
                     
-    def plot_compute(self,idx=None,data='compute',with_model=False,return_data=False,logspace=True,mode='normal',dark_mode=False):
+    def plot_compute(self,idx=None,data='compute',with_model=False,return_data=False,logspace=True,mode='normal',dark_mode=False,
+                     fgas=None,figm=None):
         """
         Combines all computed subsightlines into one non-cumulutive profile, coloured by subsightline.
         """
@@ -803,7 +804,10 @@ class Sightline():
 
         if with_model:
             max_idx = self.subsightline_reached(modelled=True)
-            if max_idx > 0 and self.modelled is not None:
+            if max_idx > 0:
+
+                self._combine_model_density(fgas,figm)
+
                 model_lengths = [self.modelled.sub_Grid[idx]] if idx is not None else self.modelled.sub_Grid
                 model_computed = [getattr(self.modelled, attr)[idx]] if idx is not None else getattr(self.modelled, attr)
                 if data == 'compute' and mode != 'cumulutive':
@@ -980,10 +984,15 @@ class Sightline():
 
         return z_at_value(cosmo.comoving_distance, full_grid*u.kpc).value if full_grid > 0. else 0.
 
-    def extract_compute(self, cosmo, redshift=None, environment='Total',modelled=False):
+    def extract_compute(self, cosmo, redshift=None, environment='Total',
+                     modelled=False, fgas=None, figm=None):
+   
         """
         Extract cumulutive computed results as a function of redshift and environment.
         """
+
+        if modelled:
+            self._combine_model_density(fgas, figm)
 
         if (environment != 'Total') & (self.sub_CellConditions is None):
             e = 'Cell partitioning to igm / cgm not complete yet! Call "self.assign_to_halos()"'
@@ -1251,6 +1260,9 @@ class Sightline():
         # -- Deal with the movement caused by photometric redshifting -- #
         mod.sub_Halos = self.sub_HalosInferrred if inference.model_params['HaloParams_Mode'] == 'inferred' else self.sub_Halos
 
+        mod.sub_DensityIGM = [[] for _ in range(self.num_sub_sightlines)]
+        mod.sub_DensityCGM = [[] for _ in range(self.num_sub_sightlines)]
+
         mod.sub_Density = [[] for _ in range(self.num_sub_sightlines)]
         mod.sub_Compute = [[] for _ in range(self.num_sub_sightlines)]        # inferred DM
         mod.sub_Grid = [[] for _ in range(self.num_sub_sightlines)]           # can mirror original
@@ -1259,6 +1271,8 @@ class Sightline():
 
         self.modelled = mod
         self.modelled.model_params = inference.model_params
+        self.modelled.f_gas = inference.sim.f_gas
+        self.modelled.f_igm = inference.sim.f_igm
 
 
 
@@ -1289,16 +1303,55 @@ class Sightline():
         for i in range(num_sub_sightlines):
             subsightline = self.get_subsightline(i,with_values=inference.model_params['HaloParams_Mode'])
                     
-            grid,density,compute,conditions,assign = inference.model_dm(subsightline)
+            grid,density_igm,density_halo,conditions,assign = inference.model_dm(subsightline)
             
             self.modelled.sub_Grid[i] = grid
-            self.modelled.sub_Density[i] = density
-            self.modelled.sub_Compute[i] = compute
+            self.modelled.sub_DensityIGM[i] = density_igm
+            self.modelled.sub_DensityCGM[i] = density_halo
             self.modelled.sub_CellConditions[i] = conditions
             self.modelled.sub_HaloAssignment[i] = assign
 
-        if reduce is not None:
-            self.reduce(reduce,modelled=True)
+        # if reduce is not None:
+        #     self.reduce(reduce,modelled=True)
+
+        self._combine_model_density()
+
+
+    def _combine_model_density(self, f_gas=None, f_igm=None):
+        """
+        Combine cached unit-scale IGM/halo densities (self.modelled.sub_Density,
+        stored as [density_igm, density_halo] per cell from model_sightline)
+        into a single scaled DM per cell, for a given trial (f_gas, f_igm).
+
+        Populates self.modelled.sub_Compute to match the structure extract_compute
+        already expects (one array per subsightline).
+        """
+
+        if f_gas is None:
+            f_gas = self.modelled.f_gas
+        if f_igm is None:
+            f_igm = self.modelled.f_igm
+    
+        if (f_gas == self.modelled.f_gas) and (f_igm == self.modelled.f_igm):
+            # nothing has changed since the last combine -- skip recompute
+            return
+    
+        num_sub_sightlines = self.subsightline_reached(modelled=True)
+    
+        for i in range(num_sub_sightlines):
+            density_igm = self.modelled.sub_DensityIGM[i]
+            density_halo = self.modelled.sub_DensityCGM[i]
+    
+            self.modelled.sub_Density[i] = np.maximum(f_gas * density_halo, f_igm * density_igm)
+    
+            lengths = self.modelled.sub_Grid[i]
+            z = self.modelled.sub_BoxRedshifts[i]
+    
+            self.modelled.sub_Compute[i] = Density_To_DM(self.modelled.sub_Density[i], lengths, z)
+    
+        self.modelled.f_gas = f_gas
+        self.modelled.f_igm = f_igm
+    
 
     def filter(self,redshift=None,observed=False,inferred=False,direction_vector=None,
                min_halo_mass=0,max_halo_mass=1e20,

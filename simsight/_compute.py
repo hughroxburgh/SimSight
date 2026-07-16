@@ -14,6 +14,32 @@ def Transform_Points(sightline, points, inverse=False):
         return (points - sightline.origin) @ tm
 
 
+def Density_To_DM(density,lengths,redshift):
+    """
+    Transform model density to model DM. Identical to the Calc_Ray_DM except does not have any dependence on Electron Abundance and SFR.
+    """
+
+    # -- Values -- #
+    mu_H = 1.3
+    mu_e = 1.167
+    m_p = 1.67e-24
+    
+    # -- Convert to comoving free electron density -- #
+    constant = 1.988e43 / (3.086e21 ** 3)   # 10^10 Msun -> g / 1kpc^3 -> cm^3
+    freeElectronDensity_com = density * mu_e / (m_p * mu_H) * constant
+
+    # -- Convert to physical free electron density -- #
+    freeElectronDensity_phys = (1+redshift)**3 * freeElectronDensity_com
+    
+    # -- Integrate over comoving distance -- #
+    DM = freeElectronDensity_phys * (lengths*1000) / (1+redshift)**2
+
+    return DM
+
+
+
+# --------- Main Functions --------- #
+
 def Compute_Sightline(sightline,sim,data,func,snapshot):
     """
     Compute a desired function along the portion (sub_sightlines) that exist in this snapshot.

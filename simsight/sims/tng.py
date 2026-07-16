@@ -18,6 +18,7 @@ class TNG_SightlineSim():
 
         self.point_find_fields = ['Coordinates','Density','Masses']
         self.f_igm = 0.8195   #0.85 Martizzi+2019, but not super accurate
+        self.f_gas = 0.5 # kinda place holder
 
         if fsps_path is None:
             self.fsps_path = 'fsps'

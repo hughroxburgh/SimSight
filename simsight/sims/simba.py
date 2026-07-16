@@ -28,6 +28,7 @@ class SIMBA_SightlineSim():
         self.kernel = 1
         self.point_find_fields = ['Coordinates','SmoothingLength']
         self.f_igm = 0.87 # Khyrkin+2024
+        self.f_gas = 0.3 # kinda place holder
         
 
         if fsps_path is None:
