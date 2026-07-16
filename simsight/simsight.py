@@ -935,7 +935,7 @@ class SightlineSim():
             redshift = sightlines[0].target_redshift
 
         inference = Inference(self.sim)
-        inference.model_params = sightlines[0].model_params
+        inference.model_params = sightlines[0].modelled.model_params
 
         sigma_igm = inference.build_sigma_igm_of_z(sightlines, self.cosmo, redshift)
         sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.cosmo, redshift, f_gas_ref=self.sim.f_gas)
