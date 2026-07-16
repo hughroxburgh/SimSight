@@ -538,7 +538,7 @@ class Inference:
 
         return np.std(dm_halo_true - dm_halo_model)
 
-    def log_likelihood(theta, dm_halo_unit, dm_igm_unit, dm_total_true, sigma_model):
+    def log_likelihood(self,theta, dm_halo_unit, dm_igm_unit, dm_total_true, sigma_model):
         f_gas, f_igm = theta
         model_dm = f_gas * dm_halo_unit + f_igm * dm_igm_unit
         resid = dm_total_true - model_dm
