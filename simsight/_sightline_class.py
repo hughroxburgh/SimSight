@@ -1303,7 +1303,7 @@ class Sightline():
         for i in range(num_sub_sightlines):
             subsightline = self.get_subsightline(i,with_values=inference.model_params['HaloParams_Mode'])
                     
-            grid,density_igm,density_halo,conditions,assign = inference.model_dm(subsightline)
+            grid,density_igm,density_halo,conditions,assign = inference.model_dm_partition(subsightline)
             
             self.modelled.sub_Grid[i] = grid
             self.modelled.sub_DensityIGM[i] = density_igm
