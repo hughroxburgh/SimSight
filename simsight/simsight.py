@@ -1009,12 +1009,12 @@ class SightlineSim():
 
         dm_cgm_unit_cumulative = np.array([
             sl.extract_compute(self.sim.cosmo, redshift=z_edges, environment='CGM',
-                                modelled=True, f_gas=1.0, f_igm=0.0)
+                                modelled=True, fgas=1.0, figm=0.0)
             for sl in tqdm(sightlines, desc='calculating f_gas=1.0 CGM DM')
         ])
         dm_igm_unit_cumulative = np.array([
             sl.extract_compute(self.sim.cosmo, redshift=z_edges, environment='IGM',
-                                modelled=True, f_gas=0.0, f_igm=1.0)
+                                modelled=True, fgas=0.0, figm=1.0)
             for sl in tqdm(sightlines, desc='calculating f_igm=1.0 IGM DM')
         ])
         dm_total_true_cumulative = np.array([
