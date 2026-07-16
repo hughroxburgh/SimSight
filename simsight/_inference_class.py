@@ -459,7 +459,14 @@ class Inference:
                         np.ones_like(subsightline.sub_Grid).astype(bool),
                         t_grid, 0
                     )
-                    unit_density_j = resampled[mask]
+                    density_true_j = resampled[mask]
+
+                    omega_b = self.sim.cosmo.Ob0
+                    omega_m = self.sim.cosmo.Om0
+                    m_gas_true_h = halo['GasMass']   # <-- whatever field holds true integrated gas mass
+                    scale_h = (omega_b / omega_m) * halo['TotalMass'] / m_gas_true_h
+
+                    unit_density_j = density_true_j * scale_h
 
                 # still take elementwise max ACROSS OVERLAPPING HALOS
                 # (this max is fine -- it's halo-vs-halo, not halo-vs-IGM,
