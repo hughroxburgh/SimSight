@@ -502,6 +502,7 @@ class Inference:
         so is a validation-stage stand-in for a real survey noise model --
         see conversation notes.
         """
+        
         dm_igm_true = np.array([
             s.extract_compute(cosmo, redshift=redshift, environment='IGM', modelled=False)
             for s in tqdm(sightlines,desc='building sigma_igm')
@@ -537,16 +538,11 @@ class Inference:
 
         return np.std(dm_halo_true - dm_halo_model)
 
-    def log_likelihood(self, theta, sightlines, cosmo, redshift, sigma_model):
+    def log_likelihood(theta, dm_halo_unit, dm_igm_unit, dm_total_true, sigma_model):
         f_gas, f_igm = theta
-        total = 0.0
-        for sl in sightlines:
-            true_dm = sl.extract_compute(cosmo, redshift=redshift, environment='Total')
-            model_dm = sl.extract_compute(cosmo, redshift=redshift, environment='Total',
-                                        modelled=True, fgas=f_gas, figm=f_igm)
-            resid = true_dm - model_dm
-            total += -0.5 * (resid**2 / sigma_model**2 + np.log(2*np.pi*sigma_model**2))
-        return total
+        model_dm = f_gas * dm_halo_unit + f_igm * dm_igm_unit
+        resid = dm_total_true - model_dm
+        return np.sum(-0.5 * (resid**2 / sigma_model**2 + np.log(2*np.pi*sigma_model**2)))
 
     def log_prior(self, theta, priors):
         for val, (lo, hi) in zip(theta, priors.values()):

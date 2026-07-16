@@ -928,6 +928,7 @@ class SightlineSim():
 
         import emcee
         from ._inference_class import Inference
+        from tqdm import tqdm
 
         if min([sl.subsightline_reached(modelled=True) for sl in sightlines]) == 0:
             raise ValueError('Sightlines not fully modelled!')
@@ -941,6 +942,15 @@ class SightlineSim():
         sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.sim.cosmo, redshift, f_gas_ref=self.sim.f_gas)
         sigma_model = np.sqrt(sigma_igm**2 + sigma_halo**2)
         print(f'sigma_igm = {sigma_igm}, sigma_halo = {sigma_halo}, sigma_model = {sigma_model}')
+
+        print('\n')
+        dm_halo_unit = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='CGM',
+                                                modelled=True, f_gas=1.0, f_igm=1.0) for sl in tqdm(sightlines,desc='calculating fgas = 1.0 CGM DM')])
+        dm_igm_unit = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='IGM',
+                                                modelled=True, f_gas=1.0, f_igm=1.0) for sl in tqdm(sightlines,desc='calculating figm = 1.0 IGM DM')])
+        dm_total_true = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='Total',
+                                                modelled=False) for sl in tqdm(sightlines,desc='calculating truth DM')])
+        print('\n')
 
         param_names = list(priors.keys())
         ndim = len(param_names)
