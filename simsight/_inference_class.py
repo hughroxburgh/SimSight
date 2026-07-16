@@ -558,73 +558,36 @@ class Inference:
     #     return lp + ll
 
     def build_sigma_igm_of_z(self, sightlines, cosmo, redshift):
-        """
-        Empirically calibrate sigma_igm per BIN SEGMENT (not cumulative to z),
-        matching the segment-differenced design matrix used in run_mcmc.
-
-        redshift : array of bin EDGES (length n_zbins+1), e.g. z_edges from
-                run_mcmc -- NOT bin centers. If you only want cumulative
-                sigma at a set of z values directly (no differencing),
-                pass segments=False.
-        """
-        z_edges = np.atleast_1d(redshift)
-
-        dm_igm_true_cumulative = np.array([
-            s.extract_compute(cosmo, redshift=z_edges, environment='IGM', modelled=False)
+        z_vals = np.atleast_1d(redshift)
+        dm_igm_true = np.array([
+            s.extract_compute(cosmo, redshift=z_vals, environment='IGM', modelled=False)
             for s in tqdm(sightlines, desc='building sigma_igm')
-        ])  # shape (n_sightlines, n_z_edges)
-
-        if len(z_edges) == 1:
-            return np.std(dm_igm_true_cumulative[:, 0])
-
-        dm_igm_true_segments = np.diff(dm_igm_true_cumulative, axis=1)  # (n_sightlines, n_zbins)
-        return np.std(dm_igm_true_segments, axis=0)  # shape (n_zbins,)
+        ])  # shape (n_sightlines, n_z)
+        return np.std(dm_igm_true, axis=0)  # shape (n_z,)
 
 
     def build_sigma_halo_of_z(self, sightlines, cosmo, redshift, f_gas_ref):
-        """
-        Same segment-differencing logic, for the halo/CGM term.
-        """
-        z_edges = np.atleast_1d(redshift)
-
-        dm_halo_true_cumulative = np.array([
-            s.extract_compute(cosmo, redshift=z_edges, environment='CGM', modelled=False)
+        z_vals = np.atleast_1d(redshift)
+        dm_halo_true = np.array([
+            s.extract_compute(cosmo, redshift=z_vals, environment='CGM', modelled=False)
             for s in tqdm(sightlines, desc='building sigma_halo1')
         ])
-        dm_halo_model_cumulative = np.array([
-            s.extract_compute(cosmo, redshift=z_edges, environment='CGM', modelled=True,
+        dm_halo_model = np.array([
+            s.extract_compute(cosmo, redshift=z_vals, environment='CGM', modelled=True,
                             fgas=f_gas_ref, figm=0.0)
             for s in tqdm(sightlines, desc='building sigma_halo2')
         ])
-
-        if len(z_edges) == 1:
-            resid = dm_halo_true_cumulative[:, 0] - dm_halo_model_cumulative[:, 0]
-            return np.std(resid)
-
-        dm_halo_true_segments = np.diff(dm_halo_true_cumulative, axis=1)
-        dm_halo_model_segments = np.diff(dm_halo_model_cumulative, axis=1)
-
-        resid_segments = dm_halo_true_segments - dm_halo_model_segments  # (n_sightlines, n_zbins)
-        return np.std(resid_segments, axis=0)  # shape (n_zbins,)
+        return np.std(dm_halo_true - dm_halo_model, axis=0)  # shape (n_z,)
 
 
-    def log_likelihood(self, theta, X_per_bin, y_per_bin, sigma_per_bin):
-        """
-        theta: length 2*n_zbins, ordered [f_gas_0, f_igm_0, f_gas_1, f_igm_1, ...]
-        X_per_bin: list of n_zbins arrays, each shape (n_sightlines, 2) -- columns
-                [dm_cgm_k, dm_igm_k], the unit (f_gas=1/f_igm=1) SEGMENT
-                contribution for that bin (not cumulative).
-        y_per_bin: list of n_zbins arrays, each shape (n_sightlines,) -- true DM
-                SEGMENT (not cumulative) for that bin.
-        sigma_per_bin: array, shape (n_zbins,) -- one sigma per bin.
-        """
+    def log_likelihood(self, theta, X_per_z, y_per_z, sigma_per_z):
         total = 0.0
-        for k in range(len(sigma_per_bin)):
+        for k in range(len(sigma_per_z)):
             f_gas_k, f_igm_k = theta[2*k], theta[2*k + 1]
-            model_dm_k = f_gas_k * X_per_bin[k][:, 0] + f_igm_k * X_per_bin[k][:, 1]
-            resid_k = y_per_bin[k] - model_dm_k
-            sigma_k = sigma_per_bin[k]
-            total += np.sum(-0.5 * (resid_k**2 / sigma_k**2 + np.log(2 * np.pi * sigma_k**2)))
+            model_dm_k = f_gas_k * X_per_z[k][:, 0] + f_igm_k * X_per_z[k][:, 1]
+            resid_k = y_per_z[k] - model_dm_k
+            sigma_k = sigma_per_z[k]
+            total += np.sum(-0.5 * (resid_k**2 / sigma_k**2 + np.log(2*np.pi*sigma_k**2)))
         return total
 
 
@@ -635,8 +598,8 @@ class Inference:
         return 0.0
 
 
-    def log_probability(self, theta, X_per_bin, y_per_bin, priors, sigma_per_bin):
+    def log_probability(self, theta, X_per_z, y_per_z, priors, sigma_per_z):
         lp = self.log_prior(theta, priors)
         if not np.isfinite(lp):
             return -np.inf
-        return lp + self.log_likelihood(theta, X_per_bin, y_per_bin, sigma_per_bin)
+        return lp + self.log_likelihood(theta, X_per_z, y_per_z, sigma_per_z)

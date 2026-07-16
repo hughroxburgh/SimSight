@@ -978,8 +978,8 @@ class SightlineSim():
     #     return sampler, flat_samples, param_names
 
 
-    def run_mcmc(self, sightlines, redshift, nwalkers=32, nsteps=4000, burnin=500,
-                initial_guess=None, seed=None, prior_range=(0.0, 1.0)):
+    def run_mcmc(self, sightlines, redshift, nwalkers=32, nsteps=4000,
+             initial_guess=None, seed=None, prior_range=(0.0, 1.0)):
 
         import emcee
         from ._inference_class import Inference
@@ -988,55 +988,41 @@ class SightlineSim():
         if min([sl.subsightline_reached(modelled=True) for sl in sightlines]) == 0:
             raise ValueError('Sightlines not fully modelled!')
 
-        z_input = np.atleast_1d(redshift)
-
-        if len(z_input) == 1:
-            # single redshift -> single bin from 0 up to that z
-            z_edges = np.array([0.0, z_input[0]])
-        else:
-            # treat input as bin EDGES directly
-            z_edges = np.sort(z_input)
-
-        n_zbins = len(z_edges) - 1
+        z_vals = np.atleast_1d(redshift)
+        n_z = len(z_vals)
 
         inference = Inference(self.sim)
         inference.model_params = sightlines[0].modelled.model_params
 
-        sigma_igm = inference.build_sigma_igm_of_z(sightlines, self.sim.cosmo, z_edges)
-        sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.sim.cosmo, z_edges, f_gas_ref=self.sim.f_gas)
-        sigma_per_bin = np.sqrt(sigma_igm**2 + sigma_halo**2)
-        print(f'sigma_igm = {sigma_igm}\nsigma_halo = {sigma_halo}\nsigma_per_bin = {sigma_per_bin}\n')
+        sigma_igm = inference.build_sigma_igm_of_z(sightlines, self.sim.cosmo, z_vals)
+        sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.sim.cosmo, z_vals,
+                                                    f_gas_ref=self.sim.f_gas)
+        sigma_per_z = np.sqrt(sigma_igm**2 + sigma_halo**2)
+        print(f'sigma_igm = {sigma_igm}\nsigma_halo = {sigma_halo}\nsigma_per_z = {sigma_per_z}\n')
 
-        dm_cgm_unit_cumulative = np.array([
-            sl.extract_compute(self.sim.cosmo, redshift=z_edges, environment='CGM',
+        dm_cgm_unit = np.array([
+            sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='CGM',
                                 modelled=True, fgas=1.0, figm=0.0)
             for sl in tqdm(sightlines, desc='calculating f_gas=1.0 CGM DM')
         ])
-        dm_igm_unit_cumulative = np.array([
-            sl.extract_compute(self.sim.cosmo, redshift=z_edges, environment='IGM',
+        dm_igm_unit = np.array([
+            sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='IGM',
                                 modelled=True, fgas=0.0, figm=1.0)
             for sl in tqdm(sightlines, desc='calculating f_igm=1.0 IGM DM')
         ])
-        dm_total_true_cumulative = np.array([
-            sl.extract_compute(self.sim.cosmo, redshift=z_edges, environment='Total',
+        dm_total_true = np.array([
+            sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='Total',
                                 modelled=False)
             for sl in tqdm(sightlines, desc='calculating truth DM')
         ])
         print('\n')
 
-        X_per_bin, y_per_bin, priors = [], [], {}
-        for k in range(n_zbins):
-            zlo, zhi = z_edges[k], z_edges[k + 1]
-
-            dm_cgm_k = dm_cgm_unit_cumulative[:, k+1] - dm_cgm_unit_cumulative[:, k]
-            dm_igm_k = dm_igm_unit_cumulative[:, k+1] - dm_igm_unit_cumulative[:, k]
-            dm_true_k = dm_total_true_cumulative[:, k+1] - dm_total_true_cumulative[:, k]
-
-            X_per_bin.append(np.column_stack([dm_cgm_k, dm_igm_k]))
-            y_per_bin.append(dm_true_k)
-
-            priors[f'f_gas_z{zlo:.2f}_{zhi:.2f}'] = prior_range
-            priors[f'f_igm_z{zlo:.2f}_{zhi:.2f}'] = prior_range
+        X_per_z, y_per_z, priors = [], [], {}
+        for k in range(n_z):
+            X_per_z.append(np.column_stack([dm_cgm_unit[:, k], dm_igm_unit[:, k]]))
+            y_per_z.append(dm_total_true[:, k])
+            priors[f'f_gas_z{z_vals[k]:.2f}'] = prior_range
+            priors[f'f_igm_z{z_vals[k]:.2f}'] = prior_range
 
         param_names = list(priors.keys())
         ndim = len(param_names)
@@ -1052,8 +1038,8 @@ class SightlineSim():
 
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, inference.log_probability,
-            args=(X_per_bin, y_per_bin, priors, sigma_per_bin)
+            args=(X_per_z, y_per_z, priors, sigma_per_z)
         )
         sampler.run_mcmc(pos, nsteps, progress=True)
 
-        return sampler, param_names, z_edges
+        return sampler, param_names, z_vals
