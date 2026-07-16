@@ -498,7 +498,7 @@ class Inference:
         """
         dm_igm_true = np.array([
             s.extract_compute(cosmo, redshift=redshift, environment='IGM', modelled=False)
-            for s in sightlines
+            for s in tqdm(sightlines,desc='building sigma_igm')
         ])
         return np.std(dm_igm_true)
 
@@ -521,12 +521,12 @@ class Inference:
 
         dm_halo_true = np.array([
             s.extract_compute(cosmo, redshift=redshift, environment='CGM', modelled=False)
-            for s in sightlines
+            for s in tqdm(sightlines,desc='building sigma_halo1')
         ])
         dm_halo_model = np.array([
             s.extract_compute(cosmo, redshift=redshift, environment='CGM', modelled=True,
-                            fgas=f_gas_ref, figm=0.0)
-            for s in sightlines
+                            fgas=f_gas_ref)
+            for s in tqdm(sightlines,desc='building sigma_halo2')
         ])
 
         return np.std(dm_halo_true - dm_halo_model)
