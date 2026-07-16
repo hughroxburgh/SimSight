@@ -1332,7 +1332,7 @@ class Sightline():
         if f_igm is None:
             f_igm = self.modelled.f_igm
     
-        if (f_gas == self.modelled.f_gas) and (f_igm == self.modelled.f_igm):
+        if (f_gas == self.modelled.f_gas) and (f_igm == self.modelled.f_igm) and len(self.modelled.sub_Compute[0] > 0):
             # nothing has changed since the last combine -- skip recompute
             return
     
