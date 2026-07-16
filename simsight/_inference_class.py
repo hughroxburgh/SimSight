@@ -478,7 +478,7 @@ class Inference:
     
     # --------------------- MCMC Inference Functions -- #
 
-    def build_sigma_igm_of_z(sightlines, cosmo, redshift):#,plot=False):
+    def build_sigma_igm_of_z(self,sightlines, cosmo, redshift):#,plot=False):
         """
         Empirically calibrate sigma_igm(z) directly from the true IGM-only
         partition (environment='IGM'), evaluated at a fixed set of redshifts
@@ -502,7 +502,7 @@ class Inference:
         ])
         return np.std(dm_igm_true)
 
-    def build_sigma_halo_of_z(sightlines, cosmo, redshift, f_gas_ref):
+    def build_sigma_halo_of_z(self,sightlines, cosmo, redshift, f_gas_ref):
         """
         Empirically calibrate sigma_halo(z), capturing the scatter that arises
         from using a single global f_gas to model halos with real halo-to-halo
