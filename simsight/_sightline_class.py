@@ -1353,7 +1353,7 @@ class Sightline():
         self.modelled.f_igm = f_igm
     
 
-    def filter(self,redshift=None,observed=False,inferred=False,direction_vector=None,
+    def filter(self,redshift=None,observed=False,inferred=False,
                min_halo_mass=0,max_halo_mass=1e20,
                min_halo_ip=0,max_halo_ip=1,
                min_halo_gasfrac=0,max_halo_gasfrac=1,
