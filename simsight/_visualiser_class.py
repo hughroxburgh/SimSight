@@ -480,7 +480,7 @@ class VisualSim():
 
         if entity not in ('galaxy', 'halo'):
             raise ValueError(f"entity must be 'galaxy' or 'halo', got '{entity}'")
-        if entity == 'galaxy' and (weight == 'compute' or parameter.lower() == 'compute' or parameter2.lower() == 'compute'):
+        if entity == 'galaxy' and (weight == 'compute' or parameter.lower() == 'compute' or (parameter2 is not None and parameter2.lower() == 'compute')):
             raise ValueError("entity='galaxy' can't be combined with weight/parameter='compute' "
                             "(DM/Compute is only tracked per-halo, not per-galaxy) — "
                             "use entity='halo' for DM-weighted fractions, or weight='count' for galaxies.")
