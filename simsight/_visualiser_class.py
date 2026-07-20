@@ -675,6 +675,7 @@ class VisualSim():
                     ax.set_xlabel(parameter.capitalize())
                     ylab = 'Fraction of DM' if weight == 'compute' else 'Fraction of Galaxies'
                     ax.set_ylabel(ylab)
+                    ax.set_ylim(0,1)
 
                     if not sweeping:
                         for status in statuses:
