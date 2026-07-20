@@ -1353,43 +1353,50 @@ class Sightline():
         self.modelled.f_igm = f_igm
     
 
-    def filter(self,redshift=None,observed=False,inferred=False,
-               min_halo_mass=0,max_halo_mass=1e20,
-               min_halo_ip=0,max_halo_ip=1,
-               min_halo_gasfrac=0,max_halo_gasfrac=1,
-               min_num_halos=0,max_num_halos=10000):
-        
-        check = True
+    def filter(self, redshift=None, observed=False, inferred=False,
+            min_halo_mass=0, max_halo_mass=1e20,
+            min_halo_ip=0, max_halo_ip=1,
+            min_halo_gasfrac=0, max_halo_gasfrac=1,
+            min_num_halos=0, max_num_halos=10000):
 
         if redshift is None:
             redshift = self.target_redshift
-        
-        halos = self.halo_info(observed=observed,inferred=inferred)
 
-        if len(halos) < min_num_halos or len(halos) > max_num_halos:
+        halos = self.halo_info(observed=observed, inferred=inferred)
+
+        # only consider halos actually in front of / up to the target redshift
+        relevant_halos = [
+            halo for halo in halos.values()
+            if 'Redshift' not in halo.keys() or halo['Redshift'] < redshift
+        ]
+
+        if len(relevant_halos) < min_num_halos or len(relevant_halos) > max_num_halos:
             return False
 
-        for halo in halos.values():
-            if 'Redshift' not in halo.keys() or halo['Redshift'] < redshift:
-                if (halo['TotalMass'] < min_halo_mass):
-                    check = False 
-                    break
-                if (halo['TotalMass'] > max_halo_mass):
-                    check = False 
-                    break
-                if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] < min_halo_ip):
-                    check = False 
-                    break
-                if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] > max_halo_ip):
-                    check = False 
-                    break
-                if (halo['GasMass']/halo['TotalMass'] < min_halo_gasfrac):
-                    check = False 
-                    break
-                if (halo['GasMass']/halo['TotalMass'] > max_halo_gasfrac):
-                    check = False 
-                    break
+        if len(relevant_halos) == 0:
+            # no halos at all -- mass criteria are vacuous, only ip/gasfrac
+            # checks (which also have nothing to check) apply. Passes by default,
+            # same behavior as before.
+            return True
 
-        return check
+        # -- max halo mass along the sightline determines mass-bin membership -- #
+        dominant_halo = max(relevant_halos, key=lambda h: h['TotalMass'])
+        dominant_mass = dominant_halo['TotalMass']
+
+        if dominant_mass < min_halo_mass or dominant_mass > max_halo_mass:
+            return False
+
+        # -- ip / gasfrac checks still apply per-halo, as before -- #
+        for halo in relevant_halos:
+            if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] < min_halo_ip):
+                return False
+            if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] > max_halo_ip):
+                return False
+            if (halo['GasMass']/halo['TotalMass'] < min_halo_gasfrac):
+                return False
+            if (halo['GasMass']/halo['TotalMass'] > max_halo_gasfrac):
+                return False
+
+        return True
 
 
