@@ -856,7 +856,7 @@ class Sightline():
                     else:
                         model_y = np.cumsum(model_computed[i])
                         
-                    plt.step(model_x, model_y+model_cumulated_value, color='k', alpha=0.5, linestyle='--')
+                    plt.step(model_x, model_y+model_cumulated_value, color='grey', linestyle='--')
 
                 cumulated_length += np.nansum(lengths[i])
                 xs.extend(x)
