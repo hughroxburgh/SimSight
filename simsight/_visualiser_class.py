@@ -472,7 +472,7 @@ class VisualSim():
 
     
     def halo_visibility(self, sightlines, parameter='redshift', parameter2=None,
-                     plottype='fraction', entity='galaxy', weight='count',
+                     plottype='fraction', entity='halo', weight='count',
                      status_only=None, bins=10, filt=None, sweep_param=None,
                      sweep_values=None, sweep_cmap='viridis',
                      xscale='linear', yscale='linear'):
@@ -527,7 +527,7 @@ class VisualSim():
         status_labels = {1: 'Visible', 0: 'Partial', -1: 'Invisible'}
         statuses = (status_only,) if status_only is not None else (1, 0, -1)
 
-        need_compute = (weight == 'compute' or parameter.lower() == 'compute' or parameter2.lower() == 'compute')
+        need_compute = (weight == 'compute' or parameter.lower() == 'compute' or (parameter2 is not None and parameter2.lower() == 'compute'))
         sweeping = sweep_param is not None
 
         if sweeping:
