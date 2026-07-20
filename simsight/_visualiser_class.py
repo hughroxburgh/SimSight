@@ -558,8 +558,11 @@ class VisualSim():
                         'stellarmass': halo['StellarMass'],
                         'numstars': halo['NumStars'],
                         'impactparam': halo['ImpactParam']/halo['Radius'] if halo['ImpactParam'] is not None else None,
-                        'radius': halo['Radius'],
-                        'compute': halo['Compute']}
+                        'radius': halo['Radius']}
+            
+            if need_compute:
+                halo_map['compute'] = halo['Compute']
+
             galaxy_map = {'stellarmass': galaxy['StellarMass'] if galaxy else None,
                         'masslightratio': galaxy['MassLightRatio'] if galaxy else None}
             if galaxy is not None and key_l in galaxy_map and galaxy_map[key_l] is not None:
