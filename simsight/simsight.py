@@ -1024,8 +1024,7 @@ class SightlineSim():
         for sweep_val in sweep_vals:
 
             if sweeping:
-                sweep_kwargs = {sweep_param: sweep_val}
-                sub_mask = self.filter_sightlines(base_sightlines, redshift=z_vals.max(), **sweep_kwargs)
+                sub_mask = self.filter_sightlines(base_sightlines, redshift=z_vals.max(), **sweep_val)
             else:
                 sub_mask = np.ones(len(base_sightlines), dtype=bool)
 
