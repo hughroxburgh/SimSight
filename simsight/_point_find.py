@@ -319,7 +319,12 @@ def _Halos_Near_Ray(origin, direction, length, com, radii):
     return intersects, partial, impact
 
 
-def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius):
+def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius,cosmo):
+
+    from ._compute import Transform_Points
+    from ._sightline_class import z_at_value
+    import astropy.units as u
+
     for i in range(sightline.num_sub_sightlines):
 
         if sightline.sub_Snapshots[i] != snapshot:
@@ -351,11 +356,22 @@ def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius)
             sightline.sub_Halos[i] = [None]
             continue
 
+        prelength = np.nansum(sightline.sub_Lengths[:i])
+
         result = []
         for local_j in hit_local_indices:
             global_j  = candidates[local_j]
             halo_dict = dict(halos[global_j])
             halo_dict['ImpactParam']        = None if partial[local_j] else np.float32(impact[local_j])
+            
+            if halo_dict['ImpactParam'] == None and i == 0:
+                redshift = 0
+            else:
+                halo_dist = Transform_Points(SL, halo_dict['Pos'])[2]
+                redshift = z_at_value(cosmo.comoving_distance, (prelength + halo_dist) * u.kpc).value
+
+            halo_dict['Redshift'] = np.float32(redshift)
+
             result.append(halo_dict)
 
         sightline.sub_Halos[i] = result

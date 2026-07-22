@@ -1089,23 +1089,23 @@ class Sightline():
 
                         if halo['ImpactParam'] == None and i == 0:
                             halo_info['ObservedGalaxies'] = None
-                            halo_info['Redshift'] = 0
+                            # halo_info['Redshift'] = 0
                             observed_halos_i.append(halo_info)
                             
                             continue    
 
 
-                        prelength = np.nansum(self.sub_Lengths[:i])
+                        # prelength = np.nansum(self.sub_Lengths[:i])
                         subsl = self.get_subsightline(i)
-                        halo_dist = Transform_Points(subsl, halo['Pos'])[2]
-                        redshift = z_at_value(galaxyfinder.sim.cosmo.comoving_distance, (prelength + halo_dist) * u.kpc)
+                        # halo_dist = Transform_Points(subsl, halo['Pos'])[2]
+                        # redshift = z_at_value(galaxyfinder.sim.cosmo.comoving_distance, (prelength + halo_dist) * u.kpc)
 
                         halo_info = deepcopy(halo)
-                        halo_info['Redshift'] = redshift.value
+                        # halo_info['Redshift'] = redshift.value
 
                         if halo['NumStars'] >= galaxyfinder.nstars_limit:
 
-                            observed_halo = galaxyfinder.process_halo(halo['ID'], subsl, redshift, 
+                            observed_halo = galaxyfinder.process_halo(halo['ID'], subsl, halo['Redshift'], 
                                                                       interp_cache=interp_cache,interp_path=interp_path,
                                                                       filter_cache=filter_cache, filters=filters, 
                                                                       apply_dust=True, plot=False, verbose=False)
@@ -1311,8 +1311,8 @@ class Sightline():
             self.modelled.sub_CellConditions[i] = conditions
             self.modelled.sub_HaloAssignment[i] = assign
 
-        # if reduce is not None:
-        #     self.reduce(reduce,modelled=True)
+        if reduce is not None:
+            self.reduce(reduce,modelled=True)
 
         self._combine_model_density()
 

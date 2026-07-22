@@ -416,12 +416,12 @@ class SightlineSim():
 
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                delayed(Halos_In_Sightline)(sl, snap, halos, com, radii, tree, max_radius)
+                delayed(Halos_In_Sightline)(sl, snap, halos, com, radii, tree, max_radius,self.sim.cosmo)
                 for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines')
             )
         else:
             for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines'):
-                Halos_In_Sightline(sl, snap, halos, com, radii, tree, max_radius)
+                Halos_In_Sightline(sl, snap, halos, com, radii, tree, max_radius,self.sim.cosmo)
             # inactive sightlines untouched — already in sightlines list
 
         if not _Is_Interactive():
