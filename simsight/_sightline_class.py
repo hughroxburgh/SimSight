@@ -804,7 +804,7 @@ class Sightline():
 
                     
     def plot_compute(self,idx=None,data='compute',with_model=False,return_data=False,logspace=True,mode='normal',dark_mode=False,
-                     fgas=None,figm=None):
+                     fgas=None,figm=None,xlims=None):
         """
         Combines all computed subsightlines into one non-cumulutive profile, coloured by subsightline.
         """
@@ -884,7 +884,11 @@ class Sightline():
 
                 plt.axvline(x[-1],alpha=0.3,c=cmap[i],linestyle=':')
 
-            plt.xlim(0,cumulated_length)
+            if xlims is None:
+                plt.xlim(0,cumulated_length)
+            else:
+                plt.xlim(xlims[0],xlims[1])
+                
             plt.show()
 
             if return_data:
