@@ -236,10 +236,13 @@ class SIMBA_SightlineSim():
 
             return halos
         
-    def load_halo(self,snap_num,halo_id,load_stars=True,load_gas=True): 
+    def load_halo(self,snap_num,halo_id,load_stars=False,load_gas=True): 
 
         if self._halo_cache is None or self._halo_cache['snapshot'] != snap_num:
             self.load_halos(snap_num,return_dict=False)
+
+        if load_stars or load_gas:
+            self._load_particle_ids(snap_num,stars=load_stars,gas=load_gas)
             
         c = self._halo_cache
         halo = c['halos_full'][halo_id]

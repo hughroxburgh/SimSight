@@ -888,7 +888,7 @@ class Sightline():
                 plt.xlim(0,cumulated_length)
             else:
                 plt.xlim(xlims[0],xlims[1])
-                
+
             plt.show()
 
             if return_data:
@@ -1052,10 +1052,11 @@ class Sightline():
         return values[0] if np.isscalar(redshift) else np.array(values)
     
 
-    def halo_info(self,observed=False,inferred=False,modelled=False,with_compute=False):
+    def halo_info(self, observed=False, inferred=False, modelled=False, with_compute=False):
 
-        num_sub_sightlines = self.subsightline_reached(grid=False,halos=True,
-                                                       observed=observed,inferred=inferred,modelled=modelled,assigned=with_compute)
+        num_sub_sightlines = self.subsightline_reached(grid=False, halos=True,
+                                                        observed=observed, inferred=inferred,
+                                                        modelled=modelled, assigned=with_compute)
 
         if modelled:
             source = self.modelled
@@ -1066,19 +1067,19 @@ class Sightline():
         else:
             source = self
             source_halos = self.sub_Halos
-        
+
         halos_traversed = {}
         for i in range(num_sub_sightlines):
             if source_halos[i] != [None]:
                 for halo in source_halos[i]:
-                    halos_traversed[halo['ID']] = deepcopy(halo)
-                    halos_traversed[halo['ID']].pop('ID', None)
-                    halos_traversed[halo['ID']]['Subsightline'] = i
+                    key = f"{halo['ID']}_{i}"
+                    halos_traversed[key] = deepcopy(halo)
+                    halos_traversed[key]['Subsightline'] = i
                     if with_compute:
-                        halos_traversed[halo['ID']]['Compute'] = np.nansum(
+                        halos_traversed[key]['Compute'] = np.nansum(
                             source.sub_Compute[i][source.sub_HaloAssignment[i] == halo['ID']]
                         )
-                
+
         return halos_traversed
 
 
