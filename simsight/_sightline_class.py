@@ -1378,7 +1378,8 @@ class Sightline():
             min_halo_effip=None, max_halo_effip=None,
             min_halo_purity=None,max_halo_purity=None,
             # min_halo_gasfrac=0, max_halo_gasfrac=1,
-            min_num_halos=None, max_num_halos=None):
+            min_num_halos=None, max_num_halos=None,
+            return_effs=False):
 
         if redshift is None:
             redshift = self.target_redshift
@@ -1414,7 +1415,7 @@ class Sightline():
             masses = []
             impact_ratios = []
 
-            for halo in relevant_halos.values():
+            for halo in relevant_halos:
                 if halo['ImpactParam'] is None:
                     return False
                 weights.append(halo['Compute'] / total_halo_dm)
@@ -1454,7 +1455,7 @@ class Sightline():
         elif eff_method == 'mNFW':
             bruh = True
             
-        return True
+        return (log_m_eff,ip_eff,purity) if return_effs else True
 
 
 
