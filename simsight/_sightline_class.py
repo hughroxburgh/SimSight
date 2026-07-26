@@ -1373,16 +1373,21 @@ class Sightline():
         self.modelled.f_gas = f_gas
     
 
-    def filter(self, redshift=None, observed=False, inferred=False,
-            min_halo_mass=0, max_halo_mass=1e20,
-            min_halo_ip=0, max_halo_ip=1,
-            min_halo_gasfrac=0, max_halo_gasfrac=1,
-            min_num_halos=0, max_num_halos=10000):
+    def filter(self, cosmo=None, redshift=None, observed=False, inferred=False, eff_method='truth',
+            min_halo_effmass=None, max_halo_effmass=None,
+            min_halo_effip=None, max_halo_effip=None,
+            min_halo_purity=None,max_halo_purity=None,
+            # min_halo_gasfrac=0, max_halo_gasfrac=1,
+            min_num_halos=None, max_num_halos=None):
 
         if redshift is None:
             redshift = self.target_redshift
+        
+        halos = self.halo_info(observed=observed, inferred=inferred,with_compute=True)
 
-        halos = self.halo_info(observed=observed, inferred=inferred)
+        eff_needed = (min_halo_effmass is not None) or (max_halo_effmass is not None) or \
+            (min_halo_effip is not None) or (max_halo_effip is not None) or \
+            (min_halo_purity is not None) or (max_halo_purity is not None)
 
         # only consider halos actually in front of / up to the target redshift
         relevant_halos = [
@@ -1390,33 +1395,87 @@ class Sightline():
             if 'Redshift' not in halo.keys() or halo['Redshift'] < redshift
         ]
 
-        if len(relevant_halos) < min_num_halos or len(relevant_halos) > max_num_halos:
+        if min_num_halos is not None and len(relevant_halos) < min_num_halos:
+            return False
+        if max_num_halos is not None and len(relevant_halos) > max_num_halos:
             return False
 
         if len(relevant_halos) == 0:
-            # no halos at all -- mass criteria are vacuous, only ip/gasfrac
-            # checks (which also have nothing to check) apply. Passes by default,
-            # same behavior as before.
+            return not eff_needed
+        
+        if not eff_needed:
             return True
 
-        # -- max halo mass along the sightline determines mass-bin membership -- #
-        dominant_halo = max(relevant_halos, key=lambda h: h['TotalMass'])
-        dominant_mass = dominant_halo['TotalMass']
+        if eff_method == 'truth':
 
-        if dominant_mass < min_halo_mass or dominant_mass > max_halo_mass:
-            return False
+            total_halo_dm = self.extract_compute(cosmo, redshift=redshift, environment='CGM')
 
-        # -- ip / gasfrac checks still apply per-halo, as before -- #
-        for halo in relevant_halos:
-            if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] < min_halo_ip):
-                return False
-            if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] > max_halo_ip):
-                return False
-            if (halo['GasMass']/halo['TotalMass'] < min_halo_gasfrac):
-                return False
-            if (halo['GasMass']/halo['TotalMass'] > max_halo_gasfrac):
+            weights = []
+            masses = []
+            impact_ratios = []
+
+            for halo in relevant_halos.values():
+                if halo['ImpactParam'] is None:
+                    return False
+                weights.append(halo['Compute'] / total_halo_dm)
+                masses.append(halo['TotalMass'])
+                impact_ratios.append(halo['ImpactParam'] / halo['Radius'])
+
+            if len(weights) == 0:
                 return False
 
+            weights = np.array(weights)
+            masses = np.array(masses)
+            impact_ratios = np.array(impact_ratios)
+
+            log_masses = np.log10(masses)
+            weights_sum = np.nansum(weights)
+
+            log_m_eff = np.nansum(weights * log_masses) / weights_sum
+            m_eff = 10 ** log_m_eff
+            spread = np.sqrt(np.nansum(weights * (log_masses - log_m_eff) ** 2) / weights_sum)
+            purity = 1 / (1 + spread)
+
+            ip_eff = np.nansum(weights * impact_ratios) / weights_sum
+       
+            if min_halo_effmass is not None and m_eff < min_halo_effmass:
+                return False
+            if max_halo_effmass is not None and m_eff > max_halo_effmass:
+                return False
+            if min_halo_effip is not None and ip_eff < min_halo_effip:
+                return False
+            if max_halo_effip is not None and ip_eff > max_halo_effip:
+                return False
+            if min_halo_purity is not None and purity < min_halo_purity:
+                return False
+            if max_halo_purity is not None and purity > max_halo_purity:
+                return False
+            
+        elif eff_method == 'mNFW':
+            bruh = True
+            
         return True
+
+
+
+        # # -- max halo mass along the sightline determines mass-bin membership -- #
+        # dominant_halo = max(relevant_halos, key=lambda h: h['TotalMass'])
+        # dominant_mass = dominant_halo['TotalMass']
+
+        # if dominant_mass < min_halo_mass or dominant_mass > max_halo_mass:
+        #     return False
+
+        # # -- ip / gasfrac checks still apply per-halo, as before -- #
+        # for halo in relevant_halos:
+        #     if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] < min_halo_ip):
+        #         return False
+        #     if halo['ImpactParam'] is not None and (halo['ImpactParam']/halo['Radius'] > max_halo_ip):
+        #         return False
+        #     if (halo['GasMass']/halo['TotalMass'] < min_halo_gasfrac):
+        #         return False
+        #     if (halo['GasMass']/halo['TotalMass'] > max_halo_gasfrac):
+        #         return False
+
+        # return True
 
 

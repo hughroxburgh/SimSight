@@ -1008,7 +1008,7 @@ class SightlineSim():
         dm_igm_unit = np.array([
             sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='Total',
                                 modelled=True, fgas=0.0)
-            for sl in tqdm(base_sightlines, desc='calculating figm=1.0 IGM DM')
+            for sl in tqdm(base_sightlines, desc='calculating IGM DM')
         ])
         dm_total_true = np.array([
             sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='Total',
