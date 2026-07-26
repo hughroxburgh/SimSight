@@ -804,10 +804,12 @@ class Sightline():
 
                     
     def plot_compute(self,idx=None,data='compute',with_model=False,return_data=False,logspace=True,mode='normal',dark_mode=False,
-                     fgas=None,xlims=None):
+                    fgas=None,xlims=None):
         """
         Combines all computed subsightlines into one non-cumulutive profile, coloured by subsightline.
         """
+
+        from simsight._utils import _Get_Colours
 
         if data.lower() not in ('compute', 'density'):
             raise ValueError('data must be "compute" or "density"!')
@@ -873,7 +875,7 @@ class Sightline():
                     else:
                         model_y = np.cumsum(model_computed[i])
                         
-                    plt.step(model_x, model_y+model_cumulated_value, color='grey', linestyle='--')
+                    plt.step(model_x, model_y+model_cumulated_value, color='grey', linestyle='--', where='post')
 
                 cumulated_length += np.nansum(lengths[i])
                 xs.extend(x)
@@ -888,11 +890,12 @@ class Sightline():
                 plt.xlim(0,cumulated_length)
             else:
                 plt.xlim(xlims[0],xlims[1])
-
+                
             plt.show()
 
             if return_data:
                 return np.array(xs),np.array(ys)
+    
         
 
 
