@@ -913,7 +913,7 @@ class SightlineSim():
 
         where = np.where(mask)[0]
         for i,sl in enumerate(sightlines[mask]):
-            mask[where[i]] = sl.filter(redshift=redshift,observed=observed,
+            mask[where[i]] = sl.filter(cosmo=self.sim.cosmo,redshift=redshift,observed=observed,
                                        min_halo_effmass=min_halo_effmass,max_halo_effmass=max_halo_effmass,
                                        min_halo_effip=min_halo_effip,max_halo_effip=max_halo_effip,
                                        min_halo_purity=min_halo_purity,max_halo_purity=max_halo_purity,
