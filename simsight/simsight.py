@@ -1002,12 +1002,12 @@ class SightlineSim():
         # -- precompute unit fields ONCE, on the base-filtered set -- #
         dm_cgm_unit = np.array([
             sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='CGM',
-                                modelled=True, fgas=1.0, figm=0.0)
+                                modelled=True, fgas=1.0)
             for sl in tqdm(base_sightlines, desc='calculating fgas=1.0 CGM DM')
         ])
         dm_igm_unit = np.array([
-            sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='IGM',
-                                modelled=True, fgas=0.0, figm=1.0)
+            sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='Total',
+                                modelled=True, fgas=0.0)
             for sl in tqdm(base_sightlines, desc='calculating figm=1.0 IGM DM')
         ])
         dm_total_true = np.array([

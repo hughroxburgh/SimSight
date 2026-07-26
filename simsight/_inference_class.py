@@ -574,7 +574,7 @@ class Inference:
         ])
         dm_halo_model = np.array([
             s.extract_compute(cosmo, redshift=z_vals, environment='CGM', modelled=True,
-                            fgas=f_gas_ref, figm=0.0)
+                            fgas=f_gas_ref)
             for s in tqdm(sightlines, desc='building sigma_halo2')
         ])
         return np.std(dm_halo_true - dm_halo_model, axis=0)  # shape (n_z,)
