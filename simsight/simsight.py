@@ -826,10 +826,11 @@ class SightlineSim():
 
 
     def filter_sightlines(self,sightlines,observed=False,redshift=None,dvec_thresh=None,
-                          min_halo_mass=0,max_halo_mass=1e20,
-                          min_halo_ip=0,max_halo_ip=1,
-                          min_halo_gasfrac=0,max_halo_gasfrac=1,
-                          min_num_halos=0,max_num_halos=10000):
+                          min_halo_effmass=None,max_halo_effmass=None,
+                          min_halo_effip=None,max_halo_effip=None,
+                          min_halo_purity=None,max_halo_purity=None,
+                        #   min_halo_gasfrac=0,max_halo_gasfrac=1,
+                          min_num_halos=None,max_num_halos=None):
         
         mask = np.ones(len(sightlines), dtype=bool)
 
@@ -913,9 +914,10 @@ class SightlineSim():
         where = np.where(mask)[0]
         for i,sl in enumerate(sightlines[mask]):
             mask[where[i]] = sl.filter(redshift=redshift,observed=observed,
-                                       min_halo_mass=min_halo_mass,max_halo_mass=max_halo_mass,
-                                       min_halo_ip=min_halo_ip,max_halo_ip=max_halo_ip,
-                                       min_halo_gasfrac=min_halo_gasfrac,max_halo_gasfrac=max_halo_gasfrac,
+                                       min_halo_effmass=min_halo_effmass,max_halo_effmass=max_halo_effmass,
+                                       min_halo_effip=min_halo_effip,max_halo_effip=max_halo_effip,
+                                       min_halo_purity=min_halo_purity,max_halo_purity=max_halo_purity,
+                                    #    min_halo_gasfrac=min_halo_gasfrac,max_halo_gasfrac=max_halo_gasfrac,
                                        min_num_halos=min_num_halos,max_num_halos=max_num_halos)
             
         return mask
