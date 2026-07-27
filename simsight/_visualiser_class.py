@@ -154,7 +154,7 @@ class VisualSim():
     # ------------- Data results visualisation ------------- #
 
     def fullsky_image(self,sightlines,functype='DM',cmap=None,colour='dodgerblue',cutoff=99.5,
-                      redshift=None,gif_path=None,environment='Total',modelled=False,fgas=None):
+                      redshift=None,gif_path=None,environment='Total',modelled=False,fgas=None,figm=None):
 
         import healpy as hp
 
@@ -172,7 +172,7 @@ class VisualSim():
             redshifts.append(max_redshift)
 
         data_source = 'truth' if not modelled else 'modelled'
-        vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled,fgas) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} {environment} compute')])
+        vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled,fgas,figm) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} {environment} compute')])
         # if vals.ndim == 1:
         #     vals = vals[:, np.newaxis]
             
@@ -222,7 +222,7 @@ class VisualSim():
 
 
     def distribution(self, sightlines, functype='DM', cutoff=98, bins=100, redshift=None, xlims=None,
-                    gif_path=None, environment='Total', data='truth',fgas=None,
+                    gif_path=None, environment='Total', data='truth',fgas=None,figm=None,
                     filt=None, sweep_param=None, sweep_values=None, sweep_cmap='viridis'):
 
         colours = {'Total':_Get_Colours(3,self.dark_mode)[0],'CGM':_Get_Colours(3,self.dark_mode)[1],'IGM':_Get_Colours(3,self.dark_mode)[2]}
@@ -249,7 +249,7 @@ class VisualSim():
                                             for sl in tqdm(group_sightlines, desc=f'Getting Truth {environment} Compute'
                                                         + (f' [{label}]' if label else ''))])
             if 'model' in data:
-                entry['Model'] = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled=True,fgas=fgas)
+                entry['Model'] = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled=True,fgas=fgas,figm=figm)
                                             for sl in tqdm(group_sightlines, desc=f'Getting Modelled {environment} Compute'
                                                         + (f' [{label}]' if label else ''))])
             group_data[label] = (entry, sweep_color)
@@ -312,7 +312,7 @@ class VisualSim():
 
 
     def cumulutive_stats(self, sightlines, stat='mean', functype='DM', bins=10, redshift=None,
-                      yscale='linear', environment='Total', data='truth',fgas=None,
+                      yscale='linear', environment='Total', data='truth',fgas=None,figm=None,
                       filt=None, sweep_param=None, sweep_values=None, sweep_cmap='viridis'):
 
         if sweep_param is not None and environment == 'separate':
@@ -377,7 +377,7 @@ class VisualSim():
                     redshifts = np.linspace(0, r, bins)
 
                     for env in environments:
-                        vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=True,fgas=fgas)
+                        vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=True,fgas=fgas,figm=figm)
                                         for sl in tqdm(group_sightlines, desc=f'Getting Modelled {env} Compute'
                                                         + (f' [{label}]' if label else ''))])
                         func = stat_map[stat]['func']
@@ -399,7 +399,7 @@ class VisualSim():
 
 
     def halo_partition(self, sightlines, functype='DM', cutoff=98, redshift=None, plottype='hist',
-                        gif_path=None, modelled=False, filt=None,fgas=None):
+                        gif_path=None, modelled=False, filt=None,fgas=None,figm=None):
 
         if filt is not None:
             mask = self.parent.filter_sightlines(sightlines, **filt)
@@ -414,8 +414,8 @@ class VisualSim():
         colours = {'CGM':_Get_Colours(3,self.dark_mode)[1],'IGM':_Get_Colours(3,self.dark_mode)[2]}
 
         data_source = 'truth' if not modelled else 'modelled'
-        dms_cgm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='CGM',modelled=modelled,fgas=fgas) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} CGM compute')])
-        dms_igm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='IGM',modelled=modelled,fgas=fgas) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} IGM compute')])
+        dms_cgm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='CGM',modelled=modelled,fgas=fgas,figm=figm) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} CGM compute')])
+        dms_igm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='IGM',modelled=modelled,fgas=fgas,figm=figm) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} IGM compute')])
 
         order = np.argsort(dms_cgm[:, -1]+dms_igm[:, -1])
 

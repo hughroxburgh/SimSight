@@ -9,6 +9,7 @@ import astropy.units as u
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter1d
 from scipy.stats import norm
+from scipy.interpolate import PchipInterpolator
 
 from ._compute import Transform_Points
 from ._photz import FZBoostPredictor
@@ -484,65 +485,112 @@ class Inference:
     
     # --------------------- MCMC Inference Functions -- #
 
-    # def build_sigma_igm_of_z(self,sightlines, cosmo, redshift):#,plot=False):
-    #     """
-    #     Empirically calibrate sigma_igm(z) directly from the true IGM-only
-    #     partition (environment='IGM'), evaluated at a fixed set of redshifts
-    #     (z_bins) common to every sightline -- rather than each sightline's own
-    #     reached redshift.
-    
-    #     For each sightline, extract_compute(redshift=z_centers) returns the
-    #     cumulative true DM_igm at each bin center in one call (extract_compute
-    #     already vectorizes over an array of redshifts). Stack these across
-    #     sightlines and take the std at each z -- that's sigma(z).
-    
-    #     sigma(z) = std across sightlines of DM_igm_true(z), at fixed z.
-    
-    #     Note: this uses ground-truth cell partitioning (environment='IGM'),
-    #     so is a validation-stage stand-in for a real survey noise model --
-    #     see conversation notes.
-    #     """
-        
+                                # def build_sigma_igm_of_z(self,sightlines, cosmo, redshift):#,plot=False):
+                                #     """
+                                #     Empirically calibrate sigma_igm(z) directly from the true IGM-only
+                                #     partition (environment='IGM'), evaluated at a fixed set of redshifts
+                                #     (z_bins) common to every sightline -- rather than each sightline's own
+                                #     reached redshift.
+                                
+                                #     For each sightline, extract_compute(redshift=z_centers) returns the
+                                #     cumulative true DM_igm at each bin center in one call (extract_compute
+                                #     already vectorizes over an array of redshifts). Stack these across
+                                #     sightlines and take the std at each z -- that's sigma(z).
+                                
+                                #     sigma(z) = std across sightlines of DM_igm_true(z), at fixed z.
+                                
+                                #     Note: this uses ground-truth cell partitioning (environment='IGM'),
+                                #     so is a validation-stage stand-in for a real survey noise model --
+                                #     see conversation notes.
+                                #     """
+                                    
+                                #     dm_igm_true = np.array([
+                                #         s.extract_compute(cosmo, redshift=redshift, environment='IGM', modelled=False)
+                                #         for s in tqdm(sightlines,desc='building sigma_igm')
+                                #     ])
+                                #     return np.std(dm_igm_true)
+
+                                # def build_sigma_halo_of_z(self,sightlines, cosmo, redshift, f_gas_ref):
+                                #     """
+                                #     Empirically calibrate sigma_halo(z), capturing the scatter that arises
+                                #     from using a single global f_gas to model halos with real halo-to-halo
+                                #     variation in true f_gas (i.e. fgas(M) structure that a scalar can't
+                                #     capture).
+
+                                #     residual(z) = DM_halo_true(z) - f_gas_ref * DM_halo_ref(z)
+
+                                #     sigma_halo(z) = std across sightlines of this residual, at fixed z.
+
+                                #     f_gas_ref should be a sensible single value representing what the
+                                #     global-f_gas model would predict on average (e.g. DM-weighted true
+                                #     f_gas across your sample) -- NOT the eventual MCMC best-fit, since this
+                                #     is meant to be a fixed noise-model input, calibrated once ahead of time.
+                                #     """
+
+                                #     dm_halo_true = np.array([
+                                #         s.extract_compute(cosmo, redshift=redshift, environment='CGM', modelled=False)
+                                #         for s in tqdm(sightlines,desc='building sigma_halo1')
+                                #     ])
+                                #     dm_halo_model = np.array([
+                                #         s.extract_compute(cosmo, redshift=redshift, environment='CGM', modelled=True,
+                                #                         fgas=f_gas_ref)
+                                #         for s in tqdm(sightlines,desc='building sigma_halo2')
+                                #     ])
+
+                                #     return np.std(dm_halo_true - dm_halo_model)
+
+                                # def log_likelihood(self,theta, dm_halo_unit, dm_igm_unit, dm_total_true, sigma_model):
+                                #     f_gas, f_igm = theta
+                                #     model_dm = f_gas * dm_halo_unit + f_igm * dm_igm_unit
+                                #     resid = dm_total_true - model_dm
+                                #     return np.sum(-0.5 * (resid**2 / sigma_model**2 + np.log(2*np.pi*sigma_model**2)))
+
+                                # def log_prior(self, theta, priors):
+                                #     for val, (lo, hi) in zip(theta, priors.values()):
+                                #         if not (lo < val < hi):
+                                #             return -np.inf
+                                #     return 0.0
+
+                                # def log_probability(self, theta, dm_cgm_unit, dm_igm_unit, dm_total_true, priors, sigma_model):
+                                #     lp = self.log_prior(theta, priors)
+                                #     if not np.isfinite(lp):
+                                #         return -np.inf
+                                #     ll = self.log_likelihood(theta, dm_cgm_unit, dm_igm_unit, dm_total_true, sigma_model)
+                                #     return lp + ll
+
+    # def build_sigma_igm_of_z(self, sightlines, cosmo, redshift):
+    #     z_vals = np.atleast_1d(redshift)
     #     dm_igm_true = np.array([
-    #         s.extract_compute(cosmo, redshift=redshift, environment='IGM', modelled=False)
-    #         for s in tqdm(sightlines,desc='building sigma_igm')
-    #     ])
-    #     return np.std(dm_igm_true)
+    #         s.extract_compute(cosmo, redshift=z_vals, environment='IGM', modelled=False)
+    #         for s in tqdm(sightlines, desc='building sigma_igm')
+    #     ])  # shape (n_sightlines, n_z)
+    #     return np.std(dm_igm_true, axis=0)  # shape (n_z,)
 
-    # def build_sigma_halo_of_z(self,sightlines, cosmo, redshift, f_gas_ref):
-    #     """
-    #     Empirically calibrate sigma_halo(z), capturing the scatter that arises
-    #     from using a single global f_gas to model halos with real halo-to-halo
-    #     variation in true f_gas (i.e. fgas(M) structure that a scalar can't
-    #     capture).
 
-    #     residual(z) = DM_halo_true(z) - f_gas_ref * DM_halo_ref(z)
-
-    #     sigma_halo(z) = std across sightlines of this residual, at fixed z.
-
-    #     f_gas_ref should be a sensible single value representing what the
-    #     global-f_gas model would predict on average (e.g. DM-weighted true
-    #     f_gas across your sample) -- NOT the eventual MCMC best-fit, since this
-    #     is meant to be a fixed noise-model input, calibrated once ahead of time.
-    #     """
-
+    # def build_sigma_halo_of_z(self, sightlines, cosmo, redshift, f_gas_ref):
+    #     z_vals = np.atleast_1d(redshift)
     #     dm_halo_true = np.array([
-    #         s.extract_compute(cosmo, redshift=redshift, environment='CGM', modelled=False)
-    #         for s in tqdm(sightlines,desc='building sigma_halo1')
+    #         s.extract_compute(cosmo, redshift=z_vals, environment='CGM', modelled=False)
+    #         for s in tqdm(sightlines, desc='building sigma_halo1')
     #     ])
     #     dm_halo_model = np.array([
-    #         s.extract_compute(cosmo, redshift=redshift, environment='CGM', modelled=True,
+    #         s.extract_compute(cosmo, redshift=z_vals, environment='CGM', modelled=True,
     #                         fgas=f_gas_ref)
-    #         for s in tqdm(sightlines,desc='building sigma_halo2')
+    #         for s in tqdm(sightlines, desc='building sigma_halo2')
     #     ])
+    #     return np.std(dm_halo_true - dm_halo_model, axis=0)  # shape (n_z,)
 
-    #     return np.std(dm_halo_true - dm_halo_model)
 
-    # def log_likelihood(self,theta, dm_halo_unit, dm_igm_unit, dm_total_true, sigma_model):
-    #     f_gas, f_igm = theta
-    #     model_dm = f_gas * dm_halo_unit + f_igm * dm_igm_unit
-    #     resid = dm_total_true - model_dm
-    #     return np.sum(-0.5 * (resid**2 / sigma_model**2 + np.log(2*np.pi*sigma_model**2)))
+    # def log_likelihood(self, theta, X_per_z, y_per_z, sigma_per_z):
+    #     total = 0.0
+    #     for k in range(len(sigma_per_z)):
+    #         f_gas_k, f_igm_k = theta[2*k], theta[2*k + 1]
+    #         model_dm_k = f_gas_k * X_per_z[k][:, 0] + f_igm_k * X_per_z[k][:, 1]
+    #         resid_k = y_per_z[k] - model_dm_k
+    #         sigma_k = sigma_per_z[k]
+    #         total += np.sum(-0.5 * (resid_k**2 / sigma_k**2 + np.log(2*np.pi*sigma_k**2)))
+    #     return total
+
 
     # def log_prior(self, theta, priors):
     #     for val, (lo, hi) in zip(theta, priors.values()):
@@ -550,46 +598,111 @@ class Inference:
     #             return -np.inf
     #     return 0.0
 
-    # def log_probability(self, theta, dm_cgm_unit, dm_igm_unit, dm_total_true, priors, sigma_model):
+
+    # def log_probability(self, theta, X_per_z, y_per_z, priors, sigma_per_z):
     #     lp = self.log_prior(theta, priors)
     #     if not np.isfinite(lp):
     #         return -np.inf
-    #     ll = self.log_likelihood(theta, dm_cgm_unit, dm_igm_unit, dm_total_true, sigma_model)
-    #     return lp + ll
+    #     return lp + self.log_likelihood(theta, X_per_z, y_per_z, sigma_per_z)
 
-    def build_sigma_igm_of_z(self, sightlines, cosmo, redshift):
-        z_vals = np.atleast_1d(redshift)
+
+    def build_halo_arrays(self, sightlines, redshift):
+        """
+        Flatten per-halo unit CGM DM contributions across all sightlines.
+
+        Returns:
+        halo_logM    : log10(halo mass [Msun]) for every halo intersection
+        dm_halo_unit : modelled, fgas=1-equivalent DM contribution per halo
+                        (i.e. whatever halo_info returns under 'Compute' when
+                        modelled=True -- assumed to already be the unit/fgas=1
+                        value; scale by f_gas(M) afterward in the likelihood)
+        sl_index     : sightline index (0..n_sightlines-1) for each entry
+        n_sightlines : total number of sightlines
+        """
+        halo_logM_list = []
+        dm_unit_list = []
+        sl_index_list = []
+
+        for i, sl in enumerate(tqdm(sightlines, desc='    building per-halo unit CGM arrays')):
+            halos = sl.halo_info(with_compute=True, modelled=True, redshift=redshift)
+
+            if len(halos) == 0:
+                continue
+
+            masses = np.array([h['TotalMass'] for h in halos.values()])
+            dms = np.array([h['Compute'] for h in halos.values()])
+
+            good = masses > 0
+            if not np.any(good):
+                continue
+
+            halo_logM_list.append(np.log10(masses[good]))
+            dm_unit_list.append(dms[good])
+            sl_index_list.append(np.full(good.sum(), i))
+
+        halo_logM = np.concatenate(halo_logM_list)
+        dm_halo_unit = np.concatenate(dm_unit_list)
+        sl_index = np.concatenate(sl_index_list)
+
+        return halo_logM, dm_halo_unit, sl_index, len(sightlines)
+
+
+    def fgas_of_mass(self, logM, anchor_logM, fgas_anchors):
+        """
+        Piecewise-linear f_gas(M) through free anchor y-values, with linear
+        extrapolation beyond the outermost anchors.
+        """
+        interp = interp1d(anchor_logM, fgas_anchors, kind='linear',
+                        fill_value='extrapolate', assume_sorted=True)
+        vals = interp(logM)
+        return np.clip(vals, 0.0, 1.0)
+
+    def build_sigma_igm(self, sightlines, cosmo, redshift):
+        z_val = np.atleast_1d(redshift)
         dm_igm_true = np.array([
-            s.extract_compute(cosmo, redshift=z_vals, environment='IGM', modelled=False)
-            for s in tqdm(sightlines, desc='building sigma_igm')
-        ])  # shape (n_sightlines, n_z)
-        return np.std(dm_igm_true, axis=0)  # shape (n_z,)
+            s.extract_compute(cosmo, redshift=z_val, environment='IGM', modelled=False)
+            for s in tqdm(sightlines, desc='    building sigma_igm (truth)')
+        ])
+        dm_igm_model = np.array([
+            s.extract_compute(cosmo, redshift=z_val, environment='IGM', modelled=True,
+                               figm=self.sim.figm)
+            for s in tqdm(sightlines, desc='    building sigma_igm (model)')
+        ])
+        return np.std(dm_igm_true - dm_igm_model, axis=0)[0]
 
 
-    def build_sigma_halo_of_z(self, sightlines, cosmo, redshift, f_gas_ref):
+    def build_sigma_halo(self, sightlines, cosmo, redshift):
         z_vals = np.atleast_1d(redshift)
         dm_halo_true = np.array([
             s.extract_compute(cosmo, redshift=z_vals, environment='CGM', modelled=False)
-            for s in tqdm(sightlines, desc='building sigma_halo1')
+            for s in tqdm(sightlines, desc='    building sigma_halo (truth)')
         ])
         dm_halo_model = np.array([
             s.extract_compute(cosmo, redshift=z_vals, environment='CGM', modelled=True,
-                            fgas=f_gas_ref)
-            for s in tqdm(sightlines, desc='building sigma_halo2')
+                               fgas=self.sim.fgas)
+            for s in tqdm(sightlines, desc='    building sigma_halo (model)')
         ])
-        return np.std(dm_halo_true - dm_halo_model, axis=0)  # shape (n_z,)
+        return np.std(dm_halo_true - dm_halo_model, axis=0)[0]
 
+    
+    def log_likelihood(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
+                        n_sightlines, dm_igm_unit, y_true, sigma):
+        n_anchors = len(anchor_logM)
+        fgas_anchors = theta[:n_anchors]
+        f_igm = theta[n_anchors]
 
-    def log_likelihood(self, theta, X_per_z, y_per_z, sigma_per_z):
-        total = 0.0
-        for k in range(len(sigma_per_z)):
-            f_gas_k, f_igm_k = theta[2*k], theta[2*k + 1]
-            model_dm_k = f_gas_k * X_per_z[k][:, 0] + f_igm_k * X_per_z[k][:, 1]
-            resid_k = y_per_z[k] - model_dm_k
-            sigma_k = sigma_per_z[k]
-            total += np.sum(-0.5 * (resid_k**2 / sigma_k**2 + np.log(2*np.pi*sigma_k**2)))
-        return total
+        # evaluate f_gas(M) for every halo intersection, all sightlines at once
+        fgas_per_halo = self.fgas_of_mass(halo_logM, anchor_logM, fgas_anchors)
 
+        # scale each halo's unit DM contribution, then sum back up per sightline
+        scaled_halo_dm = fgas_per_halo * dm_halo_unit
+        dm_halo_total = np.zeros(n_sightlines)
+        np.add.at(dm_halo_total, sl_index, scaled_halo_dm)
+
+        model_dm = dm_halo_total + f_igm * dm_igm_unit
+        resid = y_true - model_dm
+
+        return np.sum(-0.5 * (resid**2 / sigma**2 + np.log(2 * np.pi * sigma**2)))
 
     def log_prior(self, theta, priors):
         for val, (lo, hi) in zip(theta, priors.values()):
@@ -597,9 +710,10 @@ class Inference:
                 return -np.inf
         return 0.0
 
-
-    def log_probability(self, theta, X_per_z, y_per_z, priors, sigma_per_z):
+    def log_probability(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
+                         n_sightlines, dm_igm_unit, y_true, sigma, priors):
         lp = self.log_prior(theta, priors)
         if not np.isfinite(lp):
             return -np.inf
-        return lp + self.log_likelihood(theta, X_per_z, y_per_z, sigma_per_z)
+        return lp + self.log_likelihood(theta, anchor_logM, halo_logM, dm_halo_unit,
+                                         sl_index, n_sightlines, dm_igm_unit, y_true, sigma)

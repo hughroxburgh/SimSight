@@ -7,6 +7,7 @@ warnings.filterwarnings('ignore')
 import sys
 from glob import glob
 import os
+from tqdm import tqdm
 
 from time import time as clock
 import numpy as np
@@ -835,7 +836,7 @@ class SightlineSim():
         mask = np.ones(len(sightlines), dtype=bool)
 
         if dvec_thresh is not None:
-
+            print('Calculating Direction Vector Filter')
             l_max = np.float32(self.sim.cosmo.comoving_distance(
                 redshift if redshift is not None else sightlines[0].target_redshift
             ).value * 1000)
@@ -912,7 +913,7 @@ class SightlineSim():
             mask &= eps_min >= dvec_thresh
 
         where = np.where(mask)[0]
-        for i,sl in enumerate(sightlines[mask]):
+        for i,sl in enumerate(tqdm(sightlines[mask],desc='Filtering sightlines')):
             mask[where[i]] = sl.filter(cosmo=self.sim.cosmo,redshift=redshift,observed=observed,
                                        min_halo_effmass=min_halo_effmass,max_halo_effmass=max_halo_effmass,
                                        min_halo_effip=min_halo_effip,max_halo_effip=max_halo_effip,
@@ -926,163 +927,252 @@ class SightlineSim():
 
 
 
-    # def run_mcmc(self,sightlines,priors,redshift=None,nwalkers=32, nsteps=4000, burnin=500,initial_guess=None, seed=None):
+                                # def run_mcmc(self,sightlines,priors,redshift=None,nwalkers=32, nsteps=4000, burnin=500,initial_guess=None, seed=None):
+
+                                #     import emcee
+                                #     from ._inference_class import Inference
+                                #     from tqdm import tqdm
+
+                                #     if min([sl.subsightline_reached(modelled=True) for sl in sightlines]) == 0:
+                                #         raise ValueError('Sightlines not fully modelled!')
+                                #     if redshift is None:
+                                #         redshift = sightlines[0].target_redshift
+                                #     redshift = np.atleast_1d(redshift)
+
+                                #     inference = Inference(self.sim)
+                                #     inference.model_params = sightlines[0].modelled.model_params
+
+                                #     sigma_igm = inference.build_sigma_igm_of_z(sightlines, self.sim.cosmo, redshift)
+                                #     sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.sim.cosmo, redshift, f_gas_ref=self.sim.f_gas)
+                                #     sigma_model = np.sqrt(sigma_igm**2 + sigma_halo**2)
+                                #     print(f'sigma_igm = {sigma_igm}, sigma_halo = {sigma_halo}, sigma_model = {sigma_model}')
+
+                                #     print('\n')
+                                #     dm_cgm_unit = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='CGM',
+                                #                                             modelled=True, fgas=1.0, figm=1.0) for sl in tqdm(sightlines,desc='calculating fgas = 1.0 CGM DM')])
+                                #     dm_igm_unit = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='IGM',
+                                #                                             modelled=True, fgas=1.0, figm=1.0) for sl in tqdm(sightlines,desc='calculating figm = 1.0 IGM DM')])
+                                #     dm_total_true = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='Total',
+                                #                                             modelled=False) for sl in tqdm(sightlines,desc='calculating truth DM')])
+                                #     print('\n')
+
+                                #     param_names = list(priors.keys())
+                                #     ndim = len(param_names)
+
+                                #     if initial_guess is None:
+                                #         initial_guess = tuple(
+                                #             0.5 * (lo + hi) for lo, hi in priors.values()
+                                #         )
+
+                                #     rng = np.random.default_rng(seed)
+                                #     pos = np.array(initial_guess) + 1e-2 * rng.standard_normal((nwalkers, ndim))
+                                #     # clip into prior bounds
+                                #     for j, (lo, hi) in enumerate(priors.values()):
+                                #         pos[:, j] = np.clip(pos[:, j], lo + 1e-6, hi - 1e-6)
+
+                                #     sampler = emcee.EnsembleSampler(
+                                #         nwalkers, ndim, inference.log_probability,
+                                #         args=(dm_cgm_unit, dm_igm_unit, dm_total_true, priors, sigma_model)
+                                #     )
+                                #     sampler.run_mcmc(pos, nsteps, progress=True)
+                            
+                                #     flat_samples = sampler.get_chain(discard=burnin, thin=10, flat=True)
+                            
+                                #     return sampler, flat_samples, param_names
+
+
+    # def run_mcmc(self, sightlines, redshift, nwalkers=32, nsteps=4000,
+    #             initial_guess=None, seed=None, prior_range=(0.0, 1.0),
+    #             filt=None, sweep_param=None, sweep_values=None):
 
     #     import emcee
     #     from ._inference_class import Inference
     #     from tqdm import tqdm
 
-    #     if min([sl.subsightline_reached(modelled=True) for sl in sightlines]) == 0:
+    #     z_vals = np.atleast_1d(redshift)
+
+    #     # -- blanket filter, applied once, before anything else -- #
+    #     filt = filt or {}
+    #     base_mask = self.filter_sightlines(sightlines, redshift=z_vals.max(), **filt)
+    #     base_sightlines = sightlines[base_mask]
+
+    #     if min([sl.subsightline_reached(modelled=True) for sl in base_sightlines]) == 0:
     #         raise ValueError('Sightlines not fully modelled!')
-    #     if redshift is None:
-    #         redshift = sightlines[0].target_redshift
-    #     redshift = np.atleast_1d(redshift)
 
     #     inference = Inference(self.sim)
-    #     inference.model_params = sightlines[0].modelled.model_params
+    #     inference.model_params = base_sightlines[0].modelled.model_params
 
-    #     sigma_igm = inference.build_sigma_igm_of_z(sightlines, self.sim.cosmo, redshift)
-    #     sigma_halo = inference.build_sigma_halo_of_z(sightlines, self.sim.cosmo, redshift, f_gas_ref=self.sim.f_gas)
-    #     sigma_model = np.sqrt(sigma_igm**2 + sigma_halo**2)
-    #     print(f'sigma_igm = {sigma_igm}, sigma_halo = {sigma_halo}, sigma_model = {sigma_model}')
+    #     # -- precompute unit fields ONCE, on the base-filtered set -- #
+    #     dm_cgm_unit = np.array([
+    #         sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='CGM',
+    #                             modelled=True, fgas=1.0)
+    #         for sl in tqdm(base_sightlines, desc='calculating fgas=1.0 CGM DM')
+    #     ])
+    #     dm_igm_unit = np.array([
+    #         sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='Total',
+    #                             modelled=True, fgas=0.0)
+    #         for sl in tqdm(base_sightlines, desc='calculating IGM DM')
+    #     ])
+    #     dm_total_true = np.array([
+    #         sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='Total',
+    #                             modelled=False)
+    #         for sl in tqdm(base_sightlines, desc='calculating truth DM')
+    #     ])
 
-    #     print('\n')
-    #     dm_cgm_unit = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='CGM',
-    #                                             modelled=True, fgas=1.0, figm=1.0) for sl in tqdm(sightlines,desc='calculating fgas = 1.0 CGM DM')])
-    #     dm_igm_unit = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='IGM',
-    #                                             modelled=True, fgas=1.0, figm=1.0) for sl in tqdm(sightlines,desc='calculating figm = 1.0 IGM DM')])
-    #     dm_total_true = np.array([sl.extract_compute(self.sim.cosmo, redshift=redshift, environment='Total',
-    #                                             modelled=False) for sl in tqdm(sightlines,desc='calculating truth DM')])
-    #     print('\n')
+    #     sweeping = sweep_param is not None
+    #     sweep_vals = sweep_values if sweeping else [None]
 
-    #     param_names = list(priors.keys())
-    #     ndim = len(param_names)
+    #     results = []
 
-    #     if initial_guess is None:
-    #         initial_guess = tuple(
-    #             0.5 * (lo + hi) for lo, hi in priors.values()
+    #     for sweep_val in sweep_vals:
+
+    #         if sweeping:
+    #             sub_mask = self.filter_sightlines(base_sightlines, redshift=z_vals.max(), **sweep_val)
+    #         else:
+    #             sub_mask = np.ones(len(base_sightlines), dtype=bool)
+
+    #         sub_sightlines = base_sightlines[sub_mask]
+    #         n_selected = sub_mask.sum()
+
+    #         if n_selected < 20:
+    #             print(f"sweep {sweep_param}={sweep_val}: only {n_selected} sightlines, skipping")
+    #             results.append(None)
+    #             continue
+
+    #         # -- slice the already-precomputed arrays, no recomputation -- #
+    #         dm_cgm_unit_sub = dm_cgm_unit[sub_mask]
+    #         dm_igm_unit_sub = dm_igm_unit[sub_mask]
+    #         dm_total_true_sub = dm_total_true[sub_mask]
+
+    #         # -- sigma still needs to be built on this specific subsample -- #
+    #         sigma_igm = inference.build_sigma_igm_of_z(sub_sightlines, self.sim.cosmo, z_vals)
+    #         sigma_halo = inference.build_sigma_halo_of_z(sub_sightlines, self.sim.cosmo, z_vals,
+    #                                                     f_gas_ref=self.sim.f_gas)
+    #         sigma_per_z = np.sqrt(sigma_igm**2 + sigma_halo**2)
+
+    #         n_z = len(z_vals)
+    #         X_per_z, y_per_z, priors = [], [], {}
+    #         for k in range(n_z):
+    #             X_per_z.append(np.column_stack([dm_cgm_unit_sub[:, k], dm_igm_unit_sub[:, k]]))
+    #             y_per_z.append(dm_total_true_sub[:, k])
+    #             priors[f'f_gas_z{z_vals[k]:.2f}'] = prior_range
+    #             priors[f'f_igm_z{z_vals[k]:.2f}'] = prior_range
+
+    #         param_names = list(priors.keys())
+    #         ndim = len(param_names)
+
+    #         if initial_guess is None:
+    #             init = tuple(0.5 * (lo + hi) for lo, hi in priors.values())
+    #         else:
+    #             init = initial_guess
+
+    #         rng = np.random.default_rng(seed)
+    #         nwalkers_eff = max(nwalkers, 4 * ndim)
+    #         pos = np.array(init) + 1e-2 * rng.standard_normal((nwalkers_eff, ndim))
+    #         for j, (lo, hi) in enumerate(priors.values()):
+    #             pos[:, j] = np.clip(pos[:, j], lo + 1e-6, hi - 1e-6)
+
+    #         sampler = emcee.EnsembleSampler(
+    #             nwalkers_eff, ndim, inference.log_probability,
+    #             args=(X_per_z, y_per_z, priors, sigma_per_z)
     #         )
+    #         sampler.run_mcmc(pos, nsteps, progress=True)
 
-    #     rng = np.random.default_rng(seed)
-    #     pos = np.array(initial_guess) + 1e-2 * rng.standard_normal((nwalkers, ndim))
-    #     # clip into prior bounds
-    #     for j, (lo, hi) in enumerate(priors.values()):
-    #         pos[:, j] = np.clip(pos[:, j], lo + 1e-6, hi - 1e-6)
+    #         results.append({
+    #             'sweep_value': sweep_val,
+    #             'sampler': sampler,
+    #             'param_names': param_names,
+    #             'z_vals': z_vals,
+    #             'n_selected': n_selected,
+    #         })
 
-    #     sampler = emcee.EnsembleSampler(
-    #         nwalkers, ndim, inference.log_probability,
-    #         args=(dm_cgm_unit, dm_igm_unit, dm_total_true, priors, sigma_model)
-    #     )
-    #     sampler.run_mcmc(pos, nsteps, progress=True)
- 
-    #     flat_samples = sampler.get_chain(discard=burnin, thin=10, flat=True)
- 
-    #     return sampler, flat_samples, param_names
+    #     return results if sweeping else results[0]
 
-
-    def run_mcmc(self, sightlines, redshift, nwalkers=32, nsteps=4000,
-                initial_guess=None, seed=None, prior_range=(0.0, 1.0),
-                filt=None, sweep_param=None, sweep_values=None):
+    def run_mcmc(self, sightlines, redshift, mass_anchors, nwalkers=32, nsteps=4000,
+                initial_guess=None, seed=None, fgas_prior=(0.0, 1.0),
+                figm_prior=(0.0, 1.0), filt=None):
 
         import emcee
         from ._inference_class import Inference
         from tqdm import tqdm
 
-        z_vals = np.atleast_1d(redshift)
+        z_val = np.atleast_1d(redshift)
+        if len(z_val) > 1:
+            raise ValueError("run_mcmc currently supports a single redshift only.")
 
-        # -- blanket filter, applied once, before anything else -- #
-        filt = filt or {}
-        base_mask = self.filter_sightlines(sightlines, redshift=z_vals.max(), **filt)
-        base_sightlines = sightlines[base_mask]
+        anchor_logM = np.log10(np.atleast_1d(mass_anchors))
+
+        # -- Apply initial filter -- #
+        if filt is not None:
+            base_mask = self.filter_sightlines(sightlines, redshift=z_val, **filt)
+            base_sightlines = sightlines[base_mask]
+            print('\n')
+        else:
+            base_sightlines = sightlines
 
         if min([sl.subsightline_reached(modelled=True) for sl in base_sightlines]) == 0:
-            raise ValueError('Sightlines not fully modelled!')
+            raise ValueError('Sightlines not modelled!')
 
         inference = Inference(self.sim)
-        inference.model_params = base_sightlines[0].modelled.model_params
 
-        # -- precompute unit fields ONCE, on the base-filtered set -- #
-        dm_cgm_unit = np.array([
-            sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='CGM',
-                                modelled=True, fgas=1.0)
-            for sl in tqdm(base_sightlines, desc='calculating fgas=1.0 CGM DM')
-        ])
+
+        print('Extracting Model and Truth DM')
+
+        # -- Build halo information -- #
+        halo_logM, dm_halo_unit, sl_index, n_sightlines = inference.build_halo_arrays(
+            base_sightlines, z_val
+        )
+
         dm_igm_unit = np.array([
-            sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='Total',
-                                modelled=True, fgas=0.0)
-            for sl in tqdm(base_sightlines, desc='calculating IGM DM')
-        ])
+            sl.extract_compute(self.sim.cosmo, redshift=z_val, environment='IGM',
+                                modelled=True, figm=1.0)
+            for sl in tqdm(base_sightlines, desc='  extracting unit IGM DM')
+        ])[:, 0]
+
         dm_total_true = np.array([
-            sl.extract_compute(self.sim.cosmo, redshift=z_vals, environment='Total',
+            sl.extract_compute(self.sim.cosmo, redshift=z_val, environment='Total',
                                 modelled=False)
-            for sl in tqdm(base_sightlines, desc='calculating truth DM')
-        ])
+            for sl in tqdm(base_sightlines, desc='  extracting truth DM')
+        ])[:, 0]
 
-        sweeping = sweep_param is not None
-        sweep_vals = sweep_values if sweeping else [None]
+        print('\n')
+        print('Generating sigmas')
 
-        results = []
+        sigma_igm = inference.build_sigma_igm(base_sightlines, self.sim.cosmo, z_val, f_igm_ref=1.0)
+        sigma_halo = inference.build_sigma_halo(base_sightlines, self.sim.cosmo, z_val,
+                                                f_gas_ref=self.sim.f_gas)
+        sigma = np.sqrt(sigma_igm**2 + sigma_halo**2)
+        print('\n')
 
-        for sweep_val in sweep_vals:
+        priors = {f'f_gas_M{m:.2f}': fgas_prior for m in anchor_logM}
+        priors['f_igm'] = figm_prior
+        param_names = list(priors.keys())
+        ndim = len(param_names)
 
-            if sweeping:
-                sub_mask = self.filter_sightlines(base_sightlines, redshift=z_vals.max(), **sweep_val)
-            else:
-                sub_mask = np.ones(len(base_sightlines), dtype=bool)
+        if initial_guess is None:
+            init = tuple(0.5 * (lo + hi) for lo, hi in priors.values())
+        else:
+            init = initial_guess
 
-            sub_sightlines = base_sightlines[sub_mask]
-            n_selected = sub_mask.sum()
+        rng = np.random.default_rng(seed)
+        nwalkers_eff = max(nwalkers, 4 * ndim)
+        pos = np.array(init) + 1e-2 * rng.standard_normal((nwalkers_eff, ndim))
+        for j, (lo, hi) in enumerate(priors.values()):
+            pos[:, j] = np.clip(pos[:, j], lo + 1e-6, hi - 1e-6)
 
-            if n_selected < 20:
-                print(f"sweep {sweep_param}={sweep_val}: only {n_selected} sightlines, skipping")
-                results.append(None)
-                continue
+        print('Running emcee')
 
-            # -- slice the already-precomputed arrays, no recomputation -- #
-            dm_cgm_unit_sub = dm_cgm_unit[sub_mask]
-            dm_igm_unit_sub = dm_igm_unit[sub_mask]
-            dm_total_true_sub = dm_total_true[sub_mask]
+        sampler = emcee.EnsembleSampler(
+            nwalkers_eff, ndim, inference.log_probability,
+            args=(anchor_logM, halo_logM, dm_halo_unit, sl_index, n_sightlines,
+                dm_igm_unit, dm_total_true, sigma, priors)
+        )
+        sampler.run_mcmc(pos, nsteps, progress=True)
 
-            # -- sigma still needs to be built on this specific subsample -- #
-            sigma_igm = inference.build_sigma_igm_of_z(sub_sightlines, self.sim.cosmo, z_vals)
-            sigma_halo = inference.build_sigma_halo_of_z(sub_sightlines, self.sim.cosmo, z_vals,
-                                                        f_gas_ref=self.sim.f_gas)
-            sigma_per_z = np.sqrt(sigma_igm**2 + sigma_halo**2)
-
-            n_z = len(z_vals)
-            X_per_z, y_per_z, priors = [], [], {}
-            for k in range(n_z):
-                X_per_z.append(np.column_stack([dm_cgm_unit_sub[:, k], dm_igm_unit_sub[:, k]]))
-                y_per_z.append(dm_total_true_sub[:, k])
-                priors[f'f_gas_z{z_vals[k]:.2f}'] = prior_range
-                priors[f'f_igm_z{z_vals[k]:.2f}'] = prior_range
-
-            param_names = list(priors.keys())
-            ndim = len(param_names)
-
-            if initial_guess is None:
-                init = tuple(0.5 * (lo + hi) for lo, hi in priors.values())
-            else:
-                init = initial_guess
-
-            rng = np.random.default_rng(seed)
-            nwalkers_eff = max(nwalkers, 4 * ndim)
-            pos = np.array(init) + 1e-2 * rng.standard_normal((nwalkers_eff, ndim))
-            for j, (lo, hi) in enumerate(priors.values()):
-                pos[:, j] = np.clip(pos[:, j], lo + 1e-6, hi - 1e-6)
-
-            sampler = emcee.EnsembleSampler(
-                nwalkers_eff, ndim, inference.log_probability,
-                args=(X_per_z, y_per_z, priors, sigma_per_z)
-            )
-            sampler.run_mcmc(pos, nsteps, progress=True)
-
-            results.append({
-                'sweep_value': sweep_val,
-                'sampler': sampler,
-                'param_names': param_names,
-                'z_vals': z_vals,
-                'n_selected': n_selected,
-            })
-
-        return results if sweeping else results[0]
+        return {
+            'sampler': sampler,
+            'param_names': param_names,
+            'anchor_logM': anchor_logM,
+            'z_val': z_val,
+            'n_selected': n_sightlines,
+        }
