@@ -1126,21 +1126,20 @@ class SightlineSim():
         dm_igm_unit = np.array([
             sl.extract_compute(self.sim.cosmo, redshift=z_val, environment='IGM',
                                 modelled=True, figm=1.0)
-            for sl in tqdm(base_sightlines, desc='  extracting unit IGM DM')
+            for sl in tqdm(base_sightlines, desc='    extracting unit IGM DM')
         ])[:, 0]
 
         dm_total_true = np.array([
             sl.extract_compute(self.sim.cosmo, redshift=z_val, environment='Total',
                                 modelled=False)
-            for sl in tqdm(base_sightlines, desc='  extracting truth DM')
+            for sl in tqdm(base_sightlines, desc='    extracting truth DM')
         ])[:, 0]
 
         print('\n')
-        print('Generating sigmas')
+        print('Generating Sigmas')
 
-        sigma_igm = inference.build_sigma_igm(base_sightlines, self.sim.cosmo, z_val, f_igm_ref=1.0)
-        sigma_halo = inference.build_sigma_halo(base_sightlines, self.sim.cosmo, z_val,
-                                                f_gas_ref=self.sim.f_gas)
+        sigma_igm = inference.build_sigma_igm(base_sightlines, self.sim.cosmo, z_val)
+        sigma_halo = inference.build_sigma_halo(base_sightlines, self.sim.cosmo, z_val)
         sigma = np.sqrt(sigma_igm**2 + sigma_halo**2)
         print('\n')
 

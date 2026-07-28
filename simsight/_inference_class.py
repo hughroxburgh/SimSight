@@ -624,7 +624,7 @@ class Inference:
         sl_index_list = []
 
         for i, sl in enumerate(tqdm(sightlines, desc='    building per-halo unit CGM arrays')):
-            halos = sl.halo_info(with_compute=True, modelled=True, redshift=redshift)
+            halos = sl.halo_info(with_compute=True, modelled=True, redshift=redshift,fgas=1)
 
             if len(halos) == 0:
                 continue
