@@ -21,7 +21,7 @@ LIMITING_MAGS = {
     'lsst_i' : 24.0,
     'lsst_z' : 23.3
 }
-
+ 
 class Sightline():
 
     def __init__(self,target_redshift=None,length=None,origin=None,direction_vector=None,end_point=None,box_size=None,parent_sightline=True):
@@ -1305,9 +1305,12 @@ class Sightline():
         self.modelled = mod
         self.modelled.model_params = inference.model_params
         self.modelled.fgas = inference.sim.fgas
-        self.modelled.figm = inference.sim.figm
+        if self.modelled.model_params['IGM_Mode'] == 'mean':
+            self.modelled.figm = inference.sim.figm
+        elif self.modelled.model_params['IGM_Mode'] == 'smooth_truth':
+            self.modelled.figm = 1
 
-
+ 
     def model_sightline(self, inference, filters=None,verbose=True,reduce=None):
 
         self._initialise_modelled(inference)
@@ -1325,6 +1328,10 @@ class Sightline():
                 if verbose:
                     print("Cannot estimate smooth IGM density with photometric redshifts! Switching IGM_Mode to 'mean'",flush=True)
                 inference.model_params['IGM_Mode'] = 'mean'
+
+        if inference.model_params['IGM_Mode'] =='smooth_truth' and verbose:
+            print("Smooth IGM is not yet scaled to match cosmic mean!",flush=True)
+
             
         elif inference.model_params['HaloParams_Mode'] in ['truth','off']:
             num_sub_sightlines = self.subsightline_reached(grid=True,halos=True)  

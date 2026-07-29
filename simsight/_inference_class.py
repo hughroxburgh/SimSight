@@ -393,6 +393,70 @@ class Inference:
 
     #     return lengths,density,dm,cellConditions,haloAssignment
 
+    def _fit_and_rescale_smooth_igm_density(self,sightlines, deg=1, inplace=True):
+        """
+        1. Computes length-weighted mean smoothed IGM density per redshift snapshot.
+        2. Fits a polynomial mean_density(z) through those points.
+        3. Rescales sub_DensityIGM to cosmic_mean * (1 + delta),
+        delta = sub_DensityIGM / mean_density(z_segment) - 1.
+
+        Parameters
+        ----------
+        inplace : bool
+            If True, modifies the given sightlines directly and returns them.
+            If False, deep-copies each sightline before rescaling, leaving the
+            originals untouched.
+
+        Returns
+        -------
+        mean_density : callable, fitted mean_density(z)
+        z_arr, mean_arr, coeffs : diagnostic fit info
+        rescaled_sightlines : the (in-place or deep-copied) rescaled sightlines
+        """
+        redshifts = np.unique(sightlines[0].sub_BoxRedshifts[:sightlines[0].subsightline_reached(halos=True)])
+
+        z_arr, mean_arr, weight_arr = [], [], []
+        cosmic_mean = self.sim.cosmo.Ob0 * self.sim.cosmo.critical_density0.to(
+                1e10 * u.Msun / u.kpc**3).value
+
+        for z in tqdm(redshifts,desc='    calculating mean_IGM(z)'):
+            all_smoothed, all_lengths = [], []
+            for sl in sightlines:
+                for j, ssl in enumerate(sl.modelled.sub_DensityIGM):
+                    if sl.sub_BoxRedshifts[j] == z:
+                        all_smoothed.append(ssl)
+                        all_lengths.append(sl.modelled.sub_Grid[j])
+
+            if len(all_smoothed) == 0:
+                continue
+
+            lengths_concat = np.concatenate(all_lengths)
+            z_arr.append(z)
+            mean_arr.append(np.average(np.concatenate(all_smoothed), weights=lengths_concat))
+            weight_arr.append(len(lengths_concat))
+
+        z_arr = np.array(z_arr)
+        mean_arr = np.array(mean_arr)
+        weight_arr = np.array(weight_arr)
+
+        coeffs = np.polyfit(z_arr, mean_arr, deg=deg, w=weight_arr)
+
+        def mean_density_model(z):
+            return np.polyval(coeffs, np.atleast_1d(z))
+
+        # -- rescale each sightline (in place or via deepcopy) -- #
+        rescaled_sightlines = []
+        for sl in tqdm(sightlines, desc='    rescaling sub_DensityIGM'):
+            sl_rescaled = sl if inplace else deepcopy(sl)
+            for j, ssl in enumerate(sl_rescaled.modelled.sub_DensityIGM):
+                z_seg = sl_rescaled.sub_BoxRedshifts[j]
+                local_mean = mean_density_model(z_seg)[0]
+                delta = ssl / local_mean - 1
+                sl_rescaled.modelled.sub_DensityIGM[j] = cosmic_mean * (1 + delta)
+            rescaled_sightlines.append(sl_rescaled)
+
+        return mean_density_model, z_arr, mean_arr, coeffs, rescaled_sightlines
+
 
     def model_dm_partition(self,subsightline):
         
@@ -412,11 +476,16 @@ class Inference:
 
         # -- IGM unit density (f_igm = 1) -- #
         if self.model_params['IGM_Mode'] == 'smooth_truth':
-            density_igm_unit = Resample_Sightline_Density(
-                subsightline.sub_Grid, subsightline.sub_Density,
-                subsightline.sub_CellConditions == 0, t_grid,
-                self.model_params['SmoothingKernal']
-            )
+            if len(np.where(subsightline.sub_CellConditions == 0)[0]) == 0:
+                mean_density = self.sim.cosmo.Ob0 * self.sim.cosmo.critical_density0.to(
+                                1e10 * u.Msun / u.kpc**3).value
+                density_igm_unit = np.full(t_grid.shape[0], mean_density)
+            else:
+                density_igm_unit = Resample_Sightline_Density(
+                    subsightline.sub_Grid, subsightline.sub_Density,
+                    subsightline.sub_CellConditions == 0, t_grid,
+                    self.model_params['SmoothingKernal']
+                )
         elif self.model_params['IGM_Mode'] == 'mean':
             mean_density = self.sim.cosmo.Ob0 * self.sim.cosmo.critical_density0.to(
                 1e10 * u.Msun / u.kpc**3).value
@@ -684,25 +753,51 @@ class Inference:
         ])
         return np.std(dm_halo_true - dm_halo_model, axis=0)[0]
 
+
+
     
+    # def log_likelihood(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
+    #                     n_sightlines, dm_igm_unit, y_true, sigma):
+    #     n_anchors = len(anchor_logM)
+    #     fgas_anchors = theta[:n_anchors]
+    #     f_igm = theta[n_anchors]
+
+    #     # evaluate f_gas(M) for every halo intersection, all sightlines at once
+    #     fgas_per_halo = self.fgas_of_mass(halo_logM, anchor_logM, fgas_anchors)
+
+    #     # scale each halo's unit DM contribution, then sum back up per sightline
+    #     scaled_halo_dm = fgas_per_halo * dm_halo_unit
+    #     dm_halo_total = np.zeros(n_sightlines)
+    #     np.add.at(dm_halo_total, sl_index, scaled_halo_dm)
+
+    #     model_dm = dm_halo_total + f_igm * dm_igm_unit
+    #     resid = y_true - model_dm
+
+    #     return np.sum(-0.5 * (resid**2 / sigma**2 + np.log(2 * np.pi * sigma**2)))
+
     def log_likelihood(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
-                        n_sightlines, dm_igm_unit, y_true, sigma):
+                    n_sightlines, dm_igm_unit, y_true,
+                    sigma_linear, dm_floor=1e-4):
         n_anchors = len(anchor_logM)
         fgas_anchors = theta[:n_anchors]
         f_igm = theta[n_anchors]
 
-        # evaluate f_gas(M) for every halo intersection, all sightlines at once
         fgas_per_halo = self.fgas_of_mass(halo_logM, anchor_logM, fgas_anchors)
-
-        # scale each halo's unit DM contribution, then sum back up per sightline
         scaled_halo_dm = fgas_per_halo * dm_halo_unit
         dm_halo_total = np.zeros(n_sightlines)
         np.add.at(dm_halo_total, sl_index, scaled_halo_dm)
 
         model_dm = dm_halo_total + f_igm * dm_igm_unit
-        resid = y_true - model_dm
+        model_dm_floored = np.maximum(model_dm, dm_floor)
+        y_true_floored = np.maximum(y_true, dm_floor)
 
-        return np.sum(-0.5 * (resid**2 / sigma**2 + np.log(2 * np.pi * sigma**2)))
+        resid_log = np.log10(y_true_floored) - np.log10(model_dm_floored)
+
+        # linear-space combination, then propagate to log space per sightline
+        sigma_log = sigma_linear / (model_dm_floored * np.log(10))
+
+        return np.sum(-0.5 * (resid_log**2 / sigma_log**2 + np.log(2 * np.pi * sigma_log**2)))
+    
 
     def log_prior(self, theta, priors):
         for val, (lo, hi) in zip(theta, priors.values()):
