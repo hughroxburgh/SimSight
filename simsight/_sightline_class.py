@@ -1405,27 +1405,22 @@ class Sightline():
         if redshift is None:
             redshift = self.target_redshift
         
-        halos = self.halo_info(observed=observed, inferred=inferred,with_compute=True)
+        halos = self.halo_info(observed=observed, inferred=inferred,with_compute=True,redshift=redshift)
 
         eff_needed = (min_halo_effmass is not None) or (max_halo_effmass is not None) or \
             (min_halo_effip is not None) or (max_halo_effip is not None) or \
             (min_halo_purity is not None) or (max_halo_purity is not None)
 
-        # only consider halos actually in front of / up to the target redshift
-        relevant_halos = [
-            halo for halo in halos.values()
-            if 'Redshift' not in halo.keys() or halo['Redshift'] < redshift
-        ]
 
-        if min_num_halos is not None and len(relevant_halos) < min_num_halos:
+        if min_num_halos is not None and len(halos) < min_num_halos:
             return False
-        if max_num_halos is not None and len(relevant_halos) > max_num_halos:
+        if max_num_halos is not None and len(halos) > max_num_halos:
             return False
 
         # if len(relevant_halos) == 0:
         #     return not eff_needed
         
-        if not eff_needed:
+        if not eff_needed or len(halos) == 0:
             return True
 
         if eff_method == 'truth':
@@ -1436,7 +1431,7 @@ class Sightline():
             masses = []
             impact_ratios = []
 
-            for halo in relevant_halos:
+            for halo in halos:
                 if halo['ImpactParam'] is None:
                     return False
                 weights.append(halo['Compute'] / total_halo_dm)
