@@ -1431,7 +1431,7 @@ class Sightline():
             masses = []
             impact_ratios = []
 
-            for halo in halos:
+            for halo in halos.values():
                 if halo['ImpactParam'] is None:
                     return False
                 weights.append(halo['Compute'] / total_halo_dm)
