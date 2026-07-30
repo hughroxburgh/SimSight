@@ -830,6 +830,8 @@ class SightlineSim():
         if not _Is_Interactive():
             _Progress_Print(msg,ts)
 
+        return sightlines
+
 
     def filter_sightlines(self,sightlines,observed=False,redshift=None,dvec_thresh=None,
                           min_halo_effmass=None,max_halo_effmass=None,
