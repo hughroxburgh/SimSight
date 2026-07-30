@@ -1355,6 +1355,8 @@ class Sightline():
 
         self._combine_model_density()
 
+        return self
+
 
     def _combine_model_density(self, fgas=None,figm=None):
         """
