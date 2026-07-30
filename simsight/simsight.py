@@ -119,7 +119,6 @@ class SightlineSim():
     def load_sightlines(self,directory_path=None,percent=100,sl_files=None,with_pidx=False):
 
         import pickle
-        import os
         from glob import glob
 
         if directory_path is not None and sl_files is not None:
@@ -357,7 +356,6 @@ class SightlineSim():
         Run compute in all sightlines for this snapshot.
         """
 
-        import os
         os.environ['OMP_NUM_THREADS'] = '1'
         os.environ['OPENBLAS_NUM_THREADS'] = '1'
         os.environ['MKL_NUM_THREADS'] = '1'
@@ -708,7 +706,6 @@ class SightlineSim():
                                     num_snaps=None, single_snap=None,parallel=False,save_interval=5,save_path=None):
 
         from ._galfinder_class import GalaxyFinder, load_grids_and_interps
-        import os
         os.environ["SPS_HOME"] = self.sim.fsps_path
         import fsps
 
@@ -815,7 +812,12 @@ class SightlineSim():
             print(msg,end='\r',flush=True)
 
         if parallel:
-            sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
+
+            os.environ['OMP_NUM_THREADS'] = '1'
+            os.environ['OPENBLAS_NUM_THREADS'] = '1'
+            os.environ['MKL_NUM_THREADS'] = '1'
+
+            sightlines = Parallel(n_jobs=self.num_cores, backend='loky')(
                 delayed(sl.model_sightline)(inference,filters,verbose=False,reduce=reduce) for sl in _Smart_Tqdm(sightlines,desc='Modelling sightlines')
                 )
         else:
