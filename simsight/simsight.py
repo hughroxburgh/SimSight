@@ -1099,9 +1099,9 @@ class SightlineSim():
         from ._inference_class import Inference
         from tqdm import tqdm
 
-        z_val = np.atleast_1d(redshift)
-        if len(z_val) > 1:
-            raise ValueError("run_mcmc currently supports a single redshift only.")
+        z_val = redshift #np.atleast_1d(redshift)
+        # if len(z_val) > 1:
+        #     raise ValueError("run_mcmc currently supports a single redshift only.")
 
         anchor_logM = np.log10(np.atleast_1d(mass_anchors))
 
