@@ -1118,7 +1118,6 @@ class SightlineSim():
 
         inference = Inference(self.sim)
 
-
         print('Extracting Model and Truth DM')
 
         # -- Build halo information -- #
@@ -1130,13 +1129,13 @@ class SightlineSim():
             sl.extract_compute(self.sim.cosmo, redshift=z_val, environment='IGM',
                                 modelled=True, figm=1.0)
             for sl in tqdm(base_sightlines, desc='    extracting unit IGM DM')
-        ])[:, 0]
+        ])
 
         dm_total_true = np.array([
             sl.extract_compute(self.sim.cosmo, redshift=z_val, environment='Total',
                                 modelled=False)
             for sl in tqdm(base_sightlines, desc='    extracting truth DM')
-        ])[:, 0]
+        ])
 
         print('\n')
         print('Generating Sigmas')

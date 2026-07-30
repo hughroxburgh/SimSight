@@ -7,12 +7,18 @@ from copy import deepcopy
 from scipy import integrate
 import astropy.units as u
 from scipy.interpolate import interp1d
-from scipy.ndimage import gaussian_filter1d
-from scipy.stats import norm
-from scipy.interpolate import PchipInterpolator
+# from scipy.ndimage import gaussian_filter1d
+from scipy.signal import fftconvolve
 
 from ._compute import Transform_Points
 from ._photz import FZBoostPredictor
+
+def _Gaussian_Smooth_FFT(arr, sigma, truncate=4.0):
+    radius = int(truncate * sigma + 0.5)
+    x = np.arange(-radius, radius + 1)
+    kernel = np.exp(-0.5 * (x / sigma) ** 2)
+    kernel /= kernel.sum()
+    return fftconvolve(arr, kernel, mode='same')
 
 def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,smoothing_scale=1000):
     """
@@ -37,7 +43,8 @@ def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,s
     #     igm_density = gaussian_filter1d(np.log10(igm_density), sigma=sigma_cells, mode='nearest')
 
     # return 10**igm_density
-        igm_density = gaussian_filter1d(igm_density, sigma=sigma_cells, mode='nearest')
+        # igm_density = gaussian_filter1d(igm_density, sigma=sigma_cells, mode='nearest')
+        igm_density = _Gaussian_Smooth_FFT(igm_density, sigma_cells)
 
     return igm_density
 
