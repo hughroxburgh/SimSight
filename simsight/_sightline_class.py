@@ -1420,8 +1420,8 @@ class Sightline():
         if max_num_halos is not None and len(relevant_halos) > max_num_halos:
             return False
 
-        if len(relevant_halos) == 0:
-            return not eff_needed
+        # if len(relevant_halos) == 0:
+        #     return not eff_needed
         
         if not eff_needed:
             return True

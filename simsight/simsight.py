@@ -1093,7 +1093,7 @@ class SightlineSim():
 
     def run_mcmc(self, sightlines, redshift, mass_anchors, nwalkers=32, nsteps=4000,
                 initial_guess=None, seed=None, fgas_prior=(0.0, 1.0),
-                figm_prior=(0.0, 1.0), filt=None,probabilty_func=None):
+                figm_prior=(0.0, 1.0), filt=None,mode='log'):
 
         import emcee
         from ._inference_class import Inference
@@ -1141,9 +1141,9 @@ class SightlineSim():
         print('\n')
         print('Generating Sigmas')
 
-        sigma_igm = inference.build_sigma_igm(base_sightlines, self.sim.cosmo, z_val)
-        sigma_halo = inference.build_sigma_halo(base_sightlines, self.sim.cosmo, z_val)
-        sigma_linear = np.sqrt(sigma_igm**2 + sigma_halo**2)
+        sigma_igm = inference.build_sigma_igm(base_sightlines, self.sim.cosmo, z_val, mode)
+        sigma_halo = inference.build_sigma_halo(base_sightlines, self.sim.cosmo, z_val, mode)
+        sigma = np.sqrt(sigma_igm**2 + sigma_halo**2)
         print('\n')
 
         priors = {f'f_gas_M{m:.2f}': fgas_prior for m in anchor_logM}
@@ -1164,12 +1164,10 @@ class SightlineSim():
 
         print('Running emcee')
 
-        probabilty_func = inference.log_probability if probabilty_func is None else probabilty_func
-
         sampler = emcee.EnsembleSampler(
-            nwalkers_eff, ndim, probabilty_func,
+            nwalkers_eff, ndim, inference.log_probability,
             args=(anchor_logM, halo_logM, dm_halo_unit, sl_index, n_sightlines,
-                dm_igm_unit, dm_total_true, sigma_linear, priors)
+                dm_igm_unit, dm_total_true, sigma, priors,mode)
         )
         sampler.run_mcmc(pos, nsteps, progress=True)
 
