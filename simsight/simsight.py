@@ -820,9 +820,9 @@ class SightlineSim():
             new_sightlines = Parallel(n_jobs=self.num_cores, backend='loky')(
                 delayed(sl.model_sightline)(inference,filters,verbose=False,reduce=reduce) for sl in _Smart_Tqdm(sightlines,desc='Modelling sightlines')
                 )
-
+            
             for i,sl in enumerate(sightlines):
-                sl.modelled = new_sightlines[i].modelled
+                sl.modelled = new_sightlines[i].modelled 
 
         else:
             for sl in _Smart_Tqdm(sightlines, desc='Modelling sightlines'):
