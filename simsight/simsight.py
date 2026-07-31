@@ -817,9 +817,13 @@ class SightlineSim():
             os.environ['OPENBLAS_NUM_THREADS'] = '1'
             os.environ['MKL_NUM_THREADS'] = '1'
 
-            sightlines = Parallel(n_jobs=self.num_cores, backend='loky')(
+            new_sightlines = Parallel(n_jobs=self.num_cores, backend='loky')(
                 delayed(sl.model_sightline)(inference,filters,verbose=False,reduce=reduce) for sl in _Smart_Tqdm(sightlines,desc='Modelling sightlines')
                 )
+
+            for i,sl in enumerate(sightlines):
+                sl.modelled = new_sightlines[i].modelled
+
         else:
             for sl in _Smart_Tqdm(sightlines, desc='Modelling sightlines'):
                 sl.model_sightline(inference,filters,verbose=False,reduce=reduce)
@@ -829,8 +833,6 @@ class SightlineSim():
 
         if not _Is_Interactive():
             _Progress_Print(msg,ts)
-
-        return sightlines
 
 
     def filter_sightlines(self,sightlines,observed=False,redshift=None,dvec_thresh=None,
