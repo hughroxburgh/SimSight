@@ -13,12 +13,15 @@ from scipy.signal import fftconvolve
 from ._compute import Transform_Points
 from ._photz import FZBoostPredictor
 
-def _Gaussian_Smooth_FFT(arr, sigma, truncate=4.0):
+def _Gaussian_Smooth_FFT(arr, sigma, truncate=4.0, edge_mode='reflect'):
     radius = int(truncate * sigma + 0.5)
     x = np.arange(-radius, radius + 1)
     kernel = np.exp(-0.5 * (x / sigma) ** 2)
     kernel /= kernel.sum()
-    return fftconvolve(arr, kernel, mode='same')
+
+    padded = np.pad(arr, radius, mode=edge_mode)
+    smoothed = fftconvolve(padded, kernel, mode='same')
+    return smoothed[radius:-radius]
 
 def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,smoothing_scale=1000,mode='linear'):
     """
