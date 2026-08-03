@@ -20,7 +20,7 @@ def _Gaussian_Smooth_FFT(arr, sigma, truncate=4.0):
     kernel /= kernel.sum()
     return fftconvolve(arr, kernel, mode='same')
 
-def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,smoothing_scale=1000):
+def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,smoothing_scale=1000,mode='linear'):
     """
     Reinterpolates a non-uniform density field onto a normalised grid, and smooths with a gaussian kernel. 
     """
@@ -40,11 +40,12 @@ def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,s
     # -- Apply Gaussian filter -- #
     if smoothing_scale > 0:
         sigma_cells = smoothing_scale / abs(np.diff(standard_grid)[0])
-    #     igm_density = gaussian_filter1d(np.log10(igm_density), sigma=sigma_cells, mode='nearest')
 
-    # return 10**igm_density
-        # igm_density = gaussian_filter1d(igm_density, sigma=sigma_cells, mode='nearest')
-        igm_density = _Gaussian_Smooth_FFT(igm_density, sigma_cells)
+        if mode == 'linear':
+            igm_density = _Gaussian_Smooth_FFT(igm_density, sigma_cells)
+        elif mode == 'log':
+            log_igm_density = _Gaussian_Smooth_FFT(np.log10(igm_density), sigma_cells)
+            igm_density = 10**log_igm_density
 
     return igm_density
 
@@ -52,7 +53,7 @@ def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,s
 class Inference:
     def __init__(self, sim, filters = ['lsst_g','lsst_r','lsst_i','lsst_z'],load_kcorrect=False,
                  redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit',
-                 halo_params='inferred',igm_background='mean',density_smooth_kernel=1000):
+                 halo_params='inferred',igm_background='mean',density_smooth_kernel=1000,density_smooth_mode='linear'):
         
         self.sim = sim
         self.kcorrect = None
@@ -68,6 +69,7 @@ class Inference:
                             'IGM_Mode':igm_background}
         if igm_background == 'smooth_truth':
             self.model_params['SmoothingKernal'] = density_smooth_kernel
+            self.model_params['SmoothingMode'] = density_smooth_mode
 
         if load_kcorrect:
             self._load_kcorrect()
@@ -421,7 +423,7 @@ class Inference:
                 density_igm_unit = Resample_Sightline_Density(
                     subsightline.sub_Grid, subsightline.sub_Density,
                     subsightline.sub_CellConditions == 0, t_grid,
-                    self.model_params['SmoothingKernal']
+                    self.model_params['SmoothingKernal'],self.model_params['SmoothingMode']
                 )
         elif self.model_params['IGM_Mode'] == 'mean':
             mean_density = self.sim.cosmo.Ob0 * self.sim.cosmo.critical_density0.to(
@@ -464,7 +466,7 @@ class Inference:
                     resampled = Resample_Sightline_Density(
                         subsightline.sub_Grid, subsightline.sub_Density,
                         np.ones_like(subsightline.sub_Grid).astype(bool),
-                        t_grid, 0
+                        t_grid, 0, self.model_params['SmoothingMode']
                     )
                     density_true_j = resampled[mask]
 

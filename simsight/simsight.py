@@ -785,7 +785,7 @@ class SightlineSim():
                 sl.infer_halos(inference,filters)
 
 
-    def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',igm_background='smooth_truth',density_smooth_kernel=1000,reduce=None):
+    def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',igm_background='smooth_truth',density_smooth_mode='linear',density_smooth_kernel=1000,reduce=None):
 
         from ._inference_class import Inference
 
@@ -803,7 +803,7 @@ class SightlineSim():
 
             filters = get_filters(sightlines)
 
-        inference = Inference(self.sim,halo_params=halo_params,igm_background=igm_background,density_smooth_kernel=density_smooth_kernel)
+        inference = Inference(self.sim,halo_params=halo_params,igm_background=igm_background,density_smooth_mode=density_smooth_mode,density_smooth_kernel=density_smooth_kernel)
 
 
         if not _Is_Interactive():
