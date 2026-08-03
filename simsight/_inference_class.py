@@ -45,7 +45,14 @@ def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,s
         sigma_cells = smoothing_scale / abs(np.diff(standard_grid)[0])
 
         if mode == 'linear':
-            igm_density = _Gaussian_Smooth_FFT(igm_density, sigma_cells)
+            # igm_density = _Gaussian_Smooth_FFT(igm_density, sigma_cells)
+
+            weighted = _Gaussian_Smooth_FFT(igm_density * sl_halo_mask, sigma_cells)
+            weight_sum = _Gaussian_Smooth_FFT(sl_halo_mask.astype(float), sigma_cells)
+            igm_density = weighted / weight_sum
+
+
+
         elif mode == 'log':
             log_igm_density = _Gaussian_Smooth_FFT(np.log10(igm_density), sigma_cells)
             igm_density = 10**log_igm_density
