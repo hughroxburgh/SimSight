@@ -481,12 +481,14 @@ class Inference:
         expensive step (mNFW integration, IGM resampling) and should never be
         re-run per MCMC step.
         """
-        t_res = 10  # ckpc
-        t_grid = np.arange(t_res / 2, subsightline.length, t_res)
-        lengths = np.full_like(t_grid, t_res, dtype=float)
-        if subsightline.length % t_res > 0:
-            t_grid = np.append(t_grid, subsightline.length)
-            lengths = np.append(lengths, subsightline.length % t_res)
+        t_res = 100  # ckpc
+        n_full = int(subsightline.length // t_res)
+        t_edges = np.arange(0, n_full * t_res + t_res, t_res)
+        if t_edges[-1] < subsightline.length:
+            t_edges = np.append(t_edges, subsightline.length)
+
+        lengths = np.diff(t_edges)
+        t_grid = t_edges[:-1] + lengths / 2
 
         # -- IGM unit density (f_igm = 1) -- #
         mean_density = self.sim.cosmo.Ob0 * self.sim.cosmo.critical_density0.to(
@@ -498,7 +500,7 @@ class Inference:
             else:
                 density_igm_unit = Resample_Sightline_Density(
                     subsightline.sub_Grid, subsightline.sub_Density,
-                    subsightline.sub_CellConditions == 0, t_grid,
+                    subsightline.sub_CellConditions == 0, t_edges,
                     self.model_params['SmoothingKernal'],self.model_params['SmoothingMode']
                 )
         elif self.model_params['IGM_Mode'] == 'mean':
@@ -540,7 +542,7 @@ class Inference:
                     resampled = Resample_Sightline_Density(
                         subsightline.sub_Grid, subsightline.sub_Density,
                         np.ones_like(subsightline.sub_Grid).astype(bool),
-                        t_grid, 0, self.model_params['SmoothingMode']
+                        t_edges, 0, self.model_params['SmoothingMode']
                     )
                     density_true_j = resampled[mask]
 
