@@ -481,7 +481,7 @@ class Inference:
         expensive step (mNFW integration, IGM resampling) and should never be
         re-run per MCMC step.
         """
-        t_res = 100  # ckpc
+        t_res = 10  # ckpc
         n_full = int(subsightline.length // t_res)
         t_edges = np.arange(0, n_full * t_res + t_res, t_res)
         if t_edges[-1] < subsightline.length:
