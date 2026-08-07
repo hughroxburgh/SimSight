@@ -23,39 +23,104 @@ def _Gaussian_Smooth_FFT(arr, sigma, truncate=4.0, edge_mode='reflect'):
     smoothed = fftconvolve(padded, kernel, mode='same')
     return smoothed[radius:-radius]
 
-def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,smoothing_scale=1000,mode='linear'):
-    """
-    Reinterpolates a non-uniform density field onto a normalised grid, and smooths with a gaussian kernel. 
-    """
+# def Resample_Sightline_Density(sl_grid,sl_densities,sl_halo_mask,standard_grid,smoothing_scale=1000,mode='linear'):
+#     """
+#     Reinterpolates a non-uniform density field onto a normalised grid, and smooths with a gaussian kernel. 
+#     """
 
-    # -- Find centres of each true cell -- #
+#     # -- Find centres of each true cell -- #
+#     edges = np.concatenate([[0], np.cumsum(sl_grid)])
+#     centres = edges[:-1] + np.diff(edges)/2
+
+#     # -- Create an interpolation over only non halo cells -- #
+#     density_interp = interp1d(centres[sl_halo_mask], sl_densities[sl_halo_mask], 
+#                 kind='linear', bounds_error=False,
+#                 fill_value=(sl_densities[sl_halo_mask][0], sl_densities[sl_halo_mask][-1]))
+
+#     # -- Interpolate on standard_grid -- #
+#     igm_density = density_interp(standard_grid)
+
+#     # -- Apply Gaussian filter -- #
+#     if smoothing_scale > 0:
+#         sigma_cells = smoothing_scale / abs(np.diff(standard_grid)[0])
+
+#         if mode == 'linear':
+#             # igm_density = _Gaussian_Smooth_FFT(igm_density, sigma_cells)
+
+#             weighted = _Gaussian_Smooth_FFT(igm_density * sl_halo_mask, sigma_cells)
+#             weight_sum = _Gaussian_Smooth_FFT(sl_halo_mask.astype(float), sigma_cells)
+#             igm_density = weighted / weight_sum
+
+
+
+#         elif mode == 'log':
+#             log_igm_density = _Gaussian_Smooth_FFT(np.log10(igm_density), sigma_cells)
+#             igm_density = 10**log_igm_density
+
+#     return igm_density
+
+def Resample_Sightline_Density(sl_grid, sl_densities, sl_halo_mask, standard_edges,
+                                smoothing_scale=1000, mode='linear'):
+    """
+    Conservatively reinterpolates a non-uniform density field onto standard_edges bins,
+    then optionally smooths with a Gaussian kernel.
+    standard_edges: bin edges (length N+1) for the new grid.
+    Returns per-bin average density (length N).
+    """
     edges = np.concatenate([[0], np.cumsum(sl_grid)])
-    centres = edges[:-1] + np.diff(edges)/2
 
-    # -- Create an interpolation over only non halo cells -- #
-    density_interp = interp1d(centres[sl_halo_mask], sl_densities[sl_halo_mask], 
-                kind='linear', bounds_error=False,
-                fill_value=(sl_densities[sl_halo_mask][0], sl_densities[sl_halo_mask][-1]))
+    # -- Mass in each original cell, zeroing out halo cells -- #
+    cell_mass = np.where(sl_halo_mask, sl_densities * sl_grid, 0.0)
+    cumulative_mass = np.concatenate([[0], np.cumsum(cell_mass)])
 
-    # -- Interpolate on standard_grid -- #
-    igm_density = density_interp(standard_grid)
+    # -- Also track how much non-halo *length* falls in each original cell,
+    #    so we can renormalize bins that partially/fully overlap halo regions -- #
+    cell_len = np.where(sl_halo_mask, sl_grid, 0.0)
+    cumulative_len = np.concatenate([[0], np.cumsum(cell_len)])
+
+    mass_interp = interp1d(edges, cumulative_mass, kind='linear',
+                            bounds_error=False, fill_value=(0, cumulative_mass[-1]))
+    len_interp = interp1d(edges, cumulative_len, kind='linear',
+                           bounds_error=False, fill_value=(0, cumulative_len[-1]))
+
+    mass_at_edges = mass_interp(standard_edges)
+    len_at_edges = len_interp(standard_edges)
+
+    bin_mass = np.diff(mass_at_edges)
+    bin_nonhalo_len = np.diff(len_at_edges)
+    bin_widths = np.diff(standard_edges)
+
+    # per-bin average density using only the non-halo length actually present
+    with np.errstate(invalid='ignore', divide='ignore'):
+        igm_density = np.where(bin_nonhalo_len > 0, bin_mass / bin_nonhalo_len, np.nan)
+
+    # -- fill fully-halo bins by interpolating neighboring valid bins (bridge, same as before) -- #
+    valid = ~np.isnan(igm_density)
+    if valid.sum() >= 2:
+        bin_centers = standard_edges[:-1] + bin_widths / 2
+        bridge = interp1d(bin_centers[valid], igm_density[valid], kind='linear',
+                           bounds_error=False,
+                           fill_value=(igm_density[valid][0], igm_density[valid][-1]))
+        igm_density = np.where(valid, igm_density, bridge(bin_centers))
+        mask_on_grid = valid.astype(float)
+    else:
+        mask_on_grid = np.ones_like(igm_density)
 
     # -- Apply Gaussian filter -- #
     if smoothing_scale > 0:
-        sigma_cells = smoothing_scale / abs(np.diff(standard_grid)[0])
+        sigma_cells = smoothing_scale / abs(np.diff(standard_edges).mean())
 
         if mode == 'linear':
-            # igm_density = _Gaussian_Smooth_FFT(igm_density, sigma_cells)
-
-            weighted = _Gaussian_Smooth_FFT(igm_density * sl_halo_mask, sigma_cells)
-            weight_sum = _Gaussian_Smooth_FFT(sl_halo_mask.astype(float), sigma_cells)
-            igm_density = weighted / weight_sum
-
-
-
+            weighted = _Gaussian_Smooth_FFT(igm_density * mask_on_grid, sigma_cells)
+            weight_sum = _Gaussian_Smooth_FFT(mask_on_grid, sigma_cells)
+            safe = weight_sum > 1e-6
+            smoothed = np.empty_like(igm_density)
+            smoothed[safe] = weighted[safe] / weight_sum[safe]
+            smoothed[~safe] = igm_density[~safe]
+            igm_density = smoothed
         elif mode == 'log':
-            log_igm_density = _Gaussian_Smooth_FFT(np.log10(igm_density), sigma_cells)
-            igm_density = 10**log_igm_density
+            log_igm = _Gaussian_Smooth_FFT(np.log10(igm_density), sigma_cells)
+            igm_density = 10 ** log_igm
 
     return igm_density
 
@@ -424,10 +489,11 @@ class Inference:
             lengths = np.append(lengths, subsightline.length % t_res)
 
         # -- IGM unit density (f_igm = 1) -- #
+        mean_density = self.sim.cosmo.Ob0 * self.sim.cosmo.critical_density0.to(
+                                        1e10 * u.Msun / u.kpc**3).value
+        
         if self.model_params['IGM_Mode'] == 'smooth_truth':
             if len(np.where(subsightline.sub_CellConditions == 0)[0]) == 0:
-                mean_density = self.sim.cosmo.Ob0 * self.sim.cosmo.critical_density0.to(
-                                1e10 * u.Msun / u.kpc**3).value
                 density_igm_unit = np.full(t_grid.shape[0], mean_density)
             else:
                 density_igm_unit = Resample_Sightline_Density(
@@ -436,8 +502,6 @@ class Inference:
                     self.model_params['SmoothingKernal'],self.model_params['SmoothingMode']
                 )
         elif self.model_params['IGM_Mode'] == 'mean':
-            mean_density = self.sim.cosmo.Ob0 * self.sim.cosmo.critical_density0.to(
-                1e10 * u.Msun / u.kpc**3).value
             density_igm_unit = np.full(t_grid.shape[0], mean_density)
 
         # -- Halo unit density (f_gas = 1), per-halo, kept separate -- #
