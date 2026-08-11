@@ -542,7 +542,7 @@ class Inference:
                     resampled = Resample_Sightline_Density(
                         subsightline.sub_Grid, subsightline.sub_Density,
                         np.ones_like(subsightline.sub_Grid).astype(bool),
-                        t_edges, 0, self.model_params['SmoothingMode']
+                        t_edges, 0, None
                     )
                     density_true_j = resampled[mask]
 
