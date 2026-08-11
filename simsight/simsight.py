@@ -1104,7 +1104,7 @@ class SightlineSim():
             figm_prior=(0.0, 1.0), filt=None,mode='log'):
 
         import emcee
-        from simsight._inference_class import Inference
+        from self._inference_class import Inference
 
         z_val = redshift #np.atleast_1d(redshift)
                             # if len(z_val) > 1:
