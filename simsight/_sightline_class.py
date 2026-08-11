@@ -997,7 +997,7 @@ class Sightline():
         Determine maximum redshift reached in computation.
         """
 
-        if environment == 'Total':
+        if environment.lower() == 'total':
             halos = False
         else:
             halos = True
@@ -1022,10 +1022,10 @@ class Sightline():
             e = 'Cell partitioning to igm / cgm not complete yet! Call "self.assign_to_halos()"'
             raise ValueError(e)
 
-        condition_map = {'Total': [0, 1], 'IGM': [0], 'CGM': [1]}
-        good_conditions = condition_map[environment]
+        condition_map = {'total': [0, 1], 'igm': [0], 'cgm': [1]}
+        good_conditions = condition_map[environment.lower()]
 
-        if environment == 'Total':
+        if environment.lower() == 'total':
             halos = False
         else:
             halos = True
@@ -1039,7 +1039,7 @@ class Sightline():
 
         full_grid  = np.cumsum(np.concatenate(grid[sls]))
         full_compute    = np.concatenate(compute[sls])
-        cell_conditions = np.concatenate(conditions[sls]) if environment != 'Total' else np.zeros(len(full_compute))
+        cell_conditions = np.concatenate(conditions[sls]) if environment.lower != 'total' else np.zeros(len(full_compute))
         
         if redshift is None:
             redshift = self.redshift_reached(cosmo,environment,modelled=modelled)

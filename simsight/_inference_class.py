@@ -608,7 +608,7 @@ class Inference:
         dm_halo_unit = np.concatenate(dm_unit_list)
         sl_index = np.concatenate(sl_index_list)
 
-        return halo_logM, dm_halo_unit, sl_index, len(sightlines)
+        return halo_logM, dm_halo_unit, sl_index
 
 
     def fgas_of_mass(self, logM, anchor_logM, fgas_anchors):
@@ -664,28 +664,66 @@ class Inference:
 
     
 
+    # def log_likelihood(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
+    #                 n_sightlines, dm_igm_unit, y_true,
+    #                 sigma, mode='log',dm_floor=1e-4):
+    #     n_anchors = len(anchor_logM)
+    #     fgas_anchors = theta[:n_anchors]
+    #     f_igm = theta[n_anchors]
+
+    #     fgas_per_halo = self.fgas_of_mass(halo_logM, anchor_logM, fgas_anchors)
+    #     scaled_halo_dm = fgas_per_halo * dm_halo_unit
+    #     dm_halo_total = np.zeros(n_sightlines)
+    #     np.add.at(dm_halo_total, sl_index, scaled_halo_dm)
+
+    #     model_dm = dm_halo_total + f_igm * dm_igm_unit
+        
+    #     if mode == 'log':
+    #         model_dm_floored = np.maximum(model_dm, dm_floor)
+    #         y_true_floored = np.maximum(y_true, dm_floor)
+    #         resid = np.log10(y_true_floored) - np.log10(model_dm_floored)
+    #     elif mode == 'linear':
+    #         resid = y_true - model_dm
+
+    #     return np.sum(-0.5 * (resid**2 / sigma**2 + np.log(2 * np.pi * sigma**2)))
+
+
     def log_likelihood(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
-                    n_sightlines, dm_igm_unit, y_true,
-                    sigma, mode='log',dm_floor=1e-4):
+                    n_sightlines, dm_igm_unit, y_true, sigma,
+                    halo_unit_rss, mode='log', dm_floor=1e-4):
+
         n_anchors = len(anchor_logM)
+
+        # -- Extract theta -- #
         fgas_anchors = theta[:n_anchors]
         f_igm = theta[n_anchors]
+        sigma_fgas = theta[n_anchors + 1]
 
+        # -- Calculate fgas per halo from linear interpolation of fit anchors-- #
         fgas_per_halo = self.fgas_of_mass(halo_logM, anchor_logM, fgas_anchors)
-        scaled_halo_dm = fgas_per_halo * dm_halo_unit
-        dm_halo_total = np.zeros(n_sightlines)
-        np.add.at(dm_halo_total, sl_index, scaled_halo_dm)
 
+        # -- Build model DM value -- #
+        dm_halo_total = np.zeros(n_sightlines)
+        np.add.at(dm_halo_total,sl_index,fgas_per_halo * dm_halo_unit)
         model_dm = dm_halo_total + f_igm * dm_igm_unit
-        
+
+        # -- per halo fgas sigma is set by population wide "sigma_fgas" and weights "halo_unit_rss" -- #
+        sigma_dm_fgas = sigma_fgas * halo_unit_rss
+
         if mode == 'log':
-            model_dm_floored = np.maximum(model_dm, dm_floor)
-            y_true_floored = np.maximum(y_true, dm_floor)
-            resid = np.log10(y_true_floored) - np.log10(model_dm_floored)
+            model_dm = np.maximum(model_dm, dm_floor)
+            y = np.maximum(y_true, dm_floor)
+
+            resid = np.log10(y) - np.log10(model_dm)
+
+            sigma_fgas_log = sigma_dm_fgas / model_dm / np.log(10.0)
+            sigma_eff = np.sqrt(sigma**2 + sigma_fgas_log**2)
+
         elif mode == 'linear':
             resid = y_true - model_dm
+            sigma_eff = np.sqrt(sigma**2 + sigma_dm_fgas**2)
 
-        return np.sum(-0.5 * (resid**2 / sigma**2 + np.log(2 * np.pi * sigma**2)))
+        return np.sum(-0.5 * (resid**2 / sigma_eff**2 + np.log(2.0 * np.pi * sigma_eff**2)))
     
 
     def log_prior(self, theta, priors):
@@ -695,9 +733,9 @@ class Inference:
         return 0.0
 
     def log_probability(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
-                         n_sightlines, dm_igm_unit, y_true, sigma, priors,mode):
+                         n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, priors,mode):
         lp = self.log_prior(theta, priors)
         if not np.isfinite(lp):
             return -np.inf
         return lp + self.log_likelihood(theta, anchor_logM, halo_logM, dm_halo_unit,
-                                         sl_index, n_sightlines, dm_igm_unit, y_true, sigma,mode)
+                                         sl_index, n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, mode)
