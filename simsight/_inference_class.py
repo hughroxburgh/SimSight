@@ -464,7 +464,7 @@ class Inference:
             sl_rescaled = sl if inplace else deepcopy(sl)
             for j, ssl in enumerate(sl_rescaled.modelled.sub_DensityIGM):
                 z_seg = sl_rescaled.sub_BoxRedshifts[j]
-                local_mean = mean_density_model(z_seg[sl.modelled.sub_CellConditions[j]==0])[0]
+                local_mean = mean_density_model(z_seg)[0]
                 delta = ssl / local_mean - 1
                 sl_rescaled.modelled.sub_DensityIGM[j] = cosmic_mean * (1 + delta)
             rescaled_sightlines.append(sl_rescaled)
