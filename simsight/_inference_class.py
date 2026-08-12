@@ -438,8 +438,8 @@ class Inference:
             for sl in sightlines:
                 for j, ssl in enumerate(sl.modelled.sub_DensityIGM):
                     if sl.sub_BoxRedshifts[j] == z:
-                        all_smoothed.append(ssl)
-                        all_lengths.append(sl.modelled.sub_Grid[j])
+                        all_smoothed.append(ssl[sl.modelled.sub_CellConditions[j]==0])
+                        all_lengths.append(sl.modelled.sub_Grid[j][sl.modelled.sub_CellConditions[j]==0])
 
             if len(all_smoothed) == 0:
                 continue

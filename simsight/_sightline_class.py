@@ -1039,7 +1039,7 @@ class Sightline():
 
         full_grid  = np.cumsum(np.concatenate(grid[sls]))
         full_compute    = np.concatenate(compute[sls])
-        cell_conditions = np.concatenate(conditions[sls]) if environment.lower != 'total' else np.zeros(len(full_compute))
+        cell_conditions = np.concatenate(conditions[sls]) if environment.lower() != 'total' else np.zeros(len(full_compute))
         
         if redshift is None:
             redshift = self.redshift_reached(cosmo,environment,modelled=modelled)
