@@ -467,7 +467,13 @@ class Inference:
                 local_mean = mean_density_model(z_seg)[0]
                 delta = ssl / local_mean - 1
                 sl_rescaled.modelled.sub_DensityIGM[j] = cosmic_mean * (1 + delta)
+
+            for i in range(len(sl_rescaled.modelled.sub_Compute)):
+                sl_rescaled.modelled.sub_Compute[i] = np.array([])
+
+            sl_rescaled._combine_model_density()
             rescaled_sightlines.append(sl_rescaled)
+
 
         return mean_density_model, z_arr, mean_arr, coeffs, rescaled_sightlines
 
