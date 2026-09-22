@@ -732,7 +732,7 @@ class VisualSim():
 
 
     def modelling_results(self, sightlines, results, redshift, filt=None, mode='all', n_mass_bins=25,
-                          xlims=None,ylims=None,truth_alpha=0.3):
+                          xlims=None,ylims=None,truth_alpha=0.3,fit_colour='crimson'):
         import corner
 
         mass_anchors = np.asarray(results['anchor_logM'])  # already log10(M), based on naming
@@ -748,126 +748,128 @@ class VisualSim():
         flat_samples = results['sampler'].get_chain(discard=500, thin=10, flat=True)
         samples_post_burnin = flat_samples[500:]
 
-        # --- Corner plot of posterior ---
-        if mode in ('corner', 'all'):
+        with self._style():
 
-            labels = []
-            for name in results['param_names']:
-                if name.startswith('f_gas_M'):
-                    mval = name.replace('f_gas_M', '')
-                    labels.append(fr'$f_{{\rm gas,{mval}}}$')
-                elif name == 'f_igm':
-                    labels.append(r'$f_{\rm igm}$')
-                elif name == 'sigma_fgas':
-                    labels.append(r'$\sigma_{f_{\rm gas}}$')
-                else:
-                    labels.append(name)
+            # --- Corner plot of posterior ---
+            if mode in ('corner', 'all'):
 
-            ndim = len(labels)
-            fig = plt.figure(figsize=(2.2 * ndim, 2.2 * ndim))
-            fig = corner.corner(flat_samples, labels=labels,
-                                quantiles=[0.16, 0.5, 0.84], show_titles=True, fig=fig,
-                                label_kwargs={'fontsize':20},
-                                title_kwargs={'fontsize':20},
-                                max_n_ticks=3)
+                labels = []
+                for name in results['param_names']:
+                    if name.startswith('f_gas_M'):
+                        mval = name.replace('f_gas_M', '')
+                        labels.append(fr'$f_{{\rm gas,{mval}}}$')
+                    elif name == 'f_igm':
+                        labels.append(r'$f_{\rm igm}$')
+                    elif name == 'sigma_fgas':
+                        labels.append(r'$\sigma_{f_{\rm gas}}$')
+                    else:
+                        labels.append(name)
 
-            # Insert a line break between the label and the value in each diagonal title
-            axes = np.array(fig.axes).reshape((ndim, ndim))
-            for i in range(ndim):
-                ax = axes[i, i]
-                title = ax.get_title()
-                if ' = ' in title:
-                    label_part, value_part = title.split(' = ', 1)
-                    ax.set_title(label_part + '\n$=' + value_part[1:], fontsize=20,pad=12)
+                ndim = len(labels)
+                fig = plt.figure(figsize=(2.2 * ndim, 2.2 * ndim))
+                fig = corner.corner(flat_samples, labels=labels,
+                                    quantiles=[0.16, 0.5, 0.84], show_titles=True, fig=fig,
+                                    label_kwargs={'fontsize':20},
+                                    title_kwargs={'fontsize':20},
+                                    max_n_ticks=3)
 
-            for ax in fig.axes:
-                ax.tick_params(axis='both', labelsize=13)
+                # Insert a line break between the label and the value in each diagonal title
+                axes = np.array(fig.axes).reshape((ndim, ndim))
+                for i in range(ndim):
+                    ax = axes[i, i]
+                    title = ax.get_title()
+                    if ' = ' in title:
+                        label_part, value_part = title.split(' = ', 1)
+                        ax.set_title(label_part + '\n$=' + value_part[1:], fontsize=20,pad=12)
 
-            fig.subplots_adjust(top=0.95, hspace=0.08, wspace=0.08)
+                for ax in fig.axes:
+                    ax.tick_params(axis='both', labelsize=13)
 
-        if mode not in ('mass', 'all'):
-            return 
-        
-        # --- Per-halo true vs modelled fgas ---
-        true_fgas = []
-        ips = []
-        masses = []
-        sl_index = []
+                fig.subplots_adjust(top=0.95, hspace=0.08, wspace=0.08)
 
-        for i, sl in enumerate(tqdm(base_sightlines,desc='Extracting truth values')):
-            mod_halos = sl.halo_info(with_compute=True, modelled=True, redshift=redshift, fgas=1.0)
-            true_halos = sl.halo_info(with_compute=True, redshift=redshift)
-            for key in true_halos.keys():
-                true_halo = true_halos[key]
-                mod_halo = mod_halos[key]
-                # if true_halo['ImpactParam'] is not None:
-                true_fgas.append(true_halo['Compute'] / mod_halo['Compute'])
-                ips.append(true_halo['ImpactParam'])
-                masses.append(np.log10(true_halo['TotalMass']))
-                sl_index.append(i)
+            if mode not in ('mass', 'all'):
+                return 
+            
+            # --- Per-halo true vs modelled fgas ---
+            true_fgas = []
+            ips = []
+            masses = []
+            sl_index = []
 
-        
-        masses = np.array(masses)
-        ips = np.array(ips)
-        true_fgas = np.array(true_fgas)
-        sl_index = np.array(sl_index)
+            for i, sl in enumerate(tqdm(base_sightlines,desc='Extracting truth values')):
+                mod_halos = sl.halo_info(with_compute=True, modelled=True, redshift=redshift, fgas=1.0)
+                true_halos = sl.halo_info(with_compute=True, redshift=redshift)
+                for key in true_halos.keys():
+                    true_halo = true_halos[key]
+                    mod_halo = mod_halos[key]
+                    # if true_halo['ImpactParam'] is not None:
+                    true_fgas.append(true_halo['Compute'] / mod_halo['Compute'])
+                    ips.append(true_halo['ImpactParam'])
+                    masses.append(np.log10(true_halo['TotalMass']))
+                    sl_index.append(i)
 
-        # --- Binned median + 16/84 percentile band of the truth (styled like reference image) ---
-        valid = np.isfinite(masses) & np.isfinite(true_fgas)
-        m_valid, f_valid = masses[valid], true_fgas[valid]
+            
+            masses = np.array(masses)
+            ips = np.array(ips)
+            true_fgas = np.array(true_fgas)
+            sl_index = np.array(sl_index)
 
-        bin_edges = np.linspace(9.5, 14, n_mass_bins + 1)
-        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-        bin_idx = np.digitize(m_valid, bin_edges) - 1
+            # --- Binned median + 16/84 percentile band of the truth (styled like reference image) ---
+            valid = np.isfinite(masses) & np.isfinite(true_fgas)
+            m_valid, f_valid = masses[valid], true_fgas[valid]
 
-        med_binned = np.full(n_mass_bins, np.nan)
-        lo_binned = np.full(n_mass_bins, np.nan)
-        hi_binned = np.full(n_mass_bins, np.nan)
-        for b in range(n_mass_bins):
-            vals_in_bin = f_valid[bin_idx == b]
-            if len(vals_in_bin) > 0:
-                med_binned[b] = np.median(vals_in_bin)
-                lo_binned[b] = np.percentile(vals_in_bin, 16)
-                hi_binned[b] = np.percentile(vals_in_bin, 84)
+            bin_edges = np.linspace(9.5, 14, n_mass_bins + 1)
+            bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+            bin_idx = np.digitize(m_valid, bin_edges) - 1
 
-        good = np.isfinite(med_binned)
+            med_binned = np.full(n_mass_bins, np.nan)
+            lo_binned = np.full(n_mass_bins, np.nan)
+            hi_binned = np.full(n_mass_bins, np.nan)
+            for b in range(n_mass_bins):
+                vals_in_bin = f_valid[bin_idx == b]
+                if len(vals_in_bin) > 0:
+                    med_binned[b] = np.median(vals_in_bin)
+                    lo_binned[b] = np.percentile(vals_in_bin, 16)
+                    hi_binned[b] = np.percentile(vals_in_bin, 84)
 
-        # --- Plot ---
-        plt.figure(figsize=(6,4))
-        plt.scatter(10**m_valid, f_valid, s=3, alpha=truth_alpha, color='gray', label='Simulation\nTruth')
-        plt.plot(10**bin_centers[good], med_binned[good], color='k', lw=2, label='Median',ls='--')
-        plt.fill_between(10**bin_centers[good], lo_binned[good], hi_binned[good],
-                        color='k', alpha=0.2, label='16-84%')
-        plt.plot(10**bin_centers[good], lo_binned[good], color='k', lw=1, ls='-')
-        plt.plot(10**bin_centers[good], hi_binned[good], color='k', lw=1, ls='-')
+            good = np.isfinite(med_binned)
 
-        sigma_fgas = np.nanmedian(samples_post_burnin[:, -2])
-        fit_anchors = np.nanmedian(samples_post_burnin, axis=0)[:-2]
+            # --- Plot ---
+            plt.figure(figsize=(6,4))
+            plt.scatter(10**m_valid, f_valid, s=3, alpha=truth_alpha, color='gray', label='Simulation\nTruth')
+            plt.plot(10**bin_centers[good], med_binned[good], color='k', lw=2, label='Median',ls='--')
+            plt.fill_between(10**bin_centers[good], lo_binned[good], hi_binned[good],
+                            color='k', alpha=0.2, label='16-84%')
+            plt.plot(10**bin_centers[good], lo_binned[good], color='k', lw=1, ls='-')
+            plt.plot(10**bin_centers[good], hi_binned[good], color='k', lw=1, ls='-')
 
-        if len(mass_anchors) > 1:
-            plt.errorbar(10**mass_anchors, fit_anchors,
-                        yerr=sigma_fgas*np.ones_like(fit_anchors),
-                        fmt='s-', color='crimson', capsize=3, label='Fit Values')
-        else:
+            sigma_fgas = np.nanmedian(samples_post_burnin[:, -2])
+            fit_anchors = np.nanmedian(samples_post_burnin, axis=0)[:-2]
 
-            plt.axhline(fit_anchors[0], color='crimson', ls='-', label='Fit Value',lw=2)
-            plt.axhspan(fit_anchors[0] - sigma_fgas, fit_anchors[0] + sigma_fgas,
-                        color='crimson', alpha=0.15, label=r'$\sigma_{f_{\rm gas}}$')
-            plt.axhline(fit_anchors[0] - sigma_fgas, color='crimson', ls='-',lw=0.3)
-            plt.axhline(fit_anchors[0] + sigma_fgas, color='crimson', ls='-',lw=0.3)
+            if len(mass_anchors) > 1:
+                plt.errorbar(10**mass_anchors, fit_anchors,
+                            yerr=sigma_fgas*np.ones_like(fit_anchors),
+                            fmt='s-', color=fit_colour, capsize=3, label='Fit Values')
+            else:
 
-        plt.xscale('log')
-        plt.ylabel(r'Halo $f_\text{gas}$',fontsize=15)
-        plt.xlabel(r'Halo $M_{200}$',fontsize=15)
-        
-        if xlims is not None:
-            plt.xlim(xlims[0],xlims[1])
-        if ylims is None:
-            plt.ylim(0, 1.25)
-        else:
-            plt.ylim(ylims[0],ylims[1])
+                plt.axhline(fit_anchors[0], color=fit_colour, ls='-', label='Fit Value',lw=2)
+                plt.axhspan(fit_anchors[0] - sigma_fgas, fit_anchors[0] + sigma_fgas,
+                            color=fit_colour, alpha=0.15, label=r'$\sigma_{f_{\rm gas}}$')
+                plt.axhline(fit_anchors[0] - sigma_fgas, color=fit_colour, ls='-',lw=0.3)
+                plt.axhline(fit_anchors[0] + sigma_fgas, color=fit_colour, ls='-',lw=0.3)
 
-        plt.legend()
-        plt.show()
+            plt.xscale('log')
+            plt.ylabel(r'Halo $f_\text{gas}$',fontsize=15)
+            plt.xlabel(r'Halo $M_{200}$',fontsize=15)
+            
+            if xlims is not None:
+                plt.xlim(xlims[0],xlims[1])
+            if ylims is None:
+                plt.ylim(0, 1.25)
+            else:
+                plt.ylim(ylims[0],ylims[1])
 
-        return
+            plt.legend()
+            plt.show()
+
+            return
