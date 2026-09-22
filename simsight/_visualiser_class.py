@@ -815,7 +815,7 @@ class VisualSim():
         valid = np.isfinite(masses) & np.isfinite(true_fgas)
         m_valid, f_valid = masses[valid], true_fgas[valid]
 
-        bin_edges = np.linspace(mass_anchors.min()-1, mass_anchors.max()+1, n_mass_bins + 1)
+        bin_edges = np.linspace(9.5, 14, n_mass_bins + 1)
         bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
         bin_idx = np.digitize(m_valid, bin_edges) - 1
 
@@ -834,9 +834,11 @@ class VisualSim():
         # --- Plot ---
         plt.figure(figsize=(6,4))
         plt.scatter(10**m_valid, f_valid, s=3, alpha=0.3, color='gray', label='Simulation\nTruth')
-        plt.plot(10**bin_centers[good], med_binned[good], color='red', lw=2, label='Median',ls='--')
+        plt.plot(10**bin_centers[good], med_binned[good], color='k', lw=2, label='Median',ls='--')
         plt.fill_between(10**bin_centers[good], lo_binned[good], hi_binned[good],
-                        color='red', alpha=0.2, label='16-84%')
+                        color='k', alpha=0.2, label='16-84%')
+        plt.plot(10**bin_centers[good], lo_binned[good], color='k', lw=1, ls='-')
+        plt.plot(10**bin_centers[good], hi_binned[good], color='k', lw=1, ls='-')
 
         sigma_fgas = np.nanmedian(samples_post_burnin[:, -2])
         fit_anchors = np.nanmedian(samples_post_burnin, axis=0)[:-2]
@@ -844,12 +846,14 @@ class VisualSim():
         if len(mass_anchors) > 1:
             plt.errorbar(10**mass_anchors, fit_anchors,
                         yerr=sigma_fgas*np.ones_like(fit_anchors),
-                        fmt='s-', color='k', capsize=3, label='Fit Values')
+                        fmt='s-', color='crimson', capsize=3, label='Fit Values')
         else:
 
-            plt.axhline(fit_anchors[0], color='k', ls='-', label='Fit Value')
+            plt.axhline(fit_anchors[0], color='crimson', ls='-', label='Fit Value',lw=2)
             plt.axhspan(fit_anchors[0] - sigma_fgas, fit_anchors[0] + sigma_fgas,
-                        color='k', alpha=0.15, label=r'$\sigma_{f_{\rm gas}}$')
+                        color='crimson', alpha=0.15, label=r'$\sigma_{f_{\rm gas}}$')
+            plt.axhline(fit_anchors[0] - sigma_fgas, color='crimson', ls='-',lw=0.3)
+            plt.axhline(fit_anchors[0] + sigma_fgas, color='crimson', ls='-',lw=0.3)
 
         plt.xscale('log')
         plt.ylabel(r'Halo $f_\text{gas}$',fontsize=15)
