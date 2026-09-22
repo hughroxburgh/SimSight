@@ -731,7 +731,8 @@ class VisualSim():
             plt.show()
 
 
-    def modelling_results(self, sightlines, results, redshift, filt=None, mode='all', n_mass_bins=25,xlims=None,ylims=None):
+    def modelling_results(self, sightlines, results, redshift, filt=None, mode='all', n_mass_bins=25,
+                          xlims=None,ylims=None,truth_alpha=0.3):
         import corner
 
         mass_anchors = np.asarray(results['anchor_logM'])  # already log10(M), based on naming
@@ -833,7 +834,7 @@ class VisualSim():
 
         # --- Plot ---
         plt.figure(figsize=(6,4))
-        plt.scatter(10**m_valid, f_valid, s=3, alpha=0.3, color='gray', label='Simulation\nTruth')
+        plt.scatter(10**m_valid, f_valid, s=3, alpha=truth_alpha, color='gray', label='Simulation\nTruth')
         plt.plot(10**bin_centers[good], med_binned[good], color='k', lw=2, label='Median',ls='--')
         plt.fill_between(10**bin_centers[good], lo_binned[good], hi_binned[good],
                         color='k', alpha=0.2, label='16-84%')
