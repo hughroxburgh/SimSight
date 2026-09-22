@@ -702,8 +702,8 @@ class Inference:
 
         # -- Extract theta -- #
         fgas_anchors = theta[:n_anchors]
-        f_igm = theta[n_anchors]
-        sigma_fgas = theta[n_anchors + 1]
+        sigma_fgas = theta[n_anchors]
+        f_igm = theta[n_anchors + 1]
 
         # -- Calculate fgas per halo from linear interpolation of fit anchors-- #
         fgas_per_halo = self.fgas_of_mass(halo_logM, anchor_logM, fgas_anchors)

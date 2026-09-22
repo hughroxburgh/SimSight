@@ -730,198 +730,139 @@ class VisualSim():
             ax.legend(handles=legend_handles if legend_handles else None)
             plt.show()
 
+
+    def modelling_results(self, sightlines, results, redshift, filt=None, mode='all', n_mass_bins=25,xlims=None,ylims=None):
+        import corner
+
+        mass_anchors = np.asarray(results['anchor_logM'])  # already log10(M), based on naming
+        z_val = results['z_val']
+
+        # -- Apply initial filter -- #
+        if filt is not None:
+            base_mask = self.parent.filter_sightlines(sightlines, redshift=z_val, **filt)
+            base_sightlines = sightlines[base_mask]
+        else:
+            base_sightlines = sightlines
+
+        flat_samples = results['sampler'].get_chain(discard=500, thin=10, flat=True)
+        samples_post_burnin = flat_samples[500:]
+
+        # --- Corner plot of posterior ---
+        if mode in ('corner', 'all'):
+
+            labels = []
+            for name in results['param_names']:
+                if name.startswith('f_gas_M'):
+                    mval = name.replace('f_gas_M', '')
+                    labels.append(fr'$f_{{\rm gas,{mval}}}$')
+                elif name == 'f_igm':
+                    labels.append(r'$f_{\rm igm}$')
+                elif name == 'sigma_fgas':
+                    labels.append(r'$\sigma_{f_{\rm gas}}$')
+                else:
+                    labels.append(name)
+
+            ndim = len(labels)
+            fig = plt.figure(figsize=(2.2 * ndim, 2.2 * ndim))
+            fig = corner.corner(flat_samples, labels=labels,
+                                quantiles=[0.16, 0.5, 0.84], show_titles=True, fig=fig,
+                                label_kwargs={'fontsize':20},
+                                title_kwargs={'fontsize':20},
+                                max_n_ticks=3)
+
+            # Insert a line break between the label and the value in each diagonal title
+            axes = np.array(fig.axes).reshape((ndim, ndim))
+            for i in range(ndim):
+                ax = axes[i, i]
+                title = ax.get_title()
+                if ' = ' in title:
+                    label_part, value_part = title.split(' = ', 1)
+                    ax.set_title(label_part + '\n$=' + value_part[1:], fontsize=20,pad=12)
+
+            for ax in fig.axes:
+                ax.tick_params(axis='both', labelsize=13)
+
+            fig.subplots_adjust(top=0.95, hspace=0.08, wspace=0.08)
+
+        if mode not in ('mass', 'all'):
+            return 
         
+        # --- Per-halo true vs modelled fgas ---
+        true_fgas = []
+        ips = []
+        masses = []
+        sl_index = []
 
-
+        for i, sl in enumerate(tqdm(base_sightlines,desc='Extracting truth values')):
+            mod_halos = sl.halo_info(with_compute=True, modelled=True, redshift=redshift, fgas=1.0)
+            true_halos = sl.halo_info(with_compute=True, redshift=redshift)
+            for key in true_halos.keys():
+                true_halo = true_halos[key]
+                mod_halo = mod_halos[key]
+                # if true_halo['ImpactParam'] is not None:
+                true_fgas.append(true_halo['Compute'] / mod_halo['Compute'])
+                ips.append(true_halo['ImpactParam'])
+                masses.append(np.log10(true_halo['TotalMass']))
+                sl_index.append(i)
 
         
-    # def distribution(self,sightlines,functype='DM',cutoff=98,bins=100,redshift=None,xlims=None,gif_path=None,environment='Total',data='truth'):
+        masses = np.array(masses)
+        ips = np.array(ips)
+        true_fgas = np.array(true_fgas)
+        sl_index = np.array(sl_index)
 
-    #     colours = {'Total':_Get_Colours(3,self.dark_mode)[0],'CGM':_Get_Colours(3,self.dark_mode)[1],'IGM':_Get_Colours(3,self.dark_mode)[2]}
+        # --- Binned median + 16/84 percentile band of the truth (styled like reference image) ---
+        valid = np.isfinite(masses) & np.isfinite(true_fgas)
+        m_valid, f_valid = masses[valid], true_fgas[valid]
 
-    #     max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment=environment,modelled= 'model' in data )
-    #     redshift_input = np.atleast_1d(redshift if redshift is not None else max_redshift)
-    #     redshifts = [z for z in redshift_input if z <= max_redshift]
-    #     if max(redshift_input) > max_redshift:
-    #         redshifts.append(max_redshift)
+        bin_edges = np.linspace(mass_anchors.min()-1, mass_anchors.max()+1, n_mass_bins + 1)
+        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+        bin_idx = np.digitize(m_valid, bin_edges) - 1
 
-    #     all_vals = []
-    #     data_source = []
-    #     if 'truth' in data:
-    #         vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled=False) for sl in tqdm(sightlines,desc=f'Getting Truth {environment} Compute')])
-    #         all_vals.append(vals)
-    #         data_source.append('Truth')
-    #     if 'model' in data:
-    #         vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment,modelled=True) for sl in tqdm(sightlines,desc=f'Getting Modelled {environment} Compute')])
-    #         all_vals.append(vals)
-    #         data_source.append('Model')
+        med_binned = np.full(n_mass_bins, np.nan)
+        lo_binned = np.full(n_mass_bins, np.nan)
+        hi_binned = np.full(n_mass_bins, np.nan)
+        for b in range(n_mass_bins):
+            vals_in_bin = f_valid[bin_idx == b]
+            if len(vals_in_bin) > 0:
+                med_binned[b] = np.median(vals_in_bin)
+                lo_binned[b] = np.percentile(vals_in_bin, 16)
+                hi_binned[b] = np.percentile(vals_in_bin, 84)
+
+        good = np.isfinite(med_binned)
+
+        # --- Plot ---
+        plt.figure(figsize=(6,4))
+        plt.scatter(10**m_valid, f_valid, s=3, alpha=0.3, color='gray', label='Simulation\nTruth')
+        plt.plot(10**bin_centers[good], med_binned[good], color='red', lw=2, label='Median',ls='--')
+        plt.fill_between(10**bin_centers[good], lo_binned[good], hi_binned[good],
+                        color='red', alpha=0.2, label='16-84%')
+
+        sigma_fgas = np.nanmedian(samples_post_burnin[:, -1])
+        fit_anchors = np.nanmedian(samples_post_burnin, axis=0)[:-2]
+
+        if len(mass_anchors) > 1:
+            plt.errorbar(10**mass_anchors, fit_anchors,
+                        yerr=sigma_fgas*np.ones_like(fit_anchors),
+                        fmt='s-', color='k', capsize=3, label='Fit Values')
+        else:
+
+            plt.axhline(fit_anchors[0], color='k', ls='-', label='Fit Value')
+            plt.axhspan(fit_anchors[0] - sigma_fgas, fit_anchors[0] + sigma_fgas,
+                        color='k', alpha=0.15, label=r'$\sigma_{f_{\rm gas}}$')
+
+        plt.xscale('log')
+        plt.ylabel(r'Halo $f_\text{gas}$',fontsize=15)
+        plt.xlabel(r'Halo $M_{200}$',fontsize=15)
         
-    #     frames = []
-    #     for i in tqdm(range(len(redshifts))):
-    #         z = redshifts[i]
+        if xlims is not None:
+            plt.xlim(xlims[0],xlims[1])
+        if ylims is None:
+            plt.ylim(0, 1.25)
+        else:
+            plt.ylim(ylims[0],ylims[1])
 
-    #         with self._style():
+        plt.legend()
+        plt.show()
 
-    #             fig,ax = plt.subplots()
-    #             ax.set_title(f'{self.sim.name} {environment} {functype} Distribution to z = {z:.2g}')
-    #             ax.set_xlabel(functype)
-    #             ax.set_ylabel('Probability Density')
-    #             for j in range(len(all_vals)):
-    #                 vs = all_vals[j][:,i]
-    #                 maxval = np.percentile(vs, cutoff)
-    #                 ax.hist(vs[vs<maxval],bins=bins,density=True,label=data_source[j],color=colours[environment])
-                    
-    #             ax.legend()
-
-    #             if xlims is not None:
-    #                 ax.set_xlim(xlims[0],xlims[1])
-
-    #             if gif_path is not None:
-                    
-
-    #                 buf = io.BytesIO()
-    #                 fig.savefig(buf, format='png', dpi=100)
-    #                 buf.seek(0)
-    #                 frames.append(imageio.imread(buf))
-    #                 buf.close()
-    #                 plt.close(fig)
-    #             else:
-    #                 plt.show()
-        
-    #     if gif_path is not None:
-    #         # fps = 4
-    #         # duration=1000 * 1/fps
-    #         imageio.mimsave(f'{gif_path}/{functype}_distribution.gif', frames, duration=5000/len(frames))
-
-    # def cumulutive_stats(self,sightlines,stat='mean',functype='DM',bins=10,redshift=None,yscale='linear',environment='Total',data='truth'):
-
-    #     colours = {'Total':_Get_Colours(3,self.dark_mode)[0],'CGM':_Get_Colours(3,self.dark_mode)[1],'IGM':_Get_Colours(3,self.dark_mode)[2]}
-    #     if environment == 'separate':
-    #         environments = ['Total','CGM','IGM']
-    #         check_env = 'CGM'
-    #     else:
-    #         environments = [environment]
-    #         check_env = environment
-
-    #     truth = 'truth' in data
-    #     modelled = 'model' in data
-
-    #     stat_map = {'mean': {'func':np.nanmean, 'name': 'Mean'},
-    #                     'std' : {'func':np.nanstd, 'name': 'Standard Deviation'}}
-
-    #     with self._style():
-
-    #         fig,ax = plt.subplots()
-    #         ax.set_xlabel('Redshift')
-    #         ax.set_ylabel(f'Cumulutive {stat_map[stat]["name"]} {functype}')
-    #         ax.set_title(f'{self.sim.name} {stat_map[stat]["name"]} {functype}')
-    #         if yscale == 'log':
-    #             ax.set_yscale('log')
-
-    #         legend_handles = []
-    #         for env in environments:
-    #             legend_handles.append(Line2D([0], [0], color=colours[env], marker='x', linestyle='none', label=env))
-
-    #         if truth:            
-    #             redshift = np.nanmin([sightlines[0].redshift_reached(self.sim.cosmo, environment=check_env), np.nan if redshift is None else redshift])
-    #             redshifts = np.linspace(0,redshift,bins)
-                
-    #             for env in environments:
-    #                 vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=False) for sl in tqdm(sightlines,desc=f'Getting Truth {env} Compute')])
-
-    #                 func = stat_map[stat]['func']
-
-    #                 stats = func(vals,axis=0)
-
-    #                 ax.plot(redshifts,stats,'x-',color=colours[env])
-
-    #             legend_handles.append(Line2D([0], [0], color='black' if not self.dark_mode else 'white', linestyle='-',  label='Truth'))
-            
-    #         if modelled:
-    #             redshift = np.nanmin([sightlines[0].redshift_reached(self.sim.cosmo, environment=check_env,modelled=True), np.nan if redshift is None else redshift])
-    #             redshifts = np.linspace(0,redshift,bins)
-                
-    #             for env in environments:
-    #                 vals = np.array([sl.extract_compute(self.sim.cosmo,redshifts,env,modelled=True) for sl in tqdm(sightlines,desc=f'Getting Mdelled {env} Compute')])
-
-    #                 func = stat_map[stat]['func']
-
-    #                 stats = func(vals,axis=0)
-
-    #                 ax.plot(redshifts,stats,'x--',color=colours[env])
-
-    #             legend_handles.append(Line2D([0], [0], color='black' if not self.dark_mode else 'white', linestyle='--', label='Model'))
-
-    #         ax.legend(handles=legend_handles)
-
-    #         plt.show()
-
-    
-    # def halo_partition(self,sightlines,functype='DM',cutoff=98,redshift=None,plottype='hist',gif_path=None,modelled=False):
-
-    #     max_redshift = sightlines[0].redshift_reached(self.sim.cosmo, environment='IGM',modelled=modelled)
-    #     redshift_input = np.atleast_1d(redshift if redshift is not None else max_redshift)
-    #     redshifts = [z for z in redshift_input if z <= max_redshift]
-    #     if max(redshift_input) > max_redshift:
-    #         redshifts.append(max_redshift)
-
-    #     colours = {'CGM':_Get_Colours(3,self.dark_mode)[1],'IGM':_Get_Colours(3,self.dark_mode)[2]}
-
-
-    #     data_source = 'truth' if not modelled else 'modelled'
-    #     dms_cgm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='CGM',modelled=modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} CGM compute')])
-    #     dms_igm = np.array([sl.extract_compute(self.sim.cosmo,redshifts,environment='IGM',modelled=modelled) for sl in tqdm(sightlines,desc=f'Getting {data_source.capitalize()} IGM compute')])
-
-    #     order = np.argsort(dms_cgm[:, -1]+dms_igm[:, -1])
-
-    #     maxval = np.percentile(dms_cgm[:, -1]+dms_igm[:, -1], cutoff)
-
-    #     frames = []
-    #     for i in tqdm(range(len(redshifts))):
-    #         z = redshifts[i]
-    #         # dm_tot = dms_tot[:,i]
-    #         dm_cgm = dms_cgm[:,i]
-    #         dm_igm = dms_igm[:,i]
-
-    #         dm_tot = dm_cgm + dm_igm
-
-    #         with self._style():
-    #             if plottype == 'hist':
-    #                 x = np.arange(len(dm_tot))
-
-    #                 fig, ax = plt.subplots()
-    #                 ax.fill_between(x, 0, dm_igm[order], label='IGM',color=colours['IGM'])
-    #                 ax.fill_between(x, dm_igm[order], dm_igm[order] + dm_cgm[order], label='CGM',color=colours['CGM'])
-
-    #                 ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
-    #                 ax.set_xlabel('Sightlines')
-    #                 ax.set_ylabel(f'{functype}')
-    #                 ax.set_ylim(0, maxval)
-    #                 ax.legend()
-
-    #             elif plottype == 'scatter':
-    #                 frac_cgm = dm_cgm / dm_tot
-    #                 frac_igm = dm_igm / dm_tot
-
-    #                 fig, ax = plt.subplots()
-    #                 ax.scatter(dm_tot, frac_igm, s=10, alpha=0.6, label='IGM fraction',c=colours['IGM'])
-    #                 ax.scatter(dm_tot, frac_cgm, s=10, alpha=0.6, label='CGM fraction',c=colours['CGM'])
-
-    #                 ax.set_title(f'{self.sim.name} {functype} Partition to z = {z:.2g}')
-    #                 ax.set_xlabel(f'Total {functype}')
-    #                 ax.set_ylabel(f'Fractional {functype} Contribution')
-    #                 ax.legend()
-
-    #             if gif_path is not None:
-
-    #                 buf = io.BytesIO()
-    #                 fig.savefig(buf, format='png', dpi=100)
-    #                 buf.seek(0)
-    #                 frames.append(imageio.imread(buf))
-    #                 buf.close()
-    #                 plt.close(fig)
-    #             else:
-    #                 plt.show()
-        
-    #     if gif_path is not None:
-    #         imageio.mimsave(f'{gif_path}/{functype}_partition.gif', frames, duration=5000/len(frames))
+        return

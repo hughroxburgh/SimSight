@@ -1161,9 +1161,9 @@ class SightlineSim():
         print('\n')
 
         # -- Prior range and initial guesses per variable -- #
-        priors = {f'f_gas_M{m:.2f}': fgas_prior for m in anchor_logM}
-        priors['f_igm'] = figm_prior
+        priors = {fr'f_gas_M{m:.2f}': fgas_prior for m in anchor_logM}
         priors['sigma_fgas'] = (0.01, 0.5)
+        priors['f_igm'] = figm_prior
 
         param_names = list(priors.keys())
         ndim = len(param_names)
@@ -1180,7 +1180,6 @@ class SightlineSim():
         for j, (lo, hi) in enumerate(priors.values()):
             pos[:, j] = np.clip(pos[:, j], lo + 1e-6, hi - 1e-6)
 
-        
         print('Running emcee')
 
         sampler = emcee.EnsembleSampler(
