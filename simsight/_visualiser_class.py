@@ -838,7 +838,7 @@ class VisualSim():
         plt.fill_between(10**bin_centers[good], lo_binned[good], hi_binned[good],
                         color='red', alpha=0.2, label='16-84%')
 
-        sigma_fgas = np.nanmedian(samples_post_burnin[:, -1])
+        sigma_fgas = np.nanmedian(samples_post_burnin[:, -2])
         fit_anchors = np.nanmedian(samples_post_burnin, axis=0)[:-2]
 
         if len(mass_anchors) > 1:
