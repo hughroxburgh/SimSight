@@ -701,19 +701,21 @@ class Inference:
         n_anchors = len(anchor_logM)
 
         # -- Extract theta -- #
-        fgas_anchors = theta[:n_anchors]
-        sigma_fgas = theta[n_anchors]
-        f_igm = theta[n_anchors + 1]
+        fgas_anchors = theta[:max(n_anchors, 1)]  # single value if no anchors
+        sigma_fgas = theta[max(n_anchors, 1)]
+        f_igm = theta[max(n_anchors, 1) + 1]
 
-        # -- Calculate fgas per halo from linear interpolation of fit anchors-- #
-        fgas_per_halo = self.fgas_of_mass(halo_logM, anchor_logM, fgas_anchors)
+        # -- Calculate fgas per halo -- #
+        if n_anchors == 0:
+            fgas_per_halo = np.full_like(halo_logM, fgas_anchors[0], dtype=float)
+        else:
+            fgas_per_halo = self.fgas_of_mass(halo_logM, anchor_logM, fgas_anchors)
 
         # -- Build model DM value -- #
         dm_halo_total = np.zeros(n_sightlines)
-        np.add.at(dm_halo_total,sl_index,fgas_per_halo * dm_halo_unit)
+        np.add.at(dm_halo_total, sl_index, fgas_per_halo * dm_halo_unit)
         model_dm = dm_halo_total + f_igm * dm_igm_unit
 
-        # -- per halo fgas sigma is set by population wide "sigma_fgas" and weights "halo_unit_rss" -- #
         sigma_dm_fgas = sigma_fgas * halo_unit_rss
 
         if mode == 'log':

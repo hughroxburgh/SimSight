@@ -1097,18 +1097,21 @@ class SightlineSim():
 
     #     return results if sweeping else results[0]
 
-    def run_mcmc(self, sightlines, redshift, mass_anchors, nwalkers=32, nsteps=4000,
+    def run_mcmc(self, sightlines, redshift, mass_anchors=None, nwalkers=32, nsteps=4000,
             initial_guess=None, seed=None, fgas_prior=(0.0, 1.0),
-            figm_prior=(0.0, 1.0), filt=None,mode='log'):
+            figm_prior=(0.0, 1.0), filt=None, mode='log'):
 
         import emcee
         from ._inference_class import Inference
 
-        z_val = redshift #np.atleast_1d(redshift)
-                            # if len(z_val) > 1:
-                            #     raise ValueError("run_mcmc currently supports a single redshift only.")
+        z_val = redshift
 
-        anchor_logM = np.log10(np.atleast_1d(mass_anchors))     # mass anchors for the mean fgas(M) line
+        single_fgas = mass_anchors is None
+
+        if single_fgas:
+            anchor_logM = np.array([])  # no anchors -> single flat f_gas
+        else:
+            anchor_logM = np.log10(np.atleast_1d(mass_anchors))
 
         # -- Apply initial filter -- #
         if filt is not None:
@@ -1127,11 +1130,11 @@ class SightlineSim():
         print('Extracting Model and Truth DM')
 
         # -- Build halo information -- #
-        halo_logM, dm_halo_unit, sl_index = inference.build_halo_arrays(      # length of each array is nhalos traversed by all sightlines
+        halo_logM, dm_halo_unit, sl_index = inference.build_halo_arrays(
             base_sightlines, z_val
         )
 
-        # -- Pre compute the per-sightline weights : w_i = sqrt(sum_j(u_j**2))  where u_j are the unit halo DMs per halo j in sightline i -- #
+        # -- Pre compute the per-sightline weights -- #
         halo_unit_sq_total = np.zeros(n_sightlines)
         np.add.at(halo_unit_sq_total, sl_index, dm_halo_unit**2)
         halo_unit_rss = np.sqrt(halo_unit_sq_total)
@@ -1153,15 +1156,15 @@ class SightlineSim():
         print('\n')
         print('Generating Sigmas')
 
-        # -- Build a sigma for the igm term by comparing the model to the truth -- #
         sigma_igm = inference.build_sigma_igm(base_sightlines, self.sim.cosmo, z_val, mode)
-                # sigma_halo = inference.build_sigma_halo(base_sightlines, self.sim.cosmo, z_val, mode)
-                # sigma = np.sqrt(sigma_igm**2 + sigma_halo**2)
         sigma = sigma_igm
         print('\n')
 
         # -- Prior range and initial guesses per variable -- #
-        priors = {fr'f_gas_M{m:.2f}': fgas_prior for m in anchor_logM}
+        if single_fgas:
+            priors = {'f_gas': fgas_prior}
+        else:
+            priors = {fr'f_gas_M{m:.2f}': fgas_prior for m in anchor_logM}
         priors['sigma_fgas'] = (0.01, 0.5)
         priors['f_igm'] = figm_prior
 
@@ -1185,7 +1188,7 @@ class SightlineSim():
         sampler = emcee.EnsembleSampler(
             nwalkers_eff, ndim, inference.log_probability,
             args=(anchor_logM, halo_logM, dm_halo_unit, sl_index, n_sightlines,
-                dm_igm_unit, dm_total_true, sigma, halo_unit_rss, priors,mode)
+                dm_igm_unit, dm_total_true, sigma, halo_unit_rss, priors, mode)
         )
         sampler.run_mcmc(pos, nsteps, progress=True)
 
