@@ -1099,7 +1099,7 @@ class SightlineSim():
 
     def run_mcmc(self, sightlines, redshift, mass_anchors=None, nwalkers=32, nsteps=4000,
             initial_guess=None, seed=None, fgas_prior=(0.0, 1.0),
-            figm_prior=(0.0, 1.0), filt=None, mode='log'):
+            figm_prior=(0.0, 1.0), filt=None, mode='log', sigma_fgas_mode='global'):
 
         import emcee
         from ._inference_class import Inference
@@ -1112,6 +1112,11 @@ class SightlineSim():
             anchor_logM = np.array([])  # no anchors -> single flat f_gas
         else:
             anchor_logM = np.log10(np.atleast_1d(mass_anchors))
+
+        if sigma_fgas_mode not in ('global', 'mass'):
+            raise ValueError("sigma_fgas_mode must be 'global' or 'mass'.")
+        if sigma_fgas_mode == 'mass' and single_fgas:
+            raise ValueError("sigma_fgas_mode='mass' requires mass_anchors.")
 
         # -- Apply initial filter -- #
         if filt is not None:
@@ -1165,7 +1170,11 @@ class SightlineSim():
             priors = {'f_gas': fgas_prior}
         else:
             priors = {fr'f_gas_M{m:.2f}': fgas_prior for m in anchor_logM}
-        priors['sigma_fgas'] = (0.01, 0.5)
+        if sigma_fgas_mode == 'mass':
+            for m in anchor_logM:
+                priors[fr'sigma_fgas_M{m:.2f}'] = (0.01, 0.5)
+        else:
+            priors['sigma_fgas'] = (0.01, 0.5)
         priors['f_igm'] = figm_prior
 
         param_names = list(priors.keys())
@@ -1188,7 +1197,7 @@ class SightlineSim():
         sampler = emcee.EnsembleSampler(
             nwalkers_eff, ndim, inference.log_probability,
             args=(anchor_logM, halo_logM, dm_halo_unit, sl_index, n_sightlines,
-                dm_igm_unit, dm_total_true, sigma, halo_unit_rss, priors, mode)
+                dm_igm_unit, dm_total_true, sigma, halo_unit_rss, priors, mode, sigma_fgas_mode)
         )
         sampler.run_mcmc(pos, nsteps, progress=True)
 
@@ -1198,4 +1207,5 @@ class SightlineSim():
             'anchor_logM': anchor_logM,
             'z_val': z_val,
             'n_selected': n_sightlines,
+            'sigma_fgas_mode': sigma_fgas_mode,
         }

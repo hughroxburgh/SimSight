@@ -628,6 +628,15 @@ class Inference:
         return np.clip(vals, 0.0, 1.0)
 
 
+    def sigma_fgas_of_mass(self, logM, anchor_logM, sigma_anchors):
+        """
+        Piecewise-linear sigma_fgas(M) through free anchor values, held constant
+        beyond the outermost anchors (linear extrapolation of a scatter parameter
+        is unstable given how many halos sit below the lowest anchor).
+        """
+        return np.interp(logM, anchor_logM, sigma_anchors)
+
+
     def build_sigma_igm(self, sightlines, cosmo, redshift, mode='log', dm_floor=1e-4):
         z_val = np.atleast_1d(redshift)
         dm_igm_true = np.array([
@@ -696,14 +705,19 @@ class Inference:
 
     def log_likelihood(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
                     n_sightlines, dm_igm_unit, y_true, sigma,
-                    halo_unit_rss, mode='log', dm_floor=1e-4):
+                    halo_unit_rss, mode='log', dm_floor=1e-4, sigma_fgas_mode='global'):
 
         n_anchors = len(anchor_logM)
+        n_fgas = max(n_anchors, 1)  # single value if no anchors
 
         # -- Extract theta -- #
-        fgas_anchors = theta[:max(n_anchors, 1)]  # single value if no anchors
-        sigma_fgas = theta[max(n_anchors, 1)]
-        f_igm = theta[max(n_anchors, 1) + 1]
+        fgas_anchors = theta[:n_fgas]
+        if sigma_fgas_mode == 'mass':
+            sigma_anchors = theta[n_fgas:2 * n_fgas]
+            f_igm = theta[2 * n_fgas]
+        else:
+            sigma_fgas = theta[n_fgas]
+            f_igm = theta[n_fgas + 1]
 
         # -- Calculate fgas per halo -- #
         if n_anchors == 0:
@@ -716,7 +730,14 @@ class Inference:
         np.add.at(dm_halo_total, sl_index, fgas_per_halo * dm_halo_unit)
         model_dm = dm_halo_total + f_igm * dm_igm_unit
 
-        sigma_dm_fgas = sigma_fgas * halo_unit_rss
+        # -- Per-sightline DM scatter from intrinsic f_gas scatter, halos added in quadrature -- #
+        if sigma_fgas_mode == 'mass':
+            sigma_per_halo = self.sigma_fgas_of_mass(halo_logM, anchor_logM, sigma_anchors)
+            var_dm_fgas = np.bincount(sl_index, weights=(sigma_per_halo * dm_halo_unit)**2,
+                                      minlength=n_sightlines)
+            sigma_dm_fgas = np.sqrt(var_dm_fgas)
+        else:
+            sigma_dm_fgas = sigma_fgas * halo_unit_rss
 
         if mode == 'log':
             model_dm = np.maximum(model_dm, dm_floor)
@@ -741,9 +762,11 @@ class Inference:
         return 0.0
 
     def log_probability(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
-                         n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, priors,mode):
+                         n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, priors,mode,
+                         sigma_fgas_mode='global'):
         lp = self.log_prior(theta, priors)
         if not np.isfinite(lp):
             return -np.inf
         return lp + self.log_likelihood(theta, anchor_logM, halo_logM, dm_halo_unit,
-                                         sl_index, n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, mode)
+                                         sl_index, n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, mode,
+                                         sigma_fgas_mode=sigma_fgas_mode)
