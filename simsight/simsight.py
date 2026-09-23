@@ -1208,4 +1208,6 @@ class SightlineSim():
             'z_val': z_val,
             'n_selected': n_sightlines,
             'sigma_fgas_mode': sigma_fgas_mode,
+            'sigma_igm': sigma,
+            'mode': mode,
         }

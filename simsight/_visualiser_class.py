@@ -790,18 +790,23 @@ class VisualSim():
 
                 fig.subplots_adjust(top=0.95, hspace=0.08, wspace=0.08)
 
-            if mode not in ('mass', 'all'):
-                return 
-            
+            if mode not in ('mass', 'sigma', 'all'):
+                return
+
             # --- Per-halo true vs modelled fgas ---
             true_fgas = []
             ips = []
             masses = []
             sl_index = []
+            dm_unit = []
+            dm_total = np.full(len(base_sightlines), np.nan)
 
             for i, sl in enumerate(tqdm(base_sightlines,desc='Extracting truth values')):
                 mod_halos = sl.halo_info(with_compute=True, modelled=True, redshift=redshift, fgas=1.0)
                 true_halos = sl.halo_info(with_compute=True, redshift=redshift)
+                if mode in ('sigma', 'all'):
+                    dm_total[i] = sl.extract_compute(self.sim.cosmo, redshift=redshift,
+                                                     environment='Total', modelled=False)
                 for key in true_halos.keys():
                     true_halo = true_halos[key]
                     mod_halo = mod_halos[key]
@@ -810,12 +815,14 @@ class VisualSim():
                     ips.append(true_halo['ImpactParam'])
                     masses.append(np.log10(true_halo['TotalMass']))
                     sl_index.append(i)
+                    dm_unit.append(mod_halo['Compute'])
 
-            
+
             masses = np.array(masses)
             ips = np.array(ips)
             true_fgas = np.array(true_fgas)
             sl_index = np.array(sl_index)
+            dm_unit = np.array(dm_unit)
 
             # --- Binned median + 16/84 percentile band of the truth (styled like reference image) ---
             valid = np.isfinite(masses) & np.isfinite(true_fgas)
@@ -837,45 +844,114 @@ class VisualSim():
 
             good = np.isfinite(med_binned)
 
-            # --- Plot ---
-            plt.figure(figsize=(6,4))
-            plt.scatter(10**m_valid, f_valid, s=3, alpha=truth_alpha, color='gray', label='Simulation\nTruth')
-            plt.plot(10**bin_centers[good], med_binned[good], color='k', lw=2, label='Median',ls='--')
-            plt.fill_between(10**bin_centers[good], lo_binned[good], hi_binned[good],
-                            color='k', alpha=0.2, label='16-84%')
-            plt.plot(10**bin_centers[good], lo_binned[good], color='k', lw=1, ls='-')
-            plt.plot(10**bin_centers[good], hi_binned[good], color='k', lw=1, ls='-')
-
             # -- Select by name: layout differs between sigma_fgas_mode='global' and 'mass' -- #
             names = results['param_names']
             post_median = np.nanmedian(samples_post_burnin, axis=0)
             fit_anchors = post_median[[i for i, n in enumerate(names) if n.startswith('f_gas')]]
-            sigma_fgas = post_median[[i for i, n in enumerate(names) if n.startswith('sigma_fgas')]]
+            sigma_idx = [i for i, n in enumerate(names) if n.startswith('sigma_fgas')]
+            sigma_fgas = post_median[sigma_idx]
 
-            if len(mass_anchors) > 1:
-                plt.errorbar(10**mass_anchors, fit_anchors,
-                            yerr=sigma_fgas*np.ones_like(fit_anchors),
-                            fmt='s-', color=fit_colour, capsize=3, label='Fit Values')
-            else:
-                sigma_fgas = sigma_fgas[0]
-                plt.axhline(fit_anchors[0], color=fit_colour, ls='-', label='Fit Value',lw=2)
-                plt.axhspan(fit_anchors[0] - sigma_fgas, fit_anchors[0] + sigma_fgas,
-                            color=fit_colour, alpha=0.15, label=r'$\sigma_{f_{\rm gas}}$')
-                plt.axhline(fit_anchors[0] - sigma_fgas, color=fit_colour, ls='-',lw=0.3)
-                plt.axhline(fit_anchors[0] + sigma_fgas, color=fit_colour, ls='-',lw=0.3)
+            # --- Plot ---
+            if mode in ('mass', 'all'):
+                plt.figure(figsize=(6,4))
+                plt.scatter(10**m_valid, f_valid, s=3, alpha=truth_alpha, color='gray', label='Simulation\nTruth')
+                plt.plot(10**bin_centers[good], med_binned[good], color='k', lw=2, label='Median',ls='--')
+                plt.fill_between(10**bin_centers[good], lo_binned[good], hi_binned[good],
+                                color='k', alpha=0.2, label='16-84%')
+                plt.plot(10**bin_centers[good], lo_binned[good], color='k', lw=1, ls='-')
+                plt.plot(10**bin_centers[good], hi_binned[good], color='k', lw=1, ls='-')
 
-            plt.xscale('log')
-            plt.ylabel(r'Halo $f_\text{gas}$',fontsize=15)
-            plt.xlabel(r'Halo $M_{200}$',fontsize=15)
-            
-            if xlims is not None:
-                plt.xlim(xlims[0],xlims[1])
-            if ylims is None:
-                plt.ylim(0, 1.25)
-            else:
-                plt.ylim(ylims[0],ylims[1])
+                if len(mass_anchors) > 1:
+                    plt.errorbar(10**mass_anchors, fit_anchors,
+                                yerr=sigma_fgas*np.ones_like(fit_anchors),
+                                fmt='s-', color=fit_colour, capsize=3, label='Fit Values')
+                else:
+                    sig0 = sigma_fgas[0]
+                    plt.axhline(fit_anchors[0], color=fit_colour, ls='-', label='Fit Value',lw=2)
+                    plt.axhspan(fit_anchors[0] - sig0, fit_anchors[0] + sig0,
+                                color=fit_colour, alpha=0.15, label=r'$\sigma_{f_{\rm gas}}$')
+                    plt.axhline(fit_anchors[0] - sig0, color=fit_colour, ls='-',lw=0.3)
+                    plt.axhline(fit_anchors[0] + sig0, color=fit_colour, ls='-',lw=0.3)
 
-            plt.legend()
-            plt.show()
+                plt.xscale('log')
+                plt.ylabel(r'Halo $f_\text{gas}$',fontsize=15)
+                plt.xlabel(r'Halo $M_{200}$',fontsize=15)
+
+                if xlims is not None:
+                    plt.xlim(xlims[0],xlims[1])
+                if ylims is None:
+                    plt.ylim(0, 1.25)
+                else:
+                    plt.ylim(ylims[0],ylims[1])
+
+                plt.legend()
+                plt.show()
+
+            # --- Intrinsic scatter: truth widths vs fitted sigma_fgas(M) --- #
+            if mode in ('sigma', 'all'):
+                from scipy.interpolate import interp1d
+
+                # Fitted mean relation and scatter at each crossing, evaluated as in the likelihood
+                if len(mass_anchors) > 1:
+                    fgas_fit = np.clip(interp1d(mass_anchors, fit_anchors, kind='linear',
+                                                fill_value='extrapolate', assume_sorted=True)(masses), 0.0, 1.0)
+                else:
+                    fgas_fit = np.full_like(masses, fit_anchors[0])
+                if len(sigma_fgas) > 1:
+                    sigma_h = np.interp(masses, mass_anchors, sigma_fgas)
+                else:
+                    sigma_h = np.full_like(masses, sigma_fgas[0])
+
+                delta = true_fgas - fgas_fit
+                ok = np.isfinite(delta) & np.isfinite(masses) & (dm_unit > 0)
+
+                # Fisher weight of each crossing for sigma^2: w = u^4 / v^2, with v the sightline's
+                # total DM-space variance (IGM noise + all halos' intrinsic scatter)
+                sigma_igm = results.get('sigma_igm')
+                if sigma_igm is not None:
+                    if results.get('mode', 'log') == 'log':
+                        s_dm = sigma_igm * np.log(10) * dm_total
+                    else:
+                        s_dm = np.full_like(dm_total, sigma_igm)
+                    halo_var = np.bincount(sl_index[ok], weights=(sigma_h[ok] * dm_unit[ok])**2,
+                                           minlength=len(base_sightlines))
+                    w = dm_unit**4 / (s_dm**2 + halo_var)[sl_index]**2
+                else:
+                    print("results has no 'sigma_igm' (older run_mcmc output); skipping weighted width.")
+
+                b_idx = np.digitize(masses, bin_edges) - 1
+                rms = np.full(n_mass_bins, np.nan)
+                rms_w = np.full(n_mass_bins, np.nan)
+                for b in range(n_mass_bins):
+                    sel = ok & (b_idx == b)
+                    if sel.sum() > 1:
+                        rms[b] = np.sqrt(np.mean(delta[sel]**2))
+                        if sigma_igm is not None:
+                            rms_w[b] = np.sqrt(np.sum(w[sel] * delta[sel]**2) / np.sum(w[sel]))
+
+                sig_lo, sig_hi = np.nanpercentile(samples_post_burnin[:, sigma_idx], [16, 84], axis=0)
+
+                plt.figure(figsize=(6,4))
+                plt.plot(10**bin_centers[good], 0.5 * (hi_binned - lo_binned)[good], color='gray', lw=2,
+                         label='Truth 16-84% half-width')
+                plt.plot(10**bin_centers, rms, color='k', lw=1.5, ls='--', label='Truth RMS about fit')
+                if sigma_igm is not None:
+                    plt.plot(10**bin_centers, rms_w, color='k', lw=2, label='Truth RMS, likelihood-weighted')
+
+                if len(sigma_fgas) > 1:
+                    plt.errorbar(10**mass_anchors, sigma_fgas, yerr=[sigma_fgas - sig_lo, sig_hi - sigma_fgas],
+                                 fmt='s', color=fit_colour, capsize=3, label=r'Fit $\sigma_{f_{\rm gas}}(M)$')
+                else:
+                    plt.axhline(sigma_fgas[0], color=fit_colour, lw=2, label=r'Fit $\sigma_{f_{\rm gas}}$')
+                    plt.axhspan(sig_lo[0], sig_hi[0], color=fit_colour, alpha=0.15)
+
+                plt.xscale('log')
+                plt.ylabel(r'Scatter in halo $f_\text{gas}$',fontsize=15)
+                plt.xlabel(r'Halo $M_{200}$',fontsize=15)
+                if xlims is not None:
+                    plt.xlim(xlims[0],xlims[1])
+                plt.ylim(bottom=0)
+                plt.legend(fontsize=9)
+                plt.show()
 
             return
