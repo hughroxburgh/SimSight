@@ -762,6 +762,9 @@ class VisualSim():
                         labels.append(r'$f_{\rm igm}$')
                     elif name == 'sigma_fgas':
                         labels.append(r'$\sigma_{f_{\rm gas}}$')
+                    elif name.startswith('sigma_fgas_M'):
+                        mval = name.replace('sigma_fgas_M', '')
+                        labels.append(fr'$\sigma_{{f_{{\rm gas}},{mval}}}$')
                     else:
                         labels.append(name)
 
@@ -843,15 +846,18 @@ class VisualSim():
             plt.plot(10**bin_centers[good], lo_binned[good], color='k', lw=1, ls='-')
             plt.plot(10**bin_centers[good], hi_binned[good], color='k', lw=1, ls='-')
 
-            sigma_fgas = np.nanmedian(samples_post_burnin[:, -2])
-            fit_anchors = np.nanmedian(samples_post_burnin, axis=0)[:-2]
+            # -- Select by name: layout differs between sigma_fgas_mode='global' and 'mass' -- #
+            names = results['param_names']
+            post_median = np.nanmedian(samples_post_burnin, axis=0)
+            fit_anchors = post_median[[i for i, n in enumerate(names) if n.startswith('f_gas')]]
+            sigma_fgas = post_median[[i for i, n in enumerate(names) if n.startswith('sigma_fgas')]]
 
             if len(mass_anchors) > 1:
                 plt.errorbar(10**mass_anchors, fit_anchors,
                             yerr=sigma_fgas*np.ones_like(fit_anchors),
                             fmt='s-', color=fit_colour, capsize=3, label='Fit Values')
             else:
-
+                sigma_fgas = sigma_fgas[0]
                 plt.axhline(fit_anchors[0], color=fit_colour, ls='-', label='Fit Value',lw=2)
                 plt.axhspan(fit_anchors[0] - sigma_fgas, fit_anchors[0] + sigma_fgas,
                             color=fit_colour, alpha=0.15, label=r'$\sigma_{f_{\rm gas}}$')
