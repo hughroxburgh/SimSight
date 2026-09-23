@@ -1305,10 +1305,7 @@ class Sightline():
         self.modelled = mod
         self.modelled.model_params = inference.model_params
         self.modelled.fgas = inference.sim.fgas
-        if self.modelled.model_params['IGM_Mode'] == 'mean':
-            self.modelled.figm = inference.sim.figm
-        elif self.modelled.model_params['IGM_Mode'] == 'smooth_truth':
-            self.modelled.figm = 1
+        self.modelled.figm = 1
 
  
     def model_sightline(self, inference, filters=None,verbose=True,reduce=None):

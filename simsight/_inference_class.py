@@ -636,7 +636,7 @@ class Inference:
         ])
         dm_igm_model = np.array([
             s.extract_compute(cosmo, redshift=z_val, environment='IGM', modelled=True,
-                            figm=self.sim.figm)
+                            figm=1)
             for s in tqdm(sightlines, desc='    building sigma_igm (model)')
         ])
 
