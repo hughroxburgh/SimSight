@@ -168,3 +168,15 @@ def Cleanup_Memory(verbose=False):
               f"RSS {rss_before:.2f} GB -> {rss_after:.2f} GB", flush=True)
 
     return trimmed
+
+def _Snapshots_Done(sightlines, **reached_kwargs):
+    """
+    Number of leading snapshots that every sightline has completed for the stage defined by reached_kwargs
+    (passed to subsightline_reached). Sub-sightlines are ordered by snapshot, so every snapshot before the one
+    holding a sightline's first incomplete sub-sightline is done.
+    """
+    done = []
+    for sl in sightlines:
+        reached = sl.subsightline_reached(**reached_kwargs)
+        done.append(sl.sub_Snapshots[reached] if reached < sl.num_sub_sightlines else sl.sub_Snapshots[-1] + 1)
+    return min(done)

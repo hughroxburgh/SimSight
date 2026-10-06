@@ -120,8 +120,9 @@ def _Points_Near_Ray_Voxel(architecture,
     Find all points whose radius overlaps with a ray, using a voxel grid.
     """
 
-    voxels = architecture['voxels']  # dict mapping flat voxel keys to arrays of point indices
-    coords = architecture['coords']  # (N,3) array of point coordinates
+    order = architecture['order']          # point indices sorted by voxel (see Build_Voxel_Grid)
+    vox_offsets = architecture['offsets']  # points in voxel k: order[vox_offsets[k]:vox_offsets[k+1]]
+    coords = architecture['coords']        # (N,3) array of point coordinates
     grid_size = architecture['grid_size']  # number of voxels along each axis
 
     # -- Walk the ray, collecting candidate voxels -- #
@@ -140,7 +141,10 @@ def _Points_Near_Ray_Voxel(architecture,
                  nb_ijk[:, 2].astype(np.int64))
 
     # -- Collect candidate indices from occupied voxels -- #
-    arrays = [voxels[k] for k in np.unique(flat_keys) if k in voxels]
+    keys = np.unique(flat_keys)
+    keys = keys[(keys >= 0) & (keys < len(vox_offsets) - 1)]
+    keys = keys[vox_offsets[keys + 1] > vox_offsets[keys]]
+    arrays = [order[vox_offsets[k]:vox_offsets[k + 1]] for k in keys]
     candidates_idx = np.unique(np.concatenate(arrays)) if arrays else np.array([], dtype=np.int64)
 
     # -- Add giants, tested individually -- #
@@ -164,6 +168,142 @@ def _Points_Near_Ray_Voxel(architecture,
 
     return candidates_idx[mask]
 
+
+
+# -- Voxel grid -- #
+
+def Build_Voxel_Grid(coords, voxel_size, box_size, exclude=None):
+    """
+    Sort points into a regular grid of voxels (flat key (i * grid_size + j) * grid_size + k). The indices of the
+    points in voxel `key` are order[offsets[key]:offsets[key + 1]]. Points with exclude = True (e.g. the largest
+    kernels, handled separately) are left out.
+    """
+    from ._utils import _Counting_Sort
+
+    grid_size = int(np.ceil(box_size / voxel_size))
+    if grid_size**3 >= 2**31:
+        raise ValueError(f'voxel grid too fine ({grid_size}^3 voxels)')
+
+    flat = np.zeros(len(coords), dtype=np.int32)
+    for axis, mult in ((0, grid_size * grid_size), (1, grid_size), (2, 1)):
+        ijk = (coords[:, axis] / voxel_size).astype(np.int32)
+        np.clip(ijk, 0, grid_size - 1, out=ijk)
+        ijk *= mult
+        flat += ijk
+        del ijk
+    if exclude is not None:
+        flat[exclude] = -1
+
+    order, offsets = _Counting_Sort(flat, grid_size**3)
+    del flat
+
+    return {'order': order, 'offsets': offsets, 'grid_size': grid_size, 'voxel_size': float(voxel_size),
+            'coords': coords}
+
+
+# -- Gas within R200c of crossed halos -- #
+
+X_H, MU_H, MU_E = 0.76, 1.3, 1.167     # as in _compute.Calc_Ray_DM (X_H) and _compute.Density_To_DM (MU_H, MU_E)
+
+
+def Halo_Gas_Weights(data):
+    """
+    Per-particle weights for the halo gas sums: gas mass [1e10 Msun], and DM-equivalent gas mass (non-star-forming
+    gas weighted by ionisation, as in Calc_Ray_DM) -- the mass the fully ionised Density_To_DM needs to reproduce
+    the truth free-electron density.
+    """
+    w_gas = np.asarray(data['Masses'], dtype=np.float32)
+    w_dm = (w_gas * (data['StarFormationRate'] == 0) * data['ElectronAbundance'] * (X_H * MU_H / MU_E)).astype(np.float32)
+    return w_gas, w_dm
+
+
+@njit(parallel=True, cache=True, fastmath=True)
+def _Sum_Gas_In_Spheres(centres, radii, coords, w_gas, w_dm, order, offsets, grid_size, voxel_size, box):
+    """Sum w_gas / w_dm over the points within radii of centres (periodic), visiting only the voxels each sphere touches."""
+    n = radii.shape[0]
+    gas = np.zeros(n)
+    dm = np.zeros(n)
+    count = np.zeros(n, dtype=np.int64)
+    for h in prange(n):
+        R = radii[h]
+        if R <= 0.0:
+            continue
+        R2 = R * R
+
+        # -- voxel index ranges covering the sphere along each axis: the in-box part, plus wrapped parts -- #
+        c = np.empty(3)
+        ranges = np.empty((3, 3, 2), dtype=np.int64)
+        n_ranges = np.zeros(3, dtype=np.int64)
+        for a in range(3):
+            ca = centres[h, a] % box
+            c[a] = ca
+            lo, hi = ca - R, ca + R
+            m = 0
+            ranges[a, m, 0] = min(int(max(lo, 0.0) / voxel_size), grid_size - 1)
+            ranges[a, m, 1] = min(int(min(hi, box) / voxel_size), grid_size - 1)
+            m += 1
+            if lo < 0.0:
+                ranges[a, m, 0] = min(int((lo + box) / voxel_size), grid_size - 1)
+                ranges[a, m, 1] = grid_size - 1
+                m += 1
+            if hi > box:
+                ranges[a, m, 0] = 0
+                ranges[a, m, 1] = min(int((hi - box) / voxel_size), grid_size - 1)
+                m += 1
+            n_ranges[a] = m
+
+        for ri in range(n_ranges[0]):
+            for vi in range(ranges[0, ri, 0], ranges[0, ri, 1] + 1):
+                for rj in range(n_ranges[1]):
+                    for vj in range(ranges[1, rj, 0], ranges[1, rj, 1] + 1):
+                        for rk in range(n_ranges[2]):
+                            for vk in range(ranges[2, rk, 0], ranges[2, rk, 1] + 1):
+                                key = (vi * grid_size + vj) * grid_size + vk
+                                for s in range(offsets[key], offsets[key + 1]):
+                                    q = order[s]
+                                    dx = coords[q, 0] - c[0]
+                                    dy = coords[q, 1] - c[1]
+                                    dz = coords[q, 2] - c[2]
+                                    dx -= box * np.floor(dx / box + 0.5)
+                                    dy -= box * np.floor(dy / box + 0.5)
+                                    dz -= box * np.floor(dz / box + 0.5)
+                                    if dx * dx + dy * dy + dz * dz <= R2:
+                                        gas[h] += w_gas[q]
+                                        dm[h] += w_dm[q]
+                                        count[h] += 1
+    return gas, dm, count
+
+
+def Crossed_Halo_Gas(sightlines, snapshot, voxel_grid, w_gas, w_dm, box_size):
+    """
+    Gas within R200c of every halo crossed by a sightline in this snapshot, from the gas already in memory
+    (voxel_grid from Build_Voxel_Grid over the same particles; weights from Halo_Gas_Weights). Each crossing's halo
+    copy gets 'GasMass' = gas within R200c [Msun] (the catalogue/FoF value is kept as 'GasMassFoF'), 'GasMassDM' =
+    DM-equivalent gas within R200c [Msun] and 'NGasR200c'. Halos that already have 'GasMassFoF' are skipped.
+    Returns the number of distinct halos measured.
+    """
+    crossings = {}
+    for sl in sightlines:
+        for i in np.flatnonzero(np.asarray(sl.sub_Snapshots) == snapshot):
+            for halo in sl.sub_Halos[i]:
+                if halo is not None and 'GasMassFoF' not in halo:
+                    crossings.setdefault(int(halo['ID']), []).append(halo)
+    if not crossings:
+        return 0
+
+    ids = list(crossings)
+    centres = np.array([crossings[i][0]['Pos'] for i in ids], dtype=np.float64)
+    radii = np.array([crossings[i][0]['Radius'] for i in ids], dtype=np.float64)
+    gas, dm, count = _Sum_Gas_In_Spheres(centres, radii, voxel_grid['coords'], w_gas, w_dm,
+                                         voxel_grid['order'], voxel_grid['offsets'], voxel_grid['grid_size'],
+                                         voxel_grid['voxel_size'], float(box_size))
+    for k, hid in enumerate(ids):
+        for halo in crossings[hid]:
+            halo['GasMassFoF'] = halo['GasMass']
+            halo['GasMass'] = float(gas[k] * 1e10)
+            halo['GasMassDM'] = float(dm[k] * 1e10)
+            halo['NGasR200c'] = int(count[k])
+    return len(ids)
 
 
 # --- Overarching Function -- #

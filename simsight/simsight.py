@@ -14,20 +14,7 @@ import numpy as np
 
 from .sims import load_sim
 from ._visualiser_class import VisualSim
-from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive,Cleanup_Memory
-
-
-def _Snapshots_Done(sightlines, **reached_kwargs):
-    """
-    Number of leading snapshots that every sightline has completed for the stage defined by reached_kwargs
-    (passed to subsightline_reached). Sub-sightlines are ordered by snapshot, so every snapshot before the one
-    holding a sightline's first incomplete sub-sightline is done.
-    """
-    done = []
-    for sl in sightlines:
-        reached = sl.subsightline_reached(**reached_kwargs)
-        done.append(sl.sub_Snapshots[reached] if reached < sl.num_sub_sightlines else sl.sub_Snapshots[-1] + 1)
-    return min(done)
+from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive,Cleanup_Memory,_Snapshots_Done
 
 
 class SightlineSim():
@@ -263,48 +250,30 @@ class SightlineSim():
 
         elif findtype == 'voxel':
 
-            from ._utils import _Counting_Sort
+            from ._point_find import Build_Voxel_Grid
 
             msg = f"    generating voxelgrid"
             print(msg,end='\r')
-            voxel_size = coarse_radius
-            grid_size = int(np.ceil(self.sim.box_size / voxel_size))
 
-            # -- Compute flat keys column by column — avoids storing full (N,3) ijk array -- #
-            flat  = (data['Coordinates'][:, 0] / voxel_size).astype(np.int32)
-            flat *= grid_size * grid_size                              # i * grid_size²
-            tmp   = (data['Coordinates'][:, 1] / voxel_size).astype(np.int32)
-            flat += tmp * grid_size; del tmp                           # + j * grid_size
-            tmp   = (data['Coordinates'][:, 2] / voxel_size).astype(np.int32)
-            flat += tmp;             del tmp  
-
-            # -- argsort: order[i] is directly the global particle index -- #
-            flat[giant_bool] = -1
-            order, offsets = _Counting_Sort(flat, grid_size**3)
-            sorted_flat = flat[order]
-            del flat
-
-            first_normal = int(np.searchsorted(sorted_flat, 0))
-
-            boundaries   = np.concatenate([[first_normal],
-                                np.where(np.diff(sorted_flat[first_normal:]))[0] + 1 + first_normal,
-                                [len(sorted_flat)]])
-            
-            unique_flat  = sorted_flat[boundaries[:-1]]
-            del sorted_flat
-
-            voxels = {int(k): order[s:e].copy()
-                        for k, s, e in zip(unique_flat, boundaries[:-1], boundaries[1:])
-                        if k >= 0}
-            del order
+            # -- Voxels of the coarse radius; the largest kernels (giants) are tested individually instead -- #
+            voxel_grid = Build_Voxel_Grid(data['Coordinates'], coarse_radius, self.sim.box_size, exclude=giant_bool)
 
             _Progress_Print(msg,ts)
 
             Cleanup_Memory()
 
-            return {'voxels':voxels,
-                    'coords':data['Coordinates'],
-                    'grid_size':grid_size}, radii, coarse_radius, giant_idx, giant_pts, giant_radii
+            return voxel_grid, radii, coarse_radius, giant_idx, giant_pts, giant_radii
+
+    def _voxel_grid(self,data,percentile=99.9):
+        """
+        The voxel grid the 'voxel' point finder builds (same voxel size and giant exclusion), for snapshots where
+        point finding was skipped. data needs the point-finding fields.
+        """
+        from ._point_find import Build_Voxel_Grid
+
+        radii = self.sim.radius_mapping(data)
+        coarse_radius = np.percentile(radii,percentile)
+        return Build_Voxel_Grid(data['Coordinates'], coarse_radius, self.sim.box_size, exclude=radii > coarse_radius)
         
 
 
@@ -454,12 +423,12 @@ class SightlineSim():
             snaps_required = single_snap + 1
         else:
             snaps_required = min(v for v in [sl.sub_Snapshots[-1] + 1 for sl in sightlines] + [num_snaps] if v is not None)
-            start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False,halos=True)] for sl in sightlines])
+            start_snap = _Snapshots_Done(sightlines, ptfind=False, grid=False, halos=True)
 
         for snap in range(start_snap, snaps_required):
 
-            halofind_check = snap < _Snapshots_Done(sightlines, grid=False, halos=True)
-            if not halofind_check:
+            # -- Skip snapshots whose halos every sightline already has (halo finding needs only the geometry) -- #
+            if snap < _Snapshots_Done(sightlines, ptfind=False, grid=False, halos=True):
                 if single_snap is not None:
                     return False
                 else:
@@ -617,11 +586,11 @@ class SightlineSim():
         for snap in range(start_snap,snaps_required):
             
             # -- Check snap completion -- #
-            ptfind_check = snap < _Snapshots_Done(sightlines, grid=False)
-            compute_check = snap < _Snapshots_Done(sightlines, grid=True)
-            final_check = all(sl.subsightline_reached(grid=True) == sl.num_sub_sightlines for sl in sightlines) # passes if everything is complete
+            ptfind_complete = snap < _Snapshots_Done(sightlines, grid=False)
+            compute_complete = snap < _Snapshots_Done(sightlines, grid=True)
+            final_complete = all(sl.subsightline_reached(grid=True) == sl.num_sub_sightlines for sl in sightlines) # passes if everything is complete
 
-            if final_check:     
+            if final_complete:     
                 continue
 
             print('\n',flush=True)
@@ -629,8 +598,12 @@ class SightlineSim():
         
             trueSnapNum = self.sim._get_snap_num(snap)
 
+            # -- Gas within R200c of crossed halos needs the gas after the compute, sorted into the voxel grid -- #
+            halo_gas_sums = find_halos and functype == 'DM'
+
             point_find_data = None
-            if not ptfind_check:
+            architecture = None
+            if not ptfind_complete:
 
                 # -- Load data -- #
                 point_find_data = self.sim.load_data(particle_type='gas',fields=self.sim.point_find_fields,snapNum=trueSnapNum,method=load_method)
@@ -641,27 +614,39 @@ class SightlineSim():
                 # -- Allocate point idx to each sub sightline -- #
                 self._snapshot_points_in_sightlines(sightlines,snap,architecture,radii,coarse_radius,findtype,
                                                     giant_idx,giant_pts,giant_radii,parallel_findpts)
-                
-                if delete_data:
-                    del(architecture)
+
+                del radii, giant_idx, giant_pts, giant_radii
+                if delete_data and not (halo_gas_sums and findtype == 'voxel'):
+                    architecture = None         # the voxel grid is kept for the halo gas sums below
 
                 Cleanup_Memory()
-            
+
             if (snap == 0) & (plot_sightlines):
                 self.Vis.plot_many_sightlines(sightlines,n_sightlines=min(n_sightlines,20),points=point_find_data['Coordinates'],n_subsightlines=1)
 
-            if not compute_check:
-                
-                fields = fields + self.sim.point_find_fields if point_find_data is None else fields
-                data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=trueSnapNum,method=load_method)
+            halo_gas = None
+            if not compute_complete:
+
+                # (a new list: appending to `fields` itself grew it by the point-finding fields every snapshot)
+                load_fields = fields + [f for f in self.sim.point_find_fields if f not in fields] if point_find_data is None else fields
+                data = self.sim.load_data(particle_type='gas',fields=load_fields,snapNum=trueSnapNum,method=load_method)
                 data = data if point_find_data is None else data | point_find_data
 
                 # -- Compute function for each sightline -- #
                 self._snapshot_compute_sightlines(sightlines,data,func,
                                                 snap,parallel_compute)
-                
+
+                # -- Keep only what the halo gas sums need: the voxel grid (built here if point finding was
+                #    skipped), coordinates and two per-particle weights -- #
+                if halo_gas_sums:
+                    from ._point_find import Halo_Gas_Weights
+                    if architecture is None or findtype != 'voxel':
+                        architecture = self._voxel_grid(data)
+                    halo_gas = Halo_Gas_Weights(data)
+
                 if delete_data:
                     del(data)
+                point_find_data = None
 
                 Cleanup_Memory()
 
@@ -669,20 +654,91 @@ class SightlineSim():
             ran_halos = False
             if find_halos:
                 ran_halos = self.find_halos_in_sightlines(sightlines,parallel=parallel_halos,single_snap=snap,announce=False)
+
+                # -- Gas within R200c of the crossed halos (GasMass; catalogue value kept as GasMassFoF) -- #
+                if halo_gas is not None:
+                    self._snapshot_halo_gas(sightlines, snap, architecture, halo_gas)
+                halo_gas = None
+                if delete_data:
+                    architecture = None
+
+                Cleanup_Memory()
+
                 self.assign_sightline_to_halos(sightlines)
 
                 # -- Reduce Sightlines -- #
-                if reduce_sightlines and (not compute_check or ran_halos):
+                if reduce_sightlines and (not compute_complete or ran_halos):   # if reduce, and computation was 
                     self._snapshot_reduce_sightlines(sightlines,save_path if save_pointsidx else None,parallel_reduce)
 
             # -- Save sightlines -- #
-            if save_path is not None and (not ptfind_check or not compute_check or ran_halos):
+            if save_path is not None and (not ptfind_complete or not compute_complete or ran_halos):    # if save path given, and something was done this snapshot
                 self.save_sightlines(sightlines,save_path)
 
         if delete_data:
             return np.array(sightlines)
         else:
-            return np.array(sightlines), data, architecture 
+            return np.array(sightlines), data, architecture
+
+
+    def _snapshot_halo_gas(self, sightlines, snap, voxel_grid, weights):
+        """Gas within R200c of the halos crossed in this snapshot, from gas sorted into voxel_grid (see Crossed_Halo_Gas)."""
+
+        from ._point_find import Crossed_Halo_Gas
+
+        msg = f"    gas within R200c of crossed halos"
+        ts = clock()
+        print(msg,end='\r',flush=True)
+        n_halos = Crossed_Halo_Gas(sightlines, snap, voxel_grid, *weights, self.sim.box_size)
+        _Progress_Print(f'{msg} ({n_halos} halos)',ts)
+
+        return n_halos
+
+
+    def find_halo_gas_in_sightlines(self, sightlines, save_path=None, load_method='custom', max_snaps=None):
+        """
+        Gas within R200c of the halos already found in sightlines that were traced without it (e.g. TNG): each
+        crossing's 'GasMass' becomes the gas within R200c, the catalogue (FoF) value is kept as 'GasMassFoF', and
+        'GasMassDM' / 'NGasR200c' are added. No point finding or compute: per snapshot, only the gas fields the sums
+        need are loaded, sorted into the same voxel grid point finding would build, and summed over the crossed
+        halos. Snapshots whose crossed halos all have it already are skipped. (run_many_sightlines with find_halos
+        does this itself while tracing.)
+        """
+
+        from ._point_find import Halo_Gas_Weights
+
+        fields = list(dict.fromkeys(self.sim.point_find_fields + ['Coordinates', 'Masses', 'StarFormationRate', 'ElectronAbundance']))
+
+        n_snaps = max(int(np.max(sl.sub_Snapshots)) for sl in sightlines) + 1
+        if max_snaps is not None:
+            n_snaps = min(n_snaps, max_snaps)
+
+        for snap in range(n_snaps):
+
+            # -- Only snapshots with crossed halos still missing their gas within R200c -- #
+            needed = any(halo is not None and 'GasMassFoF' not in halo
+                         for sl in sightlines
+                         for i in np.flatnonzero(np.asarray(sl.sub_Snapshots) == snap)
+                         for halo in sl.sub_Halos[i])
+            if not needed:
+                continue
+
+            print('\n',flush=True)
+            print(f'------Snapshot {snap}------',flush=True)
+
+            data = self.sim.load_data(particle_type='gas',fields=fields,snapNum=self.sim._get_snap_num(snap),method=load_method)
+            voxel_grid = self._voxel_grid(data)
+            weights = Halo_Gas_Weights(data)
+            del data
+            Cleanup_Memory()
+
+            self._snapshot_halo_gas(sightlines, snap, voxel_grid, weights)
+            del voxel_grid, weights
+            Cleanup_Memory()
+
+            if save_path is not None:
+                self.save_sightlines(sightlines,save_path)
+
+        return sightlines
 
 
 
