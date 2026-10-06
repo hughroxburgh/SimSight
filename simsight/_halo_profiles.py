@@ -114,8 +114,9 @@ class AverageHaloProfile(HaloProfile):
 
     Evaluation interpolates log u linearly in log x (between shell centres), in log M (between the bin medians of
     each snapshot) and in z (between snapshots), clamping beyond the table in M and z. Shells inside the resolution
-    radius are replaced by a power law through the innermost resolved shells, and each node curve is renormalised
-    so its integral inside R200c equals the measured one.
+    radius are replaced by a power law through the innermost resolved shells, u is held constant inside the
+    innermost shell centre (x ~ 0.007), and each node curve is renormalised so its integral inside R200c equals the
+    measured one.
 
         prof = AverageHaloProfile.load('SIMBA')        # packaged table, or a path to one
         rho  = prof(r, M200, R200, z, f_b, h)          # h unused; same signature as every HaloProfile
@@ -263,12 +264,13 @@ class AverageHaloProfile(HaloProfile):
                 self._logu[iz, im] = logu + np.log(self.integral[iz, im] / inside)
 
     def _interp_lx(self, lx, logu):
-        """Linear in log x through the node curve, extended linearly beyond the first / last node."""
-        out = np.interp(lx, self._lx, logu)
-        lo, hi = lx < self._lx[0], lx > self._lx[-1]
-        if lo.any():
-            s = (logu[1] - logu[0]) / (self._lx[1] - self._lx[0])
-            out[lo] = logu[0] + s * (lx[lo] - self._lx[0])
+        """
+        Linear in log x through the node curve; constant inside the innermost node (a core, so line integrals
+        through the centre stay finite -- the measured profile says nothing below the innermost shell anyway),
+        extended linearly beyond the outermost node.
+        """
+        out = np.interp(lx, self._lx, logu)                 # np.interp holds logu[0] for lx < first node
+        hi = lx > self._lx[-1]
         if hi.any():
             s = (logu[-1] - logu[-2]) / (self._lx[-1] - self._lx[-2])
             out[hi] = logu[-1] + s * (lx[hi] - self._lx[-1])

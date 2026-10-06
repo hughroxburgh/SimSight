@@ -408,16 +408,15 @@ class Sightline():
         
         if with_values != False:
             subsightline.sub_BoxRedshifts = self.sub_BoxRedshifts[idx]
-            
-            if with_values != 'inferred':
-                subsightline.sub_Grid = self.sub_Grid[idx]
-                subsightline.sub_Compute = self.sub_Compute[idx]
-                subsightline.sub_Density = self.sub_Density[idx]
-                subsightline.sub_CellConditions = self.sub_CellConditions[idx]
-                subsightline.sub_Halos = self.sub_Halos[idx]
-                subsightline.sub_HaloAssignment = self.sub_HaloAssignment[idx]
-            else:
-                subsightline.sub_Halos = self.sub_HalosInferred[idx]
+
+            # true gas along the sightline (needed by the smooth_truth IGM and the 'truth' halo profile)
+            subsightline.sub_Grid = self.sub_Grid[idx]
+            subsightline.sub_Compute = self.sub_Compute[idx]
+            subsightline.sub_Density = self.sub_Density[idx]
+            subsightline.sub_CellConditions = self.sub_CellConditions[idx]
+            subsightline.sub_HaloAssignment = self.sub_HaloAssignment[idx]
+            # halos: true catalogue, or those inferred from observed galaxies
+            subsightline.sub_Halos = self.sub_HalosInferred[idx] if with_values == 'inferred' else self.sub_Halos[idx]
 
         return subsightline
     
@@ -1277,7 +1276,7 @@ class Sightline():
         self.halo_inference_params = inference.halo_inference_params
 
 
-    def _initialise_modelled(self,inference):
+    def _initialise_modelled(self,inference,halo_mode):
 
         mod = Sightline(origin=self.origin,
                     direction_vector=self.direction_vector,
@@ -1291,7 +1290,7 @@ class Sightline():
         mod.sub_Snapshots = self.sub_Snapshots
 
         # -- Deal with the movement caused by photometric redshifting -- #
-        mod.sub_Halos = self.sub_HalosInferrred if inference.model_params['HaloParams_Mode'] == 'inferred' else self.sub_Halos
+        mod.sub_Halos = self.sub_HalosInferred if halo_mode == 'inferred' else self.sub_Halos
 
         mod.sub_DensityIGM = [[] for _ in range(self.num_sub_sightlines)]
         mod.sub_DensityCGM = [[] for _ in range(self.num_sub_sightlines)]
@@ -1303,41 +1302,42 @@ class Sightline():
         mod.sub_HaloAssignment = [[] for _ in range(self.num_sub_sightlines)]
 
         self.modelled = mod
-        self.modelled.model_params = inference.model_params
+        self.modelled.model_params = dict(inference.model_params, HaloParams_Mode=halo_mode)
         self.modelled.fgas = inference.sim.fgas
         self.modelled.figm = 1
 
  
     def model_sightline(self, inference, filters=None,verbose=True,reduce=None):
 
-        self._initialise_modelled(inference)
+        # -- Where halo M200c / R200c come from for this sightline (the profile is inference.model_params['HaloProfile']) -- #
+        halo_mode = inference.model_params['HaloParams_Mode']
+        if halo_mode not in ('truth', 'inferred'):
+            raise ValueError("inference.model_params['HaloParams_Mode'] must be 'truth' or 'inferred'.")
 
-        if inference.model_params['HaloParams_Mode'] == 'inferred':
+        if halo_mode == 'inferred':
             num_sub_sightlines = self.subsightline_reached(grid=True,observed=True)
             if num_sub_sightlines == 0:
                 if verbose:
-                    print("Halos have not been observed! Switching HaloParams_Mode to 'truth'",flush=True)
-                inference.model_params['HaloParams_Mode'] = 'truth'
+                    print("Halos have not been observed! Using true halo parameters for this sightline",flush=True)
+                halo_mode = 'truth'
             else:
                 self.infer_halos(inference,filters)
 
-            if self.halo_inference_params['Redshift_Mode'] != 'truth' and inference.model_params['IGM_Mode'] =='smooth_truth':
-                if verbose:
-                    print("Cannot estimate smooth IGM density with photometric redshifts! Switching IGM_Mode to 'mean'",flush=True)
-                inference.model_params['IGM_Mode'] = 'mean'
+                if self.halo_inference_params['Redshift_Mode'] != 'truth' and inference.model_params['IGM_Mode'] =='smooth_truth':
+                    if verbose:
+                        print("Cannot estimate smooth IGM density with photometric redshifts! Switching IGM_Mode to 'mean'",flush=True)
+                    inference.model_params['IGM_Mode'] = 'mean'
+
+        if halo_mode == 'truth':
+            num_sub_sightlines = self.subsightline_reached(grid=True,halos=True)
 
         if inference.model_params['IGM_Mode'] =='smooth_truth' and verbose:
             print("Smooth IGM is not yet scaled to match cosmic mean!",flush=True)
 
-            
-        elif inference.model_params['HaloParams_Mode'] in ['truth','off']:
-            num_sub_sightlines = self.subsightline_reached(grid=True,halos=True)  
-
-        else:
-            raise ValueError("inference.model_params['HaloParams_Mode'] must be 'inferred', 'truth', or 'off'.")
+        self._initialise_modelled(inference,halo_mode)
 
         for i in range(num_sub_sightlines):
-            subsightline = self.get_subsightline(i,with_values=inference.model_params['HaloParams_Mode'])
+            subsightline = self.get_subsightline(i,with_values=halo_mode)
                     
             grid,density_igm,density_halo,conditions,assign = inference.model_dm_partition(subsightline)
             

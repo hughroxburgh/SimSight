@@ -786,12 +786,22 @@ class SightlineSim():
                 sl.infer_halos(inference,filters)
 
 
-    def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',igm_background='smooth_truth',density_smooth_mode='linear',density_smooth_kernel=1000,reduce=None):
+    def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',halo_profile='mnfw',profile_table=None,
+                         igm_background='smooth_truth',density_smooth_mode='linear',density_smooth_kernel=1000,reduce=None):
+        """
+        halo_profile  : 'truth' (simulation gas), 'mnfw', 'average' (needs profile_table) or another analytic profile
+        halo_params   : 'truth' or 'inferred' halo M200c / R200c for a modelled profile (ignored for 'truth')
+        profile_table : table for halo_profile='average' -- packaged name (e.g. 'SIMBA'), path, or AverageHaloProfile
+        """
 
         from ._inference_class import Inference
 
+        inference = Inference(self.sim,halo_params=halo_params,halo_profile=halo_profile,profile_table=profile_table,
+                              igm_background=igm_background,density_smooth_mode=density_smooth_mode,
+                              density_smooth_kernel=density_smooth_kernel)
+
         filters = None
-        if halo_params == 'inferred':
+        if inference.model_params['HaloParams_Mode'] == 'inferred':
 
             def get_filters(sightlines):
                 for sl in sightlines:
@@ -803,8 +813,6 @@ class SightlineSim():
                 return None  
 
             filters = get_filters(sightlines)
-
-        inference = Inference(self.sim,halo_params=halo_params,igm_background=igm_background,density_smooth_mode=density_smooth_mode,density_smooth_kernel=density_smooth_kernel)
 
 
         if not _Is_Interactive():

@@ -11,7 +11,7 @@ from scipy.signal import fftconvolve
 
 from ._compute import Transform_Points
 from ._photz import FZBoostPredictor
-from ._halo_profiles import AverageHaloProfile, MNFWProfile, get_profile
+from ._halo_profiles import AverageHaloProfile, MNFWProfile, PROFILES, get_profile
 
 def _Gaussian_Smooth_FFT(arr, sigma, truncate=4.0, edge_mode='reflect'):
     radius = int(truncate * sigma + 0.5)
@@ -129,10 +129,32 @@ class Inference:
     def __init__(self, sim, filters = ['lsst_g','lsst_r','lsst_i','lsst_z'],load_kcorrect=False,
                  redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit',
                  halo_params='inferred',igm_background='mean',density_smooth_kernel=1000,density_smooth_mode='linear',
-                 profile_table=None):
+                 halo_profile='mnfw',profile_table=None,halo_subsamples=16):
+        """
+        halo_profile  : halo gas profile -- 'truth' (the simulation's own gas, renormalised per halo), 'mnfw',
+                        'average' (simulation-average table, see profile_table) or another analytic profile in
+                        _halo_profiles.PROFILES
+        halo_params   : where halo M200c / R200c come from for a modelled profile -- 'truth' or 'inferred'
+                        (ignored for halo_profile='truth', which only exists for the true halos)
+        profile_table : table for halo_profile='average' -- packaged name (e.g. 'SIMBA'), path, or AverageHaloProfile
+        halo_subsamples : points per 10 ckpc cell used to average a modelled halo profile along the cell
+        """
 
         self.sim = sim
         self.kcorrect = None
+
+        # -- Halo profile and the source of its parameters -- #
+        if halo_params == 'off':
+            print("halo_params='off' is deprecated: using halo_profile='truth'", flush=True)
+            halo_params, halo_profile = 'truth', 'truth'
+        if halo_params not in ('truth', 'inferred'):
+            raise ValueError(f"halo_params must be 'truth' or 'inferred', not {halo_params!r}")
+        if halo_profile == 'truth':
+            halo_params = 'truth'
+        elif halo_profile != 'average' and halo_profile not in PROFILES:
+            raise ValueError(f"halo_profile must be 'truth', 'average' or one of {list(PROFILES)}, not {halo_profile!r}")
+        if halo_profile == 'average' and profile_table is None:
+            raise ValueError("halo_profile='average' needs profile_table (packaged name, path or AverageHaloProfile)")
 
         # -- Simulation-average halo profile for halo_model(profile='average'): table name, path or object -- #
         self.average_profile = AverageHaloProfile.load(profile_table) if profile_table is not None else None
@@ -143,8 +165,10 @@ class Inference:
                                       'KCorrect_Mode':kcorrect_mode,
                                       'M2L_Mode':m2l_mode,
                                       'HaloMass_Mode':halomass_mode}
-        
+
         self.model_params = {'HaloParams_Mode':halo_params,
+                            'HaloProfile':halo_profile,
+                            'HaloSubsamples':int(halo_subsamples),
                             'IGM_Mode':igm_background}
         if igm_background == 'smooth_truth':
             self.model_params['SmoothingKernal'] = density_smooth_kernel
@@ -540,12 +564,22 @@ class Inference:
 
             for j, halo in enumerate(subsightline.sub_Halos):
                 mask = inside[j]
-                if self.model_params['HaloParams_Mode'] != 'off':
-                    # f_gas fixed to 1 here -- unit profile, rescaled later
-                    unit_density_j = self.halo_model(
-                        np.sqrt(dist2[j][mask]), halo['TotalMass'],
-                        halo['Radius'], self.sim, f_gas=1.0
-                    )
+                if self.model_params['HaloProfile'] != 'truth':
+                    # Mean density over each cell's segment (not the value at its midpoint), so profiles that are
+                    # steep on the 10 ckpc scale (low-mass halo centres) are integrated rather than aliased.
+                    # Halo gas only inside R200c; f_gas fixed to 1 here -- unit profile, rescaled later.
+                    cells = np.flatnonzero(mask)
+                    frac = (np.arange(self.model_params['HaloSubsamples']) + 0.5) / self.model_params['HaloSubsamples']
+                    t_sub = t_edges[cells][:, None] + lengths[cells][:, None] * frac[None, :]
+                    r_sub = np.sqrt(dx2[j, 0] + dy2[j, 0] + (halo_positions[j, 2] - t_sub) ** 2)
+                    rho_sub = self.halo_model(
+                        r_sub.ravel(), halo['TotalMass'],
+                        halo['Radius'], self.sim, f_gas=1.0,
+                        profile=self.model_params['HaloProfile'],
+                        redshift=halo.get('Redshift', subsightline.sub_BoxRedshifts)
+                    ).reshape(r_sub.shape)
+                    rho_sub[r_sub > radii[j]] = 0.0
+                    unit_density_j = rho_sub.mean(axis=1)
                 else:
                     resampled = Resample_Sightline_Density(
                         subsightline.sub_Grid, subsightline.sub_Density,
