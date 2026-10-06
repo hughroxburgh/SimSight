@@ -169,6 +169,9 @@ class SIMBA_SightlineSim():
             data['Density'] = data['Density'] * self.hub**2
         if 'Masses' in fields:
             data['Masses']  /= self.hub
+        if 'SmoothingLength' in fields:
+            # GIZMO's SmoothingLength is the full kernel support radius (W = 0 beyond it), in ckpc/h
+            data['SmoothingLength'] = data['SmoothingLength'] / self.hub
         if verbose:
             _Progress_Print(msg,ts)
 
@@ -286,10 +289,10 @@ class SIMBA_SightlineSim():
     
     def radius_mapping(self,data):
         """
-        Returns effective radii for finding points of impact to ray.
+        Returns effective radii for finding points of impact to ray: the kernel support radius.
         """
 
-        return data['SmoothingLength'] * 2
+        return data['SmoothingLength']
 
     
     def process_data(self,transformed_points,data,length):
@@ -307,9 +310,12 @@ class SIMBA_SightlineSim():
             t_grid = np.append(t_grid, length)          # sample at exact endpoint
             lengths = np.append(lengths, length % t_res)     # segment length = leftover
 
-        particle_intervals = Find_Intersection_Intervals(transformed_points,data['SmoothingLength'])
+        # _sph_compute uses the Monaghan convention (support 2h); GIZMO's SmoothingLength is the support radius,
+        # so h = SmoothingLength / 2. The cubic spline is then identical to GIZMO's.
+        h_kernel = data['SmoothingLength'] / 2
+        particle_intervals = Find_Intersection_Intervals(transformed_points,h_kernel)
 
-        weight_matrix = Build_Sparse_Weights(t_grid,transformed_points,data['SmoothingLength'],
+        weight_matrix = Build_Sparse_Weights(t_grid,transformed_points,h_kernel,
                                              particle_intervals[:,0].astype(int),particle_intervals[:,1],particle_intervals[:,2],self.kernel)
 
         new_data = {}
