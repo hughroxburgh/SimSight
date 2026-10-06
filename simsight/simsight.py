@@ -17,6 +17,20 @@ from ._visualiser_class import VisualSim
 from ._halo_profiles import AverageHaloProfile, MNFWProfile
 from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive,Cleanup_Memory
 
+
+def _Snapshots_Done(sightlines, **reached_kwargs):
+    """
+    Number of leading snapshots that every sightline has completed for the stage defined by reached_kwargs
+    (passed to subsightline_reached). Sub-sightlines are ordered by snapshot, so every snapshot before the one
+    holding a sightline's first incomplete sub-sightline is done.
+    """
+    done = []
+    for sl in sightlines:
+        reached = sl.subsightline_reached(**reached_kwargs)
+        done.append(sl.sub_Snapshots[reached] if reached < sl.num_sub_sightlines else sl.sub_Snapshots[-1] + 1)
+    return min(done)
+
+
 class SightlineSim():
 
     def __init__(self,data_path,num_cores=None,backend='threading',
@@ -445,7 +459,7 @@ class SightlineSim():
 
         for snap in range(start_snap, snaps_required):
 
-            halofind_check = snap < min([sl.sub_Snapshots[sl.subsightline_reached(grid=False,halos=True)-1] for sl in sightlines])
+            halofind_check = snap < _Snapshots_Done(sightlines, grid=False, halos=True)
             if not halofind_check:
                 if single_snap is not None:
                     return False
@@ -497,8 +511,7 @@ class SightlineSim():
 
         for snap in range(start_snap,snaps_required):
 
-            if sightline.subsightline_reached(grid=True) == sightline.num_sub_sightlines or \
-                snap < sightline.sub_Snapshots[sightline.subsightline_reached(grid=True)-1]:
+            if snap < _Snapshots_Done([sightline], grid=True):
                 continue
 
             print('\n',flush=True)
@@ -549,10 +562,13 @@ class SightlineSim():
     def run_many_sightlines(self,n_sightlines=None,redshift=None,sightlines=None,method='random',origin=None,
                             functype='DM',findtype='tree',load_method='custom',
                             delete_data=True,save_path=None,plot_sightlines=False,reduce_sightlines=False,find_halos=False,save_pointsidx=True,
-                            parallel_slgen=False,parallel_findpts=False,parallel_compute=False,parallel_halos=False,parallel_reduce=False):
-                            
+                            parallel_slgen=False,parallel_findpts=False,parallel_compute=False,parallel_halos=False,parallel_reduce=False,
+                            max_snaps=None):
+
         """
         Run full loop over chosen number of sightlines.
+
+        max_snaps : only process the first max_snaps snapshots (e.g. for quick tests on long sightlines)
         """
 
         if sightlines is None:
@@ -593,6 +609,8 @@ class SightlineSim():
 
         # -- Iterate over all snapshots required to traverse chosen redshift -- #
         snaps_required = len(np.unique(sightlines[0].sub_BoxRedshifts))
+        if max_snaps is not None:
+            snaps_required = min(snaps_required, max_snaps)
         start_snap = min([
             sl.sub_Snapshots[min(sl.subsightline_reached(grid=True, halos=find_halos), len(sl.sub_Snapshots) - 1)]
             for sl in sightlines
@@ -600,8 +618,8 @@ class SightlineSim():
         for snap in range(start_snap,snaps_required):
             
             # -- Check snap completion -- #
-            ptfind_check = snap < min([sl.sub_Snapshots[sl.subsightline_reached(grid=False)-1] for sl in sightlines])
-            compute_check = snap < min([sl.sub_Snapshots[sl.subsightline_reached(grid=True)-1] for sl in sightlines])
+            ptfind_check = snap < _Snapshots_Done(sightlines, grid=False)
+            compute_check = snap < _Snapshots_Done(sightlines, grid=True)
             final_check = all(sl.subsightline_reached(grid=True) == sl.num_sub_sightlines for sl in sightlines) # passes if everything is complete
 
             if final_check:     
@@ -719,10 +737,8 @@ class SightlineSim():
             start_snap = single_snap
             snaps_required = single_snap + 1
         else:
-            snaps_required = min(
-                v for v in [sl.sub_Snapshots[sl.subsightline_reached(grid=False, halos=True) - 1] + 1 for sl in sightlines] + [num_snaps]
-                if v is not None
-            )
+            snaps_required = min(v for v in [_Snapshots_Done(sightlines, grid=False, halos=True), num_snaps]
+                                 if v is not None)
             start_snap = min([sl.sub_Snapshots[sl.subsightline_reached(grid=False, observed=True)] for sl in sightlines])
 
         for ii,snap in enumerate(range(start_snap,snaps_required)):
