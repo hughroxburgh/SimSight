@@ -14,6 +14,7 @@ import numpy as np
 
 from .sims import load_sim
 from ._visualiser_class import VisualSim
+from ._halo_profiles import AverageHaloProfile, MNFWProfile
 from ._utils import _Progress_Print, _Smart_Tqdm, _Is_Interactive,Cleanup_Memory
 
 class SightlineSim():

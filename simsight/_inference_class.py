@@ -4,7 +4,6 @@ import os
 import pickle
 from tqdm import tqdm
 from copy import deepcopy
-from scipy import integrate
 import astropy.units as u
 from scipy.interpolate import interp1d
 # from scipy.ndimage import gaussian_filter1d
@@ -12,6 +11,7 @@ from scipy.signal import fftconvolve
 
 from ._compute import Transform_Points
 from ._photz import FZBoostPredictor
+from ._halo_profiles import AverageHaloProfile, MNFWProfile, get_profile
 
 def _Gaussian_Smooth_FFT(arr, sigma, truncate=4.0, edge_mode='reflect'):
     radius = int(truncate * sigma + 0.5)
@@ -128,10 +128,14 @@ def Resample_Sightline_Density(sl_grid, sl_densities, sl_halo_mask, standard_edg
 class Inference:
     def __init__(self, sim, filters = ['lsst_g','lsst_r','lsst_i','lsst_z'],load_kcorrect=False,
                  redshift_mode='truth',kcorrect_mode='kcorrect',m2l_mode='roediger15',halomass_mode='dpowerlaw_fit',
-                 halo_params='inferred',igm_background='mean',density_smooth_kernel=1000,density_smooth_mode='linear'):
-        
+                 halo_params='inferred',igm_background='mean',density_smooth_kernel=1000,density_smooth_mode='linear',
+                 profile_table=None):
+
         self.sim = sim
         self.kcorrect = None
+
+        # -- Simulation-average halo profile for halo_model(profile='average'): table name, path or object -- #
+        self.average_profile = AverageHaloProfile.load(profile_table) if profile_table is not None else None
 
         self.filters = filters
 
@@ -382,29 +386,27 @@ class Inference:
 
     # ------------------------ Model DM Contribution ------------------------ #
 
-    def halo_model(self,radii, halo_m200,halo_r200, sim,f_gas=0.75, alpha=2.0, y0=2.0):
+    def halo_model(self,radii, halo_m200,halo_r200, sim,f_gas=0.75, alpha=2.0, y0=2.0, profile='mnfw', redshift=None):
         """
-        mNFW halo model for baryonic density. 
+        Halo gas density [1e10 Msun / ckpc^3] at radii [ckpc] for a halo of M200c [Msun], R200c [ckpc].
+
+        profile : 'mnfw'    -- modified NFW with (alpha, y0)
+                  'average' -- simulation-average profile (self.average_profile; needs redshift)
+                  any other analytic profile name in _halo_profiles.PROFILES, or a HaloProfile object
         """
-        
-        # -- Define import values -- #
-        omega_b = sim.cosmo.Ob0     # Baryon Density
-        omega_m = sim.cosmo.Om0     # Total Matter Density
-        c200 = 4.67 * (halo_m200 * self.sim.hub / 1e14) ** (-0.11)      # Halo concentration parameter
+        if profile == 'average':
+            if self.average_profile is None:
+                raise ValueError("profile='average' needs a profile table: Inference(..., profile_table=...)")
+            if redshift is None:
+                raise ValueError("profile='average' needs the halo redshift")
+            halo_profile = self.average_profile
+        elif profile == 'mnfw':
+            halo_profile = MNFWProfile(alpha=alpha, y0=y0)
+        else:
+            halo_profile = get_profile(profile)
 
-        # -- Estimate CGM Mass and thus rho_0 (normalisation factor) -- #
-        M_cgm = f_gas * (omega_b / omega_m) * halo_m200
-        norm_integrand = lambda y: y ** (1.0 + alpha) / (y0 + y) ** (2.0 + alpha)
-        norm_integral, _ = integrate.quad(norm_integrand, 0.0, c200)
-        rho0 = M_cgm / (4.0 * np.pi * (halo_r200 / c200) ** 3 * norm_integral)
-
-        # -- Evaluate Profile -- #
-        r = np.atleast_1d(np.asarray(radii, dtype=float))
-        y = c200 * r / halo_r200
-        y = np.maximum(y, 1e-10)
-        rho_b = rho0 / (y ** (1.0 - alpha) * (y0 + y) ** (2.0 + alpha))
-
-        return rho_b/1e10
+        f_b = sim.cosmo.Ob0 / sim.cosmo.Om0
+        return halo_profile.density(radii, halo_m200, halo_r200, redshift, f_b, self.sim.hub, f_gas) / 1e10
 
 
     def _fit_and_rescale_smooth_igm_density(self,sightlines, deg=1, inplace=True):
