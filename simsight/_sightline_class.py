@@ -513,7 +513,26 @@ class Sightline():
                 saved[i] = pidx
 
         np.save(f'{save_path}/{save_name}', np.array(saved, dtype=object), allow_pickle=True)
-    
+
+    def reset_compute(self):
+        """
+        Clear the traced fields (grid, density, compute, halo assignment, model) but keep the partition, the found
+        particles (sub_PointsIdx) and halos, so run_many_sightlines recomputes the ray without redoing point finding.
+        PointsIdx removed by reduce() must be restored first (load_sightlines(..., with_pidx=True)).
+        """
+        if any(len(p) > 0 and p[0] == 'Removed' for p in self.sub_PointsIdx):
+            raise ValueError("sub_PointsIdx were removed by reduce(); load with load_sightlines(..., with_pidx=True)")
+
+        n = self.num_sub_sightlines
+        self.sub_Compute = [[] for _ in range(n)]
+        self.sub_Density = [[] for _ in range(n)]
+        self.sub_Grid = [[] for _ in range(n)]
+        self.sub_Cells = [[] for _ in range(n)]
+        self.sub_CellConditions = [[] for _ in range(n)]
+        self.sub_HaloAssignment = [[] for _ in range(n)]
+        self.modelled = None
+        return self
+
     def reduce(self, grid_resolution, cgm_buffer=20, inplace=True, modelled=False, save_points_path=None):
         """
         Reduce resolution of IGM component and remove PointsIdx. Only do after
