@@ -105,12 +105,13 @@ class AverageHaloProfile(HaloProfile):
     Simulation-average profile, tabulated on (snapshot z, mass bin, x) from per-halo shell measurements
     (simba_dev/25_avg_halo_profile_job.py):
 
-        u_k(x) = < rho_k(x) / (f_b M200c / (4/3 pi R200c^3)) > / < f_gas(<R200c) >
+        u_k(x) = < rho_k(x) / (f_b M200c / (4/3 pi R200c^3)) > / < f_k(<R200c) >
 
     rho_k is gas kind k ('gas': all gas, 'nosf': non-star-forming, 'e': DM-equivalent -- the gas mass the fully
-    ionised conversion in Density_To_DM needs to reproduce the truth free-electron density) and f_gas is the TOTAL
-    gas fraction within R200c, so f_gas keeps meaning total gas. For kind 'e', u integrates to <f_e>/<f_gas> < 1
-    inside R200c: gas that does not contribute to DM is absorbed into the shape.
+    ionised conversion in Density_To_DM needs to reproduce the truth free-electron density) and f_k is the gas
+    fraction within R200c OF THE SAME KIND, so u integrates to 1 inside R200c, like MNFWProfile. f_gas then means the
+    same thing for every profile: the kind-k gas fraction (for 'e', the DM-equivalent fraction -- ionised,
+    non-star-forming gas, which is what FRB DMs measure).
 
     Evaluation interpolates log u linearly in log x (between shell centres), in log M (between the bin medians of
     each snapshot) and in z (between snapshots), clamping beyond the table in M and z. Shells inside the resolution
@@ -182,7 +183,7 @@ class AverageHaloProfile(HaloProfile):
             M = 10**d['logM200']
             norm = (meta['f_b'] * M)[:, None]
             rho = d[_KIND_KEYS[kind]] / norm / dvol
-            fgas = d['shell_mass'][:, :i1].sum(1) / norm[:, 0]
+            fgas = d[_KIND_KEYS[kind]][:, :i1].sum(1) / norm[:, 0]       # same kind: u integrates to 1 in R200c
             b = np.digitize(d['logM200'], logm_edges) - 1
             for im in range(nm):
                 s = b == im
