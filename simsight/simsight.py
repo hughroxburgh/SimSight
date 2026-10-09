@@ -145,13 +145,18 @@ class SightlineSim():
                             SL.sightline_idx = sightline_idx
 
                         if with_pidx:
-                            if all(SL.sub_PointsIdx[i] == ['Removed'] for i in range(SL.subsightline_reached(grid=True,halos=True))):
+                            # entries can be ['Removed'], [] or arrays of indices (a snapshot computed but not
+                            # reduced), so never compare them with == directly
+                            removed = [i for i, p in enumerate(SL.sub_PointsIdx)
+                                       if len(p) == 1 and isinstance(p[0], str) and p[0] == 'Removed']
+                            if len(removed) > 0:
                                 path = f'{directory_path}/sightline_{sightline_idx}_PointsIdx.npy'
-                                if os.path.exists(path):
-                                    SL.sub_PointsIdx = np.load(path,allow_pickle=True).tolist()
-                                else:
+                                if not os.path.exists(path):
                                     e = f'No stored PointsIdx found for sightline {sightline_idx}'
                                     raise FileExistsError(e)
+                                saved = np.load(path,allow_pickle=True).tolist()
+                                for i in removed:
+                                    SL.sub_PointsIdx[i] = saved[i] if i < len(saved) else []
 
                         sightlines.append(SL)
 
