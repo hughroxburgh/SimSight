@@ -822,9 +822,10 @@ class Sightline():
 
                     
     def plot_compute(self,idx=None,data='compute',with_model=False,return_data=False,logspace=True,mode='normal',dark_mode=False,
-                    fgas=None,figm=None,xlims=None):
+                    fgas=None,figm=None,xlims=None,redshift=None,cosmo=None):
         """
         Combines all computed subsightlines into one non-cumulutive profile, coloured by subsightline.
+        redshift (with cosmo) only shows the cells that start before the comoving distance to that redshift.
         """
 
         from simsight._utils import _Get_Colours
@@ -833,6 +834,15 @@ class Sightline():
             raise ValueError('data must be "compute" or "density"!')
 
         attr = f"sub_{data.capitalize()}"
+
+        # -- Comoving distance cut (from the start of the plotted section) -- #
+        if redshift is not None:
+            if cosmo is None:
+                raise ValueError('cosmo is needed to convert redshift to comoving distance!')
+            offset = np.nansum(np.concatenate(self.sub_Grid[:idx])) if idx else 0.
+            cut = cosmo.comoving_distance(redshift).to(u.kpc).value - offset
+        else:
+            cut = np.inf
 
         lengths  = [self.sub_Grid[idx]] if idx is not None else self.sub_Grid[:self.subsightline_reached()]
         computed = [getattr(self, attr)[idx]] if idx is not None else getattr(self, attr)[:self.subsightline_reached()]
@@ -878,20 +888,24 @@ class Sightline():
             model_cumulated_value = 0
             cumulated_value = 0
             for i in range(len(lengths)):
-                x = np.cumsum(lengths[i]) + cumulated_length
+                if cumulated_length >= cut:
+                    break
+                keep = (np.cumsum(lengths[i]) - lengths[i] + cumulated_length) < cut
+                x = np.cumsum(lengths[i])[keep] + cumulated_length
                 if mode != 'cumulutive':
-                    y = computed[i]
+                    y = computed[i][keep]
                 else:
-                    y = np.cumsum(computed[i])
+                    y = np.cumsum(computed[i])[keep]
 
                 plt.step(x, y+cumulated_value, color=cmap[i], where='post')
 
                 if with_model:
-                    model_x = np.cumsum(model_lengths[i]) + cumulated_length
+                    model_keep = (np.cumsum(model_lengths[i]) - model_lengths[i] + cumulated_length) < cut
+                    model_x = np.cumsum(model_lengths[i])[model_keep] + cumulated_length
                     if mode != 'cumulutive':
-                        model_y = model_computed[i]
+                        model_y = model_computed[i][model_keep]
                     else:
-                        model_y = np.cumsum(model_computed[i])
+                        model_y = np.cumsum(model_computed[i])[model_keep]
                         
                     plt.step(model_x, model_y+model_cumulated_value, color='grey', linestyle='--', where='post')
 
@@ -900,12 +914,13 @@ class Sightline():
                 ys.extend(y)
                 if mode == 'cumulutive':
                     cumulated_value += y[-1]
-                    model_cumulated_value += model_y[-1]
+                    if with_model and len(model_y) > 0:
+                        model_cumulated_value += model_y[-1]
 
                 plt.axvline(x[-1],alpha=0.3,c=cmap[i],linestyle=':')
 
             if xlims is None:
-                plt.xlim(0,cumulated_length)
+                plt.xlim(0,min(cumulated_length,cut))
             else:
                 plt.xlim(xlims[0],xlims[1])
                 
