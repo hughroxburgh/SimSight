@@ -822,10 +822,11 @@ class Sightline():
 
                     
     def plot_compute(self,idx=None,data='compute',with_model=False,return_data=False,logspace=True,mode='normal',dark_mode=False,
-                    fgas=None,figm=None,xlims=None,redshift=None,cosmo=None):
+                    fgas=None,figm=None,xlims=None,redshift=None,cosmo=None,halos=True):
         """
         Combines all computed subsightlines into one non-cumulutive profile, coloured by subsightline.
         redshift (with cosmo) only shows the cells that start before the comoving distance to that redshift.
+        halos shades the cells assigned to each halo (needs assign_to_halos), labelled "<ID>_<subsightline>".
         """
 
         from simsight._utils import _Get_Colours
@@ -897,7 +898,21 @@ class Sightline():
                 else:
                     y = np.cumsum(computed[i])[keep]
 
-                plt.step(x, y+cumulated_value, color=cmap[i], where='post')
+                plt.step(x, y+cumulated_value, color=cmap[i], where='pre')
+
+                sub = idx if idx is not None else i
+                if halos and self.sub_HaloAssignment is not None and len(self.sub_HaloAssignment[sub]) == len(lengths[i]):
+                    assignment = np.asarray(self.sub_HaloAssignment[sub])[keep]
+                    starts = x - np.asarray(lengths[i])[keep]
+                    ids = {int(h['ID']) for h in self.sub_Halos[sub] if h is not None}
+                    for hid in np.unique(assignment):
+                        if hid not in ids:          # -1 = IGM (overlapping halos' cells hold summed IDs, skipped)
+                            continue
+                        cells = assignment == hid
+                        lo, hi = starts[cells].min(), x[cells].max()
+                        plt.axvspan(lo, hi, color=cmap[i], alpha=0.2, lw=0)
+                        plt.text(0.5 * (lo + hi), 1.0, f'{hid}_{sub}', transform=plt.gca().get_xaxis_transform(),
+                                 rotation=90, ha='center', va='bottom', fontsize=7)
 
                 if with_model:
                     model_keep = (np.cumsum(model_lengths[i]) - model_lengths[i] + cumulated_length) < cut
@@ -907,7 +922,7 @@ class Sightline():
                     else:
                         model_y = np.cumsum(model_computed[i])[model_keep]
                         
-                    plt.step(model_x, model_y+model_cumulated_value, color='grey', linestyle='--', where='post')
+                    plt.step(model_x, model_y+model_cumulated_value, color='grey', linestyle='--', where='pre')
 
                 cumulated_length += np.nansum(lengths[i])
                 xs.extend(x)
