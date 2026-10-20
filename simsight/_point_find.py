@@ -2,6 +2,8 @@ import numpy as np
 from numba import njit,prange
 from time import time as clock
 
+from ._compute import X_H, MU_H, MU_E   # DM constants, shared with Calc_Ray_DM and Density_To_DM
+
 # -- If finding points without a KDTree -- #
 
 def _Points_Inside_Cylinder(points, origin, transformation_matrix, length, radius):
@@ -203,14 +205,13 @@ def Build_Voxel_Grid(coords, voxel_size, box_size, exclude=None):
 
 # -- Gas within R200c of crossed halos -- #
 
-X_H, MU_H, MU_E = 0.76, 1.3, 1.167     # as in _compute.Calc_Ray_DM (X_H) and _compute.Density_To_DM (MU_H, MU_E)
-
-
 def Halo_Gas_Weights(data):
     """
     Per-particle weights for the halo gas sums: gas mass [1e10 Msun], and DM-equivalent gas mass (non-star-forming
     gas weighted by ionisation, as in Calc_Ray_DM) -- the mass the fully ionised Density_To_DM needs to reproduce
-    the truth free-electron density.
+    the truth free-electron density. For fully ionised gas this equals the gas mass (X_H MU_H / MU_E x_e = 1).
+    NB 'GasMassDM' saved before 2026-10-20 used MU_H = 1.3, MU_E = 1.167: multiply it by
+    (MU_H / MU_E) / (1.3 / 1.167) = 1.0201 to put it on the current constants.
     """
     w_gas = np.asarray(data['Masses'], dtype=np.float32)
     w_dm = (w_gas * (data['StarFormationRate'] == 0) * data['ElectronAbundance'] * (X_H * MU_H / MU_E)).astype(np.float32)

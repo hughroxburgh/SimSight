@@ -1,6 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# -- Electron-density constants: one source for the truth (Calc_Ray_DM), the model (Density_To_DM) and the
+# DM-equivalent gas masses (_point_find.Halo_Gas_Weights). Prochaska & Zheng (2019) convention: n_e = MU_E / MU_H * rho
+# / m_p, with MU_H the mass per H atom [m_p] and MU_E the electrons per H atom for fully ionised H and He. Both are
+# derived from X_H so the model matches the truth exactly for fully ionised gas: MU_E / MU_H = X_H + Y / 2 = 0.88
+# electrons per m_p. (Until 2026-10-20 these were rounded values for X_H = 0.75, MU_H = 1.3 and MU_E = 1.167, i.e.
+# 0.898 per m_p: the model was 2% above the truth for the same fully ionised gas, while the truth used X_H = 0.76.)
+X_H  = 0.76                              # hydrogen mass fraction (the truth side's ElectronAbundance is per H atom)
+MU_H = 1.0 / X_H                         # mass per H atom [m_p]
+MU_E = 1.0 + (1.0 - X_H) / (2.0 * X_H)   # electrons per H atom, fully ionised H and He
+M_P  = 1.67e-24                          # proton mass [g]
+
 def Transform_Points(sightline, points, inverse=False):
 
     # Rearrange so basis order is v2, v3, v1 → X, Y, Z
@@ -19,14 +30,9 @@ def Density_To_DM(density,lengths,redshift):
     Transform model density to model DM. Identical to the Calc_Ray_DM except does not have any dependence on Electron Abundance and SFR.
     """
 
-    # -- Values -- #
-    mu_H = 1.3
-    mu_e = 1.167
-    m_p = 1.67e-24
-    
-    # -- Convert to comoving free electron density -- #
+    # -- Convert to comoving free electron density (fully ionised; constants at the top of this module) -- #
     constant = 1.988e43 / (3.086e21 ** 3)   # 10^10 Msun -> g / 1kpc^3 -> cm^3
-    freeElectronDensity_com = density * mu_e / (m_p * mu_H) * constant
+    freeElectronDensity_com = density * MU_E / (M_P * MU_H) * constant
 
     # -- Convert to physical free electron density -- #
     freeElectronDensity_phys = (1+redshift)**3 * freeElectronDensity_com
@@ -101,11 +107,10 @@ def Calc_Ray_DM(ray_data,lengths,redshift):
     starFormationRates = ray_data['StarFormationRate']
     w = (starFormationRates==0).astype(int)
 
-    xH = 0.76 # hydrogenFraction
-    mP = 1.67e-24 # protonMass in g
     constant = 1.988e43 / (3.086e21 ** 3)   # 10^10 Msun -> g / 1kpc^3 -> cm^3
 
-    freeElectronDensity_com =  w * electronAbundance * densities * xH/mP * constant  # in cm^-3  
+    # ElectronAbundance is per H atom, so n_e = x_e * X_H * rho / m_p (constants at the top of this module)
+    freeElectronDensity_com =  w * electronAbundance * densities * X_H/M_P * constant  # in cm^-3  
     freeElectronDensity_phys = (1+redshift)**3 * freeElectronDensity_com
     DM = freeElectronDensity_phys * (lengths*1000) / (1+redshift)**2
 
