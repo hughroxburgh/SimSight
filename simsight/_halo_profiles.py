@@ -114,10 +114,10 @@ class AverageHaloProfile(HaloProfile):
     non-star-forming gas, which is what FRB DMs measure).
 
     Evaluation interpolates log u linearly in log x (between shell centres), in log M (between the bin medians of
-    each snapshot) and in z (between snapshots), clamping beyond the table in M and z. Shells inside the resolution
-    radius are replaced by a power law through the innermost resolved shells, u is held constant inside the
-    innermost shell centre (x ~ 0.007), and each node curve is renormalised so its integral inside R200c equals the
-    measured one.
+    each snapshot) and in z (between snapshots), clamping beyond the table in M and z. By default every measured shell
+    is used (min_count = 0); with min_count > 0, shells inside the resolution radius are replaced by a power law
+    through the innermost resolved shells. u is held constant inside the innermost shell centre (x ~ 0.007), and each
+    node curve is renormalised so its integral inside R200c equals the measured one.
 
         prof = AverageHaloProfile.load('SIMBA')        # packaged table, or a path to one
         rho  = prof(r, M200, R200, z, f_b, h)          # h unused; same signature as every HaloProfile
@@ -143,12 +143,16 @@ class AverageHaloProfile(HaloProfile):
     # ------------------------------------------------------------------ construction / io
 
     @classmethod
-    def from_measurements(cls, files, kind='e', logm_edges=None, min_count=10, min_halos=10):
+    def from_measurements(cls, files, kind='e', logm_edges=None, min_count=0, min_halos=10):
         """
         Build from per-snapshot measurement files ({SIM}_snap{NNN}_profiles.npz).
 
         kind      : 'e' (DM-equivalent gas, default), 'nosf' or 'gas'
-        min_count : shells whose median particle count (over the bin's halos) is below this are unresolved
+        min_count : shells whose median particle count (over the bin's halos) is below this are treated as
+                    unresolved and replaced by an inner power law. Default 0: every shell is used. A stacked shell
+                    mean is unbiased even where most halos have no particles in that shell, and it is the same gas the
+                    truth sightlines see; the power law dropped central mass in 10^10-10^11 halos, and the
+                    renormalisation then pushed it outward (+20-30% beyond 0.5 R200c, SIMBA notebook 26, 2026-10-19).
         min_halos : mass bins with fewer halos are left empty
         """
         if kind not in _KIND_KEYS:
