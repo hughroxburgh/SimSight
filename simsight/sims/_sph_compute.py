@@ -122,60 +122,29 @@ def Build_Sparse_Weights(t_grid, points, smooth_lengths, p_idx, p_z1, p_z2, kern
 
 
 @njit(fastmath=True)
-def Calculate_Field(result_array, out_p, out_i, out_w, masses, volumes, scalar_field,  is_sph):
+def Kernel_Sum(result_array, out_p, out_i, out_w, values):
     """
-    Compute interpolated quantities at arbitrary points using MFM kernel with normalization.
+    SPH scatter sum at the ray points: result[i] = sum_j values_j * W(|x_i - x_j|, h_j).
+
+    With values = masses this is the mass-conserving SPH density (each kernel integrates to 1, so the field integrates
+    to the total mass); with values = m_j * A_j it is the A-weighted mass density. Intensive fields are ratios of two
+    such sums (process_data). No normalisation by sum_j V_j W_j: that averages particle densities rather than summing
+    mass, and is biased high (+6% in SIMBA-C, simba_dev/33_ray_density_test.py).
 
     Parameters
     ----------
-    out_p : 1D int array
-        Particle indices corresponding to the neighbor list for all points.
-    out_i : 1D int array
-        Output point indices (which arbitrary point each weight belongs to).
-    out_w : 1D float array
-        Kernel weights W(|r_p - r_j|, h_j) for each particle-point pair.
-    masses : 1D float array
-        Mass of each particle.
-    density : 1D float array
-        Density of each particle (rho_j = m_j / V_j).
-    scalar_field : 1D float array or None
-        Field to interpolate (e.g., metallicity, SFR). If None, function computes density.
-    array : 1D float array
-        Array to store interpolated results per point (same length as number of arbitrary points).
+    result_array : 1D float array
+        Output, one entry per ray point (zeroed here).
+    out_p, out_i, out_w : 1D arrays
+        Particle index, ray point index and kernel weight of each particle-point pair (Build_Sparse_Weights).
+    values : 1D float array
+        Per-particle quantity to sum.
     """
 
-    # Temporary arrays to accumulate numerator and denominator
-    n_points = np.max(out_i) + 1
-    numerator = np.zeros(n_points, dtype=np.float64)
-    denominator = np.zeros(n_points, dtype=np.float64)
-
+    result_array[:] = 0.0
     for k in range(out_w.shape[0]):
-        points_idx = out_p[k]           # particle index
-        t_idx = out_i[k]           # arbitrary point index
-        weight = out_w[k]              # kernel weight
+        result_array[out_i[k]] += values[out_p[k]] * out_w[k]
 
-        if scalar_field is None:
-            # For density, numerator is m_j * W_j
-            numerator[t_idx] += masses[points_idx] * weight
-        else:
-            # For other scalar fields, numerator is A_j * V_j * W_j
-            numerator[t_idx] += scalar_field[points_idx] * volumes[points_idx] * weight
-
-        # Denominator is sum of V_j * W_j (normalization)
-        denominator[t_idx] += volumes[points_idx] * weight
-
-    # Final result: numerator / denominator
-    for i in range(n_points):
-        if scalar_field is None and is_sph:
-            # PURE SPH DENSITY: Just the raw summation
-            result_array[i] = numerator[i]
-        else:
-            # MFM (SIMBA) or SPH SCALARS: Requires normalization
-            if denominator[i] > 1e-40:
-                result_array[i] = numerator[i] / denominator[i]
-            else:
-                result_array[i] = 0.0
-        
 
 def Nearest_Particle(t_grid,coordinates):
 

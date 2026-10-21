@@ -297,7 +297,7 @@ class SIMBA_SightlineSim():
     
     def process_data(self,transformed_points,data,length):
 
-        from ._sph_compute import Find_Intersection_Intervals, Build_Sparse_Weights, Calculate_Field, Nearest_Particle
+        from ._sph_compute import Find_Intersection_Intervals, Build_Sparse_Weights, Kernel_Sum, Nearest_Particle
 
         t_res = 10 #ckpc
 
@@ -318,25 +318,37 @@ class SIMBA_SightlineSim():
         weight_matrix = Build_Sparse_Weights(t_grid,transformed_points,h_kernel,
                                              particle_intervals[:,0].astype(int),particle_intervals[:,1],particle_intervals[:,2],self.kernel)
 
-        new_data = {}
-        volumes = data['Masses']/data['Density']
+        # SPH scatter sums along the ray: density = sum_j m_j W_j (mass conserving), other fields mass-weighted
+        # averages sum_j m_j A_j W_j / sum_j m_j W_j. (The old MFM-style sum_j V_j W_j normalisation averaged particle
+        # densities instead of summing mass: +6% in SIMBA-C, simba_dev/33_ray_density_test.py.)
+        p_idx, g_idx, weights = weight_matrix
+        masses = data['Masses']
+
+        new_data = {'Density': np.zeros_like(t_grid)}
+        Kernel_Sum(new_data['Density'], p_idx, g_idx, weights, masses)
+        norm = np.where(new_data['Density'] > 0, new_data['Density'], 1.0)     # 0 where no kernel reaches
+
+        # Star-forming gas is cut per particle, not on the ray-averaged SFR (which zeroed whole ray points near any SF
+        # particle): ElectronAbundance is the non-SF electron mass over all the gas mass, so Calc_Ray_DM's
+        # ElectronAbundance * Density counts only non-SF electrons, and StarFormationRate along the ray is 0.
+        cut_sf = 'ElectronAbundance' in data and 'StarFormationRate' in data
 
         for field in data.keys():
-            if field in ['Masses','SmoothingLength']:
+            if field in ['Masses','SmoothingLength','Density']:
                 continue
 
+            if field == 'StarFormationRate' and cut_sf:
+                new_data[field] = np.zeros_like(t_grid)
+                continue
+
+            values = masses * data[field]
+            if field == 'ElectronAbundance' and cut_sf:
+                values = values * (data['StarFormationRate'] == 0)
+
             new_data[field] = np.zeros_like(t_grid)
+            Kernel_Sum(new_data[field], p_idx, g_idx, weights, values)
+            new_data[field] /= norm
 
-            scalar_field = data[field] if field != 'Density' else None
-
-            try:
-                Calculate_Field(new_data[field],weight_matrix[0],weight_matrix[1],weight_matrix[2],data['Masses'],volumes,
-                                scalar_field=scalar_field, is_sph=False)
-            
-            except:
-                e = f'Failed here: weight[0] = {weight_matrix[0]}\n\ weight[1] = {weight_matrix[1]}\n\ weight[2] = {weight_matrix[2]}\n SL length = {length}'
-                raise ValueError(e)
-            
         ids = Nearest_Particle(t_grid,transformed_points)
             
         return new_data, lengths, ids
