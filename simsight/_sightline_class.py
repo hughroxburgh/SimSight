@@ -396,7 +396,19 @@ class Sightline():
     # ------------- Altering/saving/extending/reducing sightline ------------- #
 
 
-    def get_subsightline(self,idx,with_values=False):
+    @staticmethod
+    def _halos_within(halos, n_r200=1):
+        """
+        Halos of one sub-sightline within n_r200 * R200c of it ([None] if none; [] = not searched yet, kept).
+        Halo finding keeps halos out to a few R200c (SightlineSim.halo_search_factor) so the boundary can be varied
+        later; halos found before 'HaloDist' existed were all crossed (HaloDist = 0). n_r200=None returns them all.
+        """
+        if n_r200 is None or len(halos) == 0 or halos == [None]:
+            return halos
+        kept = [h for h in halos if h is not None and h.get('HaloDist', 0) <= n_r200 * h['Radius']]
+        return kept if len(kept) > 0 else [None]
+
+    def get_subsightline(self,idx,with_values=False,n_r200=1):
         """
         Returns Sightline object for sub sightline at given idx.
         """
@@ -416,7 +428,7 @@ class Sightline():
             subsightline.sub_CellConditions = self.sub_CellConditions[idx]
             subsightline.sub_HaloAssignment = self.sub_HaloAssignment[idx]
             # halos: true catalogue, or those inferred from observed galaxies
-            subsightline.sub_Halos = self.sub_HalosInferred[idx] if with_values == 'inferred' else self.sub_Halos[idx]
+            subsightline.sub_Halos = self.sub_HalosInferred[idx] if with_values == 'inferred' else self._halos_within(self.sub_Halos[idx], n_r200)
 
         return subsightline
     
@@ -532,14 +544,22 @@ class Sightline():
         self.modelled = None
         return self
 
-    def reduce(self, grid_resolution, cgm_buffer=20, inplace=True, modelled=False, save_points_path=None):
+    def reduce(self, grid_resolution, cgm_buffer=20, inplace=True, modelled=False, save_points_path=None,
+               halo_zones=((2, 0), (5, 50))):
         """
-        Reduce resolution of IGM component and remove PointsIdx. Only do after
-        halo_assignment is complete.
+        Reduce the resolution away from halos and remove PointsIdx. Only do after halo_assignment is complete.
+
+        Non-modelled: each cell is merged by its distance to the nearest kept halo (sub_Halos, out to
+        SightlineSim.halo_search_factor R200c) in units of that halo's R200c: within halo_zones[k][0] R200c, cells
+        are merged up to halo_zones[k][1] ckpc (0 = native); beyond the last zone, up to grid_resolution ckpc. So by
+        default: native (10 ckpc) within 2 R200c, 50 ckpc out to 5 R200c, grid_resolution beyond, and the halo
+        boundary can later be moved anywhere inside 2 R200c (or, at 50 ckpc, inside 5 R200c) without recomputing.
+        Cells assigned to a halo are never merged.
 
         For modelled=True, operates on sub_DensityIGM/sub_DensityCGM separately
         (no sub_Compute, no sub_Cells -- those don't exist on self.modelled
-        under the current model_sightline structure).
+        under the current model_sightline structure): IGM cells (CellConditions 0) are merged up to
+        grid_resolution, keeping cgm_buffer native cells next to the CGM.
         """
 
         if save_points_path is not None:
@@ -598,79 +618,80 @@ class Sightline():
 
             cell_conditions = get_src('sub_CellConditions', i)
             grid_src = get_src('sub_Grid', i)
-
-            is_igm = (cell_conditions == 0)
-            n_igm = np.count_nonzero(is_igm)
-
-            if n_igm < 10 or (n_igm > 0 and np.nanmax(grid_src[is_igm]) > 0.9 * grid_resolution):
+            n_cells = len(grid_src)
+            if n_cells == 0:
                 pass_through()
                 continue
+            native = np.nanmedian(grid_src)
 
-            median_length = np.nanmedian(grid_src[is_igm])
-            downsample_factor = int(grid_resolution // median_length)
+            # -- merge factor per cell -- #
+            if modelled:
+                is_igm = (cell_conditions == 0)
+                n_igm = np.count_nonzero(is_igm)
+                if n_igm < 10 or np.nanmax(grid_src[is_igm]) > 0.9 * grid_resolution:     # little IGM / already reduced
+                    pass_through()
+                    continue
 
-            if downsample_factor <= 1:
-                pass_through()
-                continue
+                factor = np.where(is_igm, int(grid_resolution // np.nanmedian(grid_src[is_igm])), 1)
+                switches = np.diff(is_igm.astype(int), prepend=0, append=0)
+                for start, stop in zip(np.where(switches == 1)[0], np.where(switches == -1)[0]):
+                    if start > 0:                       # native buffer next to CGM
+                        factor[start:min(start + cgm_buffer, stop)] = 1
+                    if stop < n_cells:
+                        factor[max(stop - cgm_buffer, start):stop] = 1
 
-            switches = np.diff(is_igm.astype(int), prepend=0, append=0)
-            igm_starts = np.where(switches == 1)[0]
-            igm_stops = np.where(switches == -1)[0]
+            else:
+                if np.nanmax(grid_src) > 1.01 * native:       # already reduced (unreduced cells are all <= native)
+                    pass_through()
+                    continue
 
-            if len(igm_starts) == 0:
+                factor = np.full(n_cells, max(int(grid_resolution // native), 1))
+
+                halos = [h for h in self.sub_Halos[i] if h is not None]
+                if len(halos) > 0:
+                    subSL = self.get_subsightline(i)
+                    z_edges = np.concatenate(([0.0], np.cumsum(grid_src)))
+                    z_mid = 0.5 * (z_edges[:-1] + z_edges[1:])
+
+                    pos = Transform_Points(subSL, np.array([h['Pos'] for h in halos]))
+                    radii = np.maximum(np.array([h['Radius'] for h in halos], dtype=float), 1e-10)
+                    dist2 = ((pos[:, 0]**2 + pos[:, 1]**2)[:, None] + (pos[:, 2][:, None] - z_mid[None, :])**2) / radii[:, None]**2
+                    r_scaled = np.sqrt(dist2.min(axis=0))           # distance to the nearest halo [R200c]
+
+                    for edge, target in sorted(halo_zones, reverse=True):     # inner zones overwrite outer ones
+                        factor[r_scaled < edge] = max(int(target // native), 1)
+
+                factor[cell_conditions != 0] = 1
+
+            factor = np.maximum(factor, 1)
+            if np.all(factor == 1):
                 pass_through()
                 continue
 
             for k in range(n_fields):
                 arrs[k][i] = np.empty(0)
 
-            # -- Prepend any CGM before the first IGM segment -- #
-            append_seg(i, 0, igm_starts[0])
+            # -- runs of equal factor: native runs copied, the others merged factor cells at a time -- #
+            change = np.flatnonzero(np.diff(factor)) + 1
+            for start, stop in zip(np.concatenate(([0], change)), np.concatenate((change, [n_cells]))):
 
-            # -- Go through each IGM segment and downsample -- #
-            for j, (start, stop) in enumerate(zip(igm_starts, igm_stops)):
-                has_left_cgm = start > 0
-                has_right_cgm = stop < len(grid_src)
+                f = factor[start]
+                if f == 1:
+                    append_seg(i, start, stop)
+                    continue
 
-                buf_start = min(start + cgm_buffer, stop) if has_left_cgm else start
-                buf_stop = max(stop - cgm_buffer, start) if has_right_cgm else stop
+                idx = np.arange(0, stop - start, f)
+                dl = grid_src[start:stop]
+                grid = np.add.reduceat(dl, idx)
 
-                append_seg(i, start, buf_start)  # left buffer (full res)
-
-                if buf_stop > buf_start:  # downsampled core
-                    idx = np.arange(0, buf_stop - buf_start, downsample_factor)
-                    dl = grid_src[buf_start:buf_stop]
-                    grid = np.add.reduceat(dl, idx)
-                    total_dl = np.add.reduceat(dl, idx)
-
-                    if modelled:
-                        density_igm_src = get_src('sub_DensityIGM', i)[buf_start:buf_stop]
-                        density_cgm_src = get_src('sub_DensityCGM', i)[buf_start:buf_stop]
-
-                        weighted_igm = np.add.reduceat(density_igm_src * dl, idx)
-                        weighted_cgm = np.add.reduceat(density_cgm_src * dl, idx)
-
-                        density_igm = weighted_igm / total_dl
-                        density_cgm = weighted_cgm / total_dl
-
-                        append_igm(i, grid, {'sub_DensityIGM': density_igm, 'sub_DensityCGM': density_cgm})
-                    else:
-                        density_src = get_src('sub_Density', i)[buf_start:buf_stop]
-                        compute_src = get_src('sub_Compute', i)[buf_start:buf_stop]
-
-                        compute = np.add.reduceat(compute_src, idx)
-                        weighted_density = np.add.reduceat(density_src * dl, idx)
-                        density = weighted_density / total_dl
-
-                        append_igm(i, grid, {'sub_Density': density}, compute=compute)
-
-                append_seg(i, buf_stop, stop)  # right buffer (full res)
-
-                if j + 1 < len(igm_starts):  # CGM between segments
-                    append_seg(i, stop, igm_starts[j + 1])
-
-            # -- Append any CGM after the final IGM segment -- #
-            append_seg(i, igm_stops[-1], len(grid_src))
+                if modelled:
+                    density_igm = np.add.reduceat(get_src('sub_DensityIGM', i)[start:stop] * dl, idx) / grid
+                    density_cgm = np.add.reduceat(get_src('sub_DensityCGM', i)[start:stop] * dl, idx) / grid
+                    append_igm(i, grid, {'sub_DensityIGM': density_igm, 'sub_DensityCGM': density_cgm})
+                else:
+                    compute = np.add.reduceat(get_src('sub_Compute', i)[start:stop], idx)
+                    density = np.add.reduceat(get_src('sub_Density', i)[start:stop] * dl, idx) / grid
+                    append_igm(i, grid, {'sub_Density': density}, compute=compute)
 
         # -- write back -- #
         target = source
@@ -793,24 +814,25 @@ class Sightline():
 
                 if halos:
 
-                    if any(h is not None for h in self.sub_Halos[idx]):
+                    plot_halos = self._halos_within(self.sub_Halos[idx])
+                    if any(h is not None for h in plot_halos):
 
-                        coms = np.array([h['Pos'] for h in self.sub_Halos[idx]])
+                        coms = np.array([h['Pos'] for h in plot_halos])
                         coms = Transform_Points(subSL,coms)
 
-                        max_r = max(max(h['Radius'] for h in self.sub_Halos[idx]),500)
+                        max_r = max(max(h['Radius'] for h in plot_halos),500)
                         max_xy = np.max(np.abs(coms[:, :2])) + max_r
                     
-                        for i in range(len(self.sub_Halos[idx])):
+                        for i in range(len(plot_halos)):
                             x,y,z = coms[i]
 
-                            patch = Circle((x,y),radius=self.sub_Halos[idx][i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
+                            patch = Circle((x,y),radius=plot_halos[i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
                             ax[0].add_patch(patch)
 
-                            patch = Circle((x,z),radius=self.sub_Halos[idx][i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
+                            patch = Circle((x,z),radius=plot_halos[i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
                             ax[1].add_patch(patch)
 
-                            patch = Circle((y,z),radius=self.sub_Halos[idx][i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
+                            patch = Circle((y,z),radius=plot_halos[i]['Radius'],facecolor='none',edgecolor='r',alpha=0.5)
                             ax[2].add_patch(patch)
                         
                         ax[0].set_xlim(-max_xy, max_xy)
@@ -1000,7 +1022,9 @@ class Sightline():
                 
                 cell_ids = particle_ids[self.sub_Cells[i]]
 
-                for halo in self.sub_Halos[i]:
+                for halo in self._halos_within(self.sub_Halos[i]):
+                    if halo is None:
+                        continue
 
                     halo_info = sim.load_halo(sim._get_snap_num(snapshot),halo['ID'])  # Load in info for this halo
                     
@@ -1103,7 +1127,9 @@ class Sightline():
         return values[0] if np.isscalar(redshift) else np.array(values)
     
 
-    def halo_info(self, observed=False, inferred=False, modelled=False, with_compute=False, redshift=None, fgas=None, figm=None):
+    def halo_info(self, observed=False, inferred=False, modelled=False, with_compute=False, redshift=None, fgas=None, figm=None,
+                  n_r200=1):
+        """Halos traversed, keyed '<ID>_<subsightline>': those within n_r200 * R200c of the sightline (None = all kept)."""
 
         num_sub_sightlines = self.subsightline_reached(grid=False, halos=True,
                                                         observed=observed, inferred=inferred,
@@ -1124,8 +1150,9 @@ class Sightline():
 
         halos_traversed = {}
         for i in range(num_sub_sightlines):
-            if source_halos[i] != [None]:
-                for halo in source_halos[i]:
+            halos_i = self._halos_within(source_halos[i], n_r200)
+            if halos_i != [None]:
+                for halo in halos_i:
                     if redshift is not None and not (
                         'Redshift' not in halo or halo['Redshift'] < redshift
                     ):
@@ -1167,6 +1194,11 @@ class Sightline():
                     for halo in self.sub_Halos[i]:
 
                         halo_info = deepcopy(halo)
+
+                        if halo.get('HaloDist', 0) > halo['Radius']:    # beyond R200c: not observed
+                            halo_info['ObservedGalaxies'] = []
+                            observed_halos_i.append(halo_info)
+                            continue
 
                         if halo['ImpactParam'] == None and i == 0:
                             halo_info['ObservedGalaxies'] = None
@@ -1339,7 +1371,7 @@ class Sightline():
         mod.sub_Snapshots = self.sub_Snapshots
 
         # -- Deal with the movement caused by photometric redshifting -- #
-        mod.sub_Halos = self.sub_HalosInferred if halo_mode == 'inferred' else self.sub_Halos
+        mod.sub_Halos = self.sub_HalosInferred if halo_mode == 'inferred' else [self._halos_within(h) for h in self.sub_Halos]
 
         mod.sub_DensityIGM = [[] for _ in range(self.num_sub_sightlines)]
         mod.sub_DensityCGM = [[] for _ in range(self.num_sub_sightlines)]

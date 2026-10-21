@@ -132,7 +132,7 @@ class VisualSim():
             phi = np.linspace(0,2*np.pi,100)
             theta,phi = np.meshgrid(theta,phi)
             for i,halos in enumerate(sightline.sub_Halos[:n_subsightlines]):
-                for halo in halos:
+                for halo in sightline._halos_within(halos):
                     if halo is not None:
                         x = halo['Pos'][0]+halo['Radius']*np.sin(theta)*np.cos(phi)
                         y = halo['Pos'][1]+halo['Radius']*np.sin(theta)*np.sin(phi)

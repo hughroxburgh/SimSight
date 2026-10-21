@@ -39,6 +39,10 @@ class SightlineSim():
         self.sim = load_sim(data_path,snap_path_structure,halo_path_structure,fsps_path)
         print(f'Initialised {self.sim.name}',flush=True)
         
+        # -- Halos are kept out to this many R200c of each sightline (halo boundary can be varied later without
+        #    recomputing; reduce keeps full resolution near them). halo_info etc. select by n_r200, default 1. -- #
+        self.halo_search_factor = 5
+
         # -- Visualiser -- #
         self.Vis = VisualSim(self)
 
@@ -404,12 +408,12 @@ class SightlineSim():
 
         if parallel:
             sightlines = Parallel(n_jobs=self.num_cores, backend=self.backend)(
-                delayed(Halos_In_Sightline)(sl, snap, halos, com, radii, tree, max_radius,self.sim.cosmo)
+                delayed(Halos_In_Sightline)(sl, snap, halos, com, radii, tree, max_radius,self.sim.cosmo,self.halo_search_factor)
                 for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines')
             )
         else:
             for sl in _Smart_Tqdm(sightlines, desc='    finding halos in sightlines'):
-                Halos_In_Sightline(sl, snap, halos, com, radii, tree, max_radius,self.sim.cosmo)
+                Halos_In_Sightline(sl, snap, halos, com, radii, tree, max_radius,self.sim.cosmo,self.halo_search_factor)
             # inactive sightlines untouched — already in sightlines list
 
         if not _Is_Interactive():

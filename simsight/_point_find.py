@@ -460,11 +460,33 @@ def _Halos_Near_Ray(origin, direction, length, com, radii):
     return intersects, partial, impact
 
 
-def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius,cosmo):
+_Z_OF_D = {}
+
+def _Redshift_Of_Distance(cosmo, distance):
+    """z at comoving distance [ckpc], interpolated on a table built once per cosmology (z_at_value per halo is slow
+    with the many halos kept out to a few R200c). Distances < 0 (halo centre behind the sightline start) give z = 0."""
+    import astropy.units as u
+
+    key = repr(cosmo)
+    if key not in _Z_OF_D:
+        z_grid = np.linspace(0, 10, 10001)
+        _Z_OF_D[key] = (cosmo.comoving_distance(z_grid).to(u.kpc).value, z_grid)
+    d_grid, z_grid = _Z_OF_D[key]
+    return np.interp(np.maximum(distance, 0.0), d_grid, z_grid)
+
+
+def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius, cosmo, search_factor=1):
+    """
+    Halos within search_factor * R200c of each sub-sightline of this snapshot. Each halo dict gets 'HaloDist' (closest
+    distance from its centre to the sub-sightline segment), 'ImpactParam' (as before for halos crossing R200c: impact
+    parameter, None when the crossing is cut by the segment end; HaloDist for the rest) and 'Redshift'. Halos beyond R200c are kept so the halo boundary can be
+    varied later; Sightline.halo_info (n_r200=1) and the rest select the crossed ones by HaloDist <= n_r200 * Radius.
+    """
 
     from ._compute import Transform_Points
-    from ._sightline_class import z_at_value
-    import astropy.units as u
+
+    search_radii = radii * search_factor
+    max_search = max_radius * search_factor
 
     for i in range(sightline.num_sub_sightlines):
 
@@ -473,46 +495,42 @@ def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius,
 
         SL = sightline.get_subsightline(i)
 
-        # Use existing gen_line() instead of _sample_ray
-        sample_pts = SL.gen_line(n_samples=int(2*SL.length//max_radius))  # (n_samples, 3)
+        sample_pts = SL.gen_line(n_samples=max(int(2*SL.length//max_search), 2))  # (n_samples, 3)
 
-        raw_candidates = tree.query_ball_point(sample_pts, r=max_radius)
+        raw_candidates = tree.query_ball_point(sample_pts, r=max_search)
         candidates = np.unique(np.concatenate(raw_candidates)).astype(int) if any(raw_candidates) else np.array([], dtype=int)
 
         if len(candidates) == 0:
             sightline.sub_Halos[i] = [None]
             continue
 
-        intersects, partial, impact = _Halos_Near_Ray(
-            SL.origin,
-            SL.direction_vector,
-            SL.length,
-            com[candidates],
-            radii[candidates],
-        )
+        intersects, _, _ = _Halos_Near_Ray(SL.origin, SL.direction_vector, SL.length,
+                                           com[candidates], search_radii[candidates])
+        hits = candidates[np.where(intersects)[0]]
 
-        hit_local_indices = np.where(intersects)[0]
-
-        if len(hit_local_indices) == 0:
+        if len(hits) == 0:
             sightline.sub_Halos[i] = [None]
             continue
 
+        # -- ImpactParam from the R200c crossing itself, as before (halos not crossing R200c: HaloDist) -- #
+        crossed, partial, impact = _Halos_Near_Ray(SL.origin, SL.direction_vector, SL.length, com[hits], radii[hits])
+
+        # -- closest distance from each centre to the segment -- #
+        rel = com[hits] - SL.origin
+        t = np.clip(rel @ SL.direction_vector, 0.0, SL.length)
+        halo_dist = np.linalg.norm(rel - t[:, None] * SL.direction_vector[None, :], axis=1)
+
         prelength = np.nansum(sightline.sub_Lengths[:i])
+        redshifts = _Redshift_Of_Distance(cosmo, prelength + Transform_Points(SL, com[hits])[:, 2])
+
+        impact = np.where(crossed, impact, halo_dist)
 
         result = []
-        for local_j in hit_local_indices:
-            global_j  = candidates[local_j]
+        for k, global_j in enumerate(hits):
             halo_dict = dict(halos[global_j])
-            halo_dict['ImpactParam']        = None if partial[local_j] else np.float32(impact[local_j])
-            
-            if halo_dict['ImpactParam'] == None and i == 0:
-                redshift = 0
-            else:
-                halo_dist = Transform_Points(SL, halo_dict['Pos'])[2]
-                redshift = z_at_value(cosmo.comoving_distance, (prelength + halo_dist) * u.kpc).value
-
-            halo_dict['Redshift'] = np.float32(redshift)
-
+            halo_dict['ImpactParam'] = None if partial[k] else np.float32(impact[k])
+            halo_dict['HaloDist'] = np.float32(halo_dist[k])
+            halo_dict['Redshift'] = np.float32(0 if (halo_dict['ImpactParam'] is None and i == 0) else redshifts[k])
             result.append(halo_dict)
 
         sightline.sub_Halos[i] = result
