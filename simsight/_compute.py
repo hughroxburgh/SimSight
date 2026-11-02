@@ -43,6 +43,19 @@ def Density_To_DM(density,lengths,redshift):
     return DM
 
 
+def DM_To_Density(dm,lengths,redshift):
+    """
+    Inverse of Density_To_DM: the gas density [1e10 Msun / ckpc^3] that, fully ionised, gives DM over each cell. Applied
+    to the truth DM (Calc_Ray_DM) this is the electron-weighted density rho x_e [SFR == 0] -- the ionised,
+    non-star-forming gas, i.e. the same DM-equivalent gas as GasMassDM and the average halo profiles. Zero-length
+    cells give 0.
+    """
+    lengths = np.asarray(lengths, dtype=np.float64)
+    unit = Density_To_DM(1.0, lengths, redshift)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.where(unit > 0, np.nan_to_num(np.asarray(dm, dtype=np.float64)) / unit, 0.0)
+
+
 
 # --------- Main Functions --------- #
 

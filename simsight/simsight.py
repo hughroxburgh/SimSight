@@ -870,7 +870,7 @@ class SightlineSim():
     def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',halo_profile='mnfw',profile_table=None,
                          igm_background='smooth_truth',density_smooth_mode='linear',density_smooth_kernel=1000,reduce=None):
         """
-        halo_profile  : 'truth' (simulation gas), 'mnfw', 'average' (needs profile_table) or another analytic profile
+        halo_profile  : 'truth' (simulation ionised gas, normalised by GasMassDM), 'mnfw', 'average' (needs profile_table) or another analytic profile
         halo_params   : 'truth' or 'inferred' halo M200c / R200c for a modelled profile (ignored for 'truth')
         profile_table : table for halo_profile='average' -- packaged name (e.g. 'SIMBA'), path, or AverageHaloProfile
         """

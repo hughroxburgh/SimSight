@@ -9,7 +9,7 @@ from scipy.interpolate import interp1d
 # from scipy.ndimage import gaussian_filter1d
 from scipy.signal import fftconvolve
 
-from ._compute import Transform_Points
+from ._compute import Transform_Points, DM_To_Density
 from ._photz import FZBoostPredictor
 from ._halo_profiles import AverageHaloProfile, MNFWProfile, PROFILES, get_profile
 
@@ -131,7 +131,7 @@ class Inference:
                  halo_params='inferred',igm_background='mean',density_smooth_kernel=1000,density_smooth_mode='linear',
                  halo_profile='mnfw',profile_table=None,halo_subsamples=16):
         """
-        halo_profile  : halo gas profile -- 'truth' (the simulation's own gas, renormalised per halo), 'mnfw',
+        halo_profile  : halo gas profile -- 'truth' (the simulation's own ionised gas, renormalised per halo by GasMassDM), 'mnfw',
                         'average' (simulation-average table, see profile_table) or another analytic profile in
                         _halo_profiles.PROFILES
         halo_params   : where halo M200c / R200c come from for a modelled profile -- 'truth' or 'inferred'
@@ -581,19 +581,30 @@ class Inference:
                     rho_sub[r_sub > radii[j]] = 0.0
                     unit_density_j = rho_sub.mean(axis=1)
                 else:
+                    # The halo's own traced gas, as the electron-weighted (DM-equivalent) density: the truth DM per
+                    # cell turned back into the density that, fully ionised, reproduces it. Normalised by the
+                    # DM-equivalent gas within R200c (GasMassDM), so u integrates to 1 like every other profile and
+                    # f_gas means the ionised gas fraction for all of them; at f_gas,i = GasMassDM / (f_b M200c) the
+                    # model reproduces the truth DM exactly. (Using sub_Density, the total gas, converted fully
+                    # ionised, over-predicted central passages through neutral / star-forming gas and under-predicted
+                    # the ionised outskirts.)
+                    density_e = DM_To_Density(subsightline.sub_Compute, subsightline.sub_Grid,
+                                              subsightline.sub_BoxRedshifts)
                     resampled = Resample_Sightline_Density(
-                        subsightline.sub_Grid, subsightline.sub_Density,
+                        subsightline.sub_Grid, density_e,
                         np.ones_like(subsightline.sub_Grid).astype(bool),
                         t_edges, 0, None
                     )
                     density_true_j = resampled[mask]
 
-                    m_gas_true_h = halo['GasMass']
+                    if 'GasMassDM' not in halo:
+                        raise KeyError(f"halo {halo['ID']} has no GasMassDM: run the R200c gas sums "
+                                       "(find_halos / find_halo_gas_in_sightlines) before halo_profile='truth'")
+                    m_gas_true_h = halo['GasMassDM']
 
                     if m_gas_true_h <= 0:
-                        # no true gas recorded for this halo -- renormalization is undefined.
-                        # Treat as contributing zero to the reference density (the halo held
-                        # no gas to renormalize), rather than blowing up.
+                        # no ionised gas recorded for this halo -- renormalization is undefined.
+                        # Treat as contributing zero to the reference density, rather than blowing up.
                         unit_density_j = np.zeros_like(density_true_j)
                     else:
                         omega_b = self.sim.cosmo.Ob0
