@@ -530,8 +530,15 @@ class Inference:
             if len(np.where(subsightline.sub_CellConditions == 0)[0]) == 0:
                 density_igm_unit = np.full(t_grid.shape[0], mean_density)
             else:
+                # Electron-weighted (DM-equivalent) density, as the 'truth' halo profile: the truth DM per cell turned
+                # back into the density that, fully ionised, reproduces it, so at kernel 0 the model has exactly the
+                # truth's structure. (Using sub_Density, the total gas, missed gas that is not fully ionised -- e.g.
+                # SIMBA-C's cool HeII IGM -- adding spurious structure to the full-knowledge residuals.) The overall
+                # level is set later by _fit_and_rescale_smooth_igm_density, so only the shape matters here.
+                density_e = DM_To_Density(subsightline.sub_Compute, subsightline.sub_Grid,
+                                          subsightline.sub_BoxRedshifts)
                 density_igm_unit = Resample_Sightline_Density(
-                    subsightline.sub_Grid, subsightline.sub_Density,
+                    subsightline.sub_Grid, density_e,
                     subsightline.sub_CellConditions == 0, t_edges,
                     self.model_params['SmoothingKernal'],self.model_params['SmoothingMode']
                 )
