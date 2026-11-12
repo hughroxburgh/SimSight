@@ -419,8 +419,6 @@ class SightlineSim():
         if not _Is_Interactive():
             _Progress_Print(msg, ts)
 
-        Cleanup_Memory()
-
 
     # ------------- Main functions ------------- #
 
@@ -464,6 +462,7 @@ class SightlineSim():
                 print('\n', flush=True)
 
             del(halos,radii,com,tree)
+            Cleanup_Memory()                # after the del, so the catalogue's memory can go back to the OS
 
         return True
 

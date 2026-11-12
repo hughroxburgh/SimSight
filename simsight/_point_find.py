@@ -528,6 +528,7 @@ def Halos_In_Sightline(sightline, snapshot, halos, com, radii, tree, max_radius,
         result = []
         for k, global_j in enumerate(hits):
             halo_dict = dict(halos[global_j])
+            halo_dict['Pos'] = np.array(halo_dict['Pos'])     # own copy: a view would keep the whole catalogue array alive
             halo_dict['ImpactParam'] = None if partial[k] else np.float32(impact[k])
             halo_dict['HaloDist'] = np.float32(halo_dist[k])
             halo_dict['Redshift'] = np.float32(0 if (halo_dict['ImpactParam'] is None and i == 0) else redshifts[k])
