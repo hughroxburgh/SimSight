@@ -1259,8 +1259,7 @@ class SightlineSim():
         print('\n')
         print('Generating Sigmas')
 
-        sigma_igm = inference.build_sigma_igm(base_sightlines, self.sim.cosmo, z_val, mode)
-        sigma = sigma_igm
+        Q_igm = inference.build_Q_igm(base_sightlines, self.sim.cosmo, z_val, mode)
         print('\n')
 
         # -- Prior range and initial guesses per variable -- #
@@ -1290,7 +1289,7 @@ class SightlineSim():
         sampler = emcee.EnsembleSampler(
             nwalkers_eff, ndim, inference.log_probability,
             args=(anchor_logM, halo_logM, dm_halo_unit, sl_index, n_sightlines,
-                dm_igm_unit, dm_total_true, sigma, halo_unit_rss, priors, mode)
+                dm_igm_unit, dm_total_true, Q_igm, halo_unit_rss, priors, mode)
         )
         sampler.run_mcmc(pos, nsteps, progress=True)
 
@@ -1310,7 +1309,7 @@ class SightlineSim():
             'seed': seed,
             'sample_idx': sample_idx,
             'sightlines': base_sightlines,
-            'sigma_igm': sigma_igm,
+            'Q_igm': Q_igm,
             'tau': tau,
             'converged': converged,
             'dm_total_true': dm_total_true,

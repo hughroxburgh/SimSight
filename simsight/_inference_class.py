@@ -682,22 +682,22 @@ class Inference:
         return np.clip(vals, 0.0, 1.0)
 
 
-    def build_sigma_igm(self, sightlines, cosmo, redshift, mode='linear', dm_floor=1e-4):
+    def build_Q_igm(self, sightlines, cosmo, redshift, mode='linear', dm_floor=1e-4):
         """
-        IGM noise for the likelihood.
-        linear : fractional scatter c_IGM = std(q) / mean(q), q_i = DM_IGM,true,i / I_i (I_i = model IGM DM at
-                 f_IGM = 1); the likelihood uses sigma_IGM,i = c_IGM * f_IGM * I_i. Independent of the true f_IGM.
+        IGM noise for the likelihood (Q_IGM in Paper 1).
+        linear : fractional scatter Q_IGM = std(q) / mean(q), q_i = DM_IGM,true,i / I_i (I_i = model IGM DM at
+                 f_IGM = 1); the likelihood uses sigma_IGM,i = Q_IGM * f_IGM * I_i. Independent of the true f_IGM.
         log    : std of log10(truth / model at f_IGM = 1) [dex], constant over sightlines.
         """
         z_val = np.atleast_1d(redshift)
         dm_igm_true = np.array([
             s.extract_compute(cosmo, redshift=z_val, environment='IGM', modelled=False)
-            for s in tqdm(sightlines, desc='    building sigma_igm (truth)')
+            for s in tqdm(sightlines, desc='    building Q_igm (truth)')
         ])
         dm_igm_model = np.array([
             s.extract_compute(cosmo, redshift=z_val, environment='IGM', modelled=True,
                             figm=1)
-            for s in tqdm(sightlines, desc='    building sigma_igm (model)')
+            for s in tqdm(sightlines, desc='    building Q_igm (model)')
         ])
 
         if mode == 'log':
@@ -756,9 +756,9 @@ class Inference:
 
 
     def log_likelihood(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
-                    n_sightlines, dm_igm_unit, y_true, sigma,
+                    n_sightlines, dm_igm_unit, y_true, Q_igm,
                     halo_unit_rss, mode='linear', dm_floor=1e-4):
-        # sigma: c_IGM (fractional, linear mode) or the IGM scatter in dex (log mode), from build_sigma_igm
+        # Q_igm: fractional IGM scatter (linear mode) or the IGM scatter in dex (log mode), from build_Q_igm
 
         n_anchors = len(anchor_logM)
 
@@ -787,11 +787,11 @@ class Inference:
             resid = np.log10(y) - np.log10(model_dm)
 
             sigma_fgas_log = sigma_dm_fgas / model_dm / np.log(10.0)
-            sigma_eff = np.sqrt(sigma**2 + sigma_fgas_log**2)
+            sigma_eff = np.sqrt(Q_igm**2 + sigma_fgas_log**2)
 
         elif mode == 'linear':
             resid = y_true - model_dm
-            sigma_dm_igm = sigma * f_igm * dm_igm_unit
+            sigma_dm_igm = Q_igm * f_igm * dm_igm_unit
             sigma_eff = np.sqrt(sigma_dm_igm**2 + sigma_dm_fgas**2)
 
         return np.sum(-0.5 * (resid**2 / sigma_eff**2 + np.log(2.0 * np.pi * sigma_eff**2)))
@@ -804,9 +804,9 @@ class Inference:
         return 0.0
 
     def log_probability(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
-                         n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, priors, mode='linear'):
+                         n_sightlines, dm_igm_unit, y_true, Q_igm, halo_unit_rss, priors, mode='linear'):
         lp = self.log_prior(theta, priors)
         if not np.isfinite(lp):
             return -np.inf
         return lp + self.log_likelihood(theta, anchor_logM, halo_logM, dm_halo_unit,
-                                         sl_index, n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, mode)
+                                         sl_index, n_sightlines, dm_igm_unit, y_true, Q_igm, halo_unit_rss, mode)
