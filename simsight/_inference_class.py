@@ -682,7 +682,13 @@ class Inference:
         return np.clip(vals, 0.0, 1.0)
 
 
-    def build_sigma_igm(self, sightlines, cosmo, redshift, mode='log', dm_floor=1e-4):
+    def build_sigma_igm(self, sightlines, cosmo, redshift, mode='linear', dm_floor=1e-4):
+        """
+        IGM noise for the likelihood.
+        linear : fractional scatter c_IGM = std(q) / mean(q), q_i = DM_IGM,true,i / I_i (I_i = model IGM DM at
+                 f_IGM = 1); the likelihood uses sigma_IGM,i = c_IGM * f_IGM * I_i. Independent of the true f_IGM.
+        log    : std of log10(truth / model at f_IGM = 1) [dex], constant over sightlines.
+        """
         z_val = np.atleast_1d(redshift)
         dm_igm_true = np.array([
             s.extract_compute(cosmo, redshift=z_val, environment='IGM', modelled=False)
@@ -697,10 +703,11 @@ class Inference:
         if mode == 'log':
             resid = np.log10(np.maximum(dm_igm_true, dm_floor)) - \
                     np.log10(np.maximum(dm_igm_model, dm_floor))
+            return np.std(resid, axis=0)[0]
         elif mode == 'linear':
-            resid = dm_igm_true - dm_igm_model
-
-        return np.std(resid, axis=0)[0]
+            q = dm_igm_true / np.maximum(dm_igm_model, dm_floor)
+            return (np.std(q, axis=0) / np.mean(q, axis=0))[0]
+        raise ValueError(f"mode must be 'linear' or 'log', not {mode!r}")
 
 
     def build_sigma_halo(self, sightlines, cosmo, redshift, mode='log',dm_floor=1e-4):
@@ -750,7 +757,8 @@ class Inference:
 
     def log_likelihood(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
                     n_sightlines, dm_igm_unit, y_true, sigma,
-                    halo_unit_rss, mode='log', dm_floor=1e-4):
+                    halo_unit_rss, mode='linear', dm_floor=1e-4):
+        # sigma: c_IGM (fractional, linear mode) or the IGM scatter in dex (log mode), from build_sigma_igm
 
         n_anchors = len(anchor_logM)
 
@@ -783,7 +791,8 @@ class Inference:
 
         elif mode == 'linear':
             resid = y_true - model_dm
-            sigma_eff = np.sqrt(sigma**2 + sigma_dm_fgas**2)
+            sigma_dm_igm = sigma * f_igm * dm_igm_unit
+            sigma_eff = np.sqrt(sigma_dm_igm**2 + sigma_dm_fgas**2)
 
         return np.sum(-0.5 * (resid**2 / sigma_eff**2 + np.log(2.0 * np.pi * sigma_eff**2)))
     
@@ -795,7 +804,7 @@ class Inference:
         return 0.0
 
     def log_probability(self, theta, anchor_logM, halo_logM, dm_halo_unit, sl_index,
-                         n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, priors,mode):
+                         n_sightlines, dm_igm_unit, y_true, sigma, halo_unit_rss, priors, mode='linear'):
         lp = self.log_prior(theta, priors)
         if not np.isfinite(lp):
             return -np.inf

@@ -1188,7 +1188,12 @@ class SightlineSim():
 
     def run_mcmc(self, sightlines, redshift, mass_anchors=None, nwalkers=32, nsteps=4000,
             initial_guess=None, seed=None, fgas_prior=(0.0, 1.0),
-            figm_prior=(0.0, 1.0), filt=None, mode='log'):
+            figm_prior=(0.0, 1.0), filt=None, mode='linear', n_frb=None):
+        """
+        mode  : 'linear' (Gaussian in DM, sigma_IGM,i = c_IGM f_IGM I_i) or 'log' (Gaussian in log10 DM)
+        n_frb : number of sightlines drawn (without replacement, after filt) from those given; None = use all.
+                The draw and the walker starts both come from `seed`.
+        """
 
         import emcee
         from ._inference_class import Inference
@@ -1209,6 +1214,15 @@ class SightlineSim():
             print('\n')
         else:
             base_sightlines = sightlines
+
+        rng = np.random.default_rng(seed)
+        if n_frb is not None:
+            if n_frb > len(base_sightlines):
+                raise ValueError(f'n_frb = {n_frb} but only {len(base_sightlines)} sightlines available')
+            sample_idx = np.sort(rng.choice(len(base_sightlines), n_frb, replace=False))
+            base_sightlines = [base_sightlines[i] for i in sample_idx]
+        else:
+            sample_idx = np.arange(len(base_sightlines))
         n_sightlines = len(base_sightlines)
 
         if min([sl.subsightline_reached(modelled=True) for sl in base_sightlines]) == 0:
@@ -1266,7 +1280,6 @@ class SightlineSim():
             init = initial_guess
 
         # -- Randomize starting walkers -- #
-        rng = np.random.default_rng(seed)
         nwalkers_eff = max(nwalkers, 4 * ndim)
         pos = np.array(init) + 1e-2 * rng.standard_normal((nwalkers_eff, ndim))
         for j, (lo, hi) in enumerate(priors.values()):
@@ -1281,10 +1294,25 @@ class SightlineSim():
         )
         sampler.run_mcmc(pos, nsteps, progress=True)
 
+        # -- Convergence: integrated autocorrelation time per parameter (emcee wants nsteps > ~50 tau) -- #
+        tau = sampler.get_autocorr_time(tol=0)
+        converged = bool(np.all(np.isfinite(tau)) and nsteps > 50 * np.max(tau))
+        print(f'autocorrelation time: {np.round(tau, 1)}  (nsteps / max tau = {nsteps / np.max(tau):.0f}'
+              f'{"" if converged else "; < 50, not converged"})')
+
         return {
             'sampler': sampler,
             'param_names': param_names,
             'anchor_logM': anchor_logM,
             'z_val': z_val,
             'n_selected': n_sightlines,
+            'mode': mode,
+            'seed': seed,
+            'sample_idx': sample_idx,
+            'sightlines': base_sightlines,
+            'sigma_igm': sigma_igm,
+            'tau': tau,
+            'converged': converged,
+            'dm_total_true': dm_total_true,
+            'dm_igm_unit': dm_igm_unit,
         }
