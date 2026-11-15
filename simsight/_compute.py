@@ -56,6 +56,17 @@ def DM_To_Density(dm,lengths,redshift):
         return np.where(unit > 0, np.nan_to_num(np.asarray(dm, dtype=np.float64)) / unit, 0.0)
 
 
+def DM_To_FreeElectronDensity(dm,lengths,redshift):
+    """
+    Comoving free electron density [cm^-3] that gives DM over each cell: n_e,com = DM / ((1+z) dl_com), undoing the
+    last two steps of Calc_Ray_DM. Applied to the truth DM this is each cell's path-averaged n_e,com (star-forming
+    gas carries none). Zero-length cells give 0.
+    """
+    lengths = np.asarray(lengths, dtype=np.float64) * 1000     # ckpc -> cpc
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.where(lengths > 0, np.nan_to_num(np.asarray(dm, dtype=np.float64)) / ((1+redshift) * lengths), 0.0)
+
+
 
 # --------- Main Functions --------- #
 

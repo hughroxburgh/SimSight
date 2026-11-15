@@ -12,7 +12,7 @@ from scipy.spatial.distance import cdist
 from astropy.cosmology import z_at_value
 import astropy.units as u
 
-from ._compute import Transform_Points, Density_To_DM
+from ._compute import Transform_Points, Density_To_DM, DM_To_FreeElectronDensity
 from ._utils import _Get_Colours
 
 LIMITING_MAGS = {
@@ -407,6 +407,21 @@ class Sightline():
             return halos
         kept = [h for h in halos if h is not None and h.get('HaloDist', 0) <= n_r200 * h['Radius']]
         return kept if len(kept) > 0 else [None]
+
+    @property
+    def sub_FreeElectronDensity(self):
+        """
+        Comoving free electron density [cm^-3] of every cell, recomputed from the DM in sub_Compute (not saved). Unlike
+        sub_Density (total gas), this is what the DM sees: star-forming and not fully ionised gas carry few or no
+        electrons. On the parent sightline a list per subsightline; on a subsightline (get_subsightline) one array.
+        On self.modelled it is the model's n_e at its current (fgas, figm).
+        """
+        if getattr(self, 'sub_Compute', None) is None:     # subsightlines without values have no sub_Compute
+            return None
+        if isinstance(self.sub_Compute, list):
+            return [DM_To_FreeElectronDensity(dm, grid, z) if len(dm) > 0 else []
+                    for dm, grid, z in zip(self.sub_Compute, self.sub_Grid, self.sub_BoxRedshifts)]
+        return DM_To_FreeElectronDensity(self.sub_Compute, self.sub_Grid, self.sub_BoxRedshifts)
 
     def get_subsightline(self,idx,with_values=False,n_r200=1):
         """
