@@ -1177,8 +1177,16 @@ class Sightline():
                     halos_traversed[key] = deepcopy(halo)
                     halos_traversed[key]['Subsightline'] = i
                     if with_compute:
+                        if modelled:
+                            # The halo term alone (f_gas * unit halo density), not the combined model DM: the combined
+                            # density is max(f_gas * halo, f_igm * IGM), so wherever the IGM bridged across a halo wins
+                            # it would put IGM DM into the halo's unit DM (the likelihood's H).
+                            dm_cells = Density_To_DM(source.fgas * source.sub_DensityCGM[i], source.sub_Grid[i],
+                                                     source.sub_BoxRedshifts[i])
+                        else:
+                            dm_cells = source.sub_Compute[i]
                         halos_traversed[key]['Compute'] = np.nansum(
-                            source.sub_Compute[i][source.sub_HaloAssignment[i] == halo['ID']]
+                            dm_cells[source.sub_HaloAssignment[i] == halo['ID']]
                         )
 
         return halos_traversed
