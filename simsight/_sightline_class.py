@@ -66,6 +66,7 @@ class Sightline():
             self.sub_Halos = None
             self.sub_CellConditions = None
             self.sub_HaloAssignment = None
+            self.min_halo_mass = None           # M200c floor [Msun]: lighter halos count as IGM (assign_to_halos)
 
             self.num_sub_sightlines = None      # number of sub sightlines
 
@@ -397,15 +398,19 @@ class Sightline():
 
 
     @staticmethod
-    def _halos_within(halos, n_r200=1):
+    def _halos_within(halos, n_r200=1, min_mass=None):
         """
         Halos of one sub-sightline within n_r200 * R200c of it ([None] if none; [] = not searched yet, kept).
         Halo finding keeps halos out to a few R200c (SightlineSim.halo_search_factor) so the boundary can be varied
         later; halos found before 'HaloDist' existed were all crossed (HaloDist = 0). n_r200=None returns them all.
+        min_mass [Msun]: also drop halos with M200c (TotalMass) below it -- below the mass resolution they are not
+        treated as halos, and their cells as IGM (see assign_to_halos).
         """
-        if n_r200 is None or len(halos) == 0 or halos == [None]:
+        if len(halos) == 0 or halos == [None] or (n_r200 is None and min_mass is None):
             return halos
-        kept = [h for h in halos if h is not None and h.get('HaloDist', 0) <= n_r200 * h['Radius']]
+        kept = [h for h in halos if h is not None
+                and (n_r200 is None or h.get('HaloDist', 0) <= n_r200 * h['Radius'])
+                and (min_mass is None or h['TotalMass'] >= min_mass)]
         return kept if len(kept) > 0 else [None]
 
     @property
@@ -443,7 +448,8 @@ class Sightline():
             subsightline.sub_CellConditions = self.sub_CellConditions[idx]
             subsightline.sub_HaloAssignment = self.sub_HaloAssignment[idx]
             # halos: true catalogue, or those inferred from observed galaxies
-            subsightline.sub_Halos = self.sub_HalosInferred[idx] if with_values == 'inferred' else self._halos_within(self.sub_Halos[idx], n_r200)
+            subsightline.sub_Halos = self.sub_HalosInferred[idx] if with_values == 'inferred' else \
+                self._halos_within(self.sub_Halos[idx], n_r200, getattr(self, 'min_halo_mass', None))
 
         return subsightline
     
@@ -986,12 +992,15 @@ class Sightline():
 
     # ------------- Computation / environment partitioning ------------- #
 
-    def assign_to_halos(self,method='sphere',particle_ids=None,snapshot=None,sim=None):
+    def assign_to_halos(self,method='sphere',particle_ids=None,snapshot=None,sim=None,min_mass=None):
         """
         Assign grid cells to halos. Either through spherical r200c check, or through halo membership.
+        min_mass [Msun]: halos with M200c below it are ignored (e.g. below the simulation's mass resolution), so their
+        cells stay IGM (CellConditions 0); remembered as self.min_halo_mass, which halo_info and the model then use.
         """
 
         self.halos_traversed = {}
+        self.min_halo_mass = min_mass
 
         num_sub_sightlines = self.subsightline_reached(halos=True)
 
@@ -1011,10 +1020,13 @@ class Sightline():
                 z_edges = np.concatenate(([0.0], np.cumsum(self.sub_Grid[i]))) # z-midpoints of each segment
                 z_mid = 0.5 * (z_edges[:-1] + z_edges[1:])  
 
-                # Extract halo data
-                halo_positions = np.array([Transform_Points(subSL,halo['Pos']) for halo in self.sub_Halos[i] if halo is not None])  
-                radii = np.array([halo['Radius'] for halo in self.sub_Halos[i]])
-                ids = np.array([halo['ID'] for halo in self.sub_Halos[i]])
+                # Extract halo data (halos above the mass floor only)
+                halos_i = [h for h in self.sub_Halos[i] if h is not None and (min_mass is None or h['TotalMass'] >= min_mass)]
+                if len(halos_i) == 0:
+                    continue
+                halo_positions = np.array([Transform_Points(subSL,halo['Pos']) for halo in halos_i])
+                radii = np.array([halo['Radius'] for halo in halos_i])
+                ids = np.array([halo['ID'] for halo in halos_i])
 
                 # Distance from (0,0,z_mid) to halo COM
                 dx2 = halo_positions[:, 0][:, None]**2
@@ -1037,7 +1049,7 @@ class Sightline():
                 
                 cell_ids = particle_ids[self.sub_Cells[i]]
 
-                for halo in self._halos_within(self.sub_Halos[i]):
+                for halo in self._halos_within(self.sub_Halos[i], min_mass=min_mass):
                     if halo is None:
                         continue
 
@@ -1143,8 +1155,14 @@ class Sightline():
     
 
     def halo_info(self, observed=False, inferred=False, modelled=False, with_compute=False, redshift=None, fgas=None, figm=None,
-                  n_r200=1):
-        """Halos traversed, keyed '<ID>_<subsightline>': those within n_r200 * R200c of the sightline (None = all kept)."""
+                  n_r200=1, min_mass='auto'):
+        """
+        Halos traversed, keyed '<ID>_<subsightline>': those within n_r200 * R200c of the sightline (None = all kept).
+        min_mass [Msun]: only halos with M200c >= it; 'auto' = the floor the cells were assigned with
+        (self.min_halo_mass, set by assign_to_halos), so halo_info and the IGM / CGM split agree; None = no floor.
+        """
+        if isinstance(min_mass, str):
+            min_mass = getattr(self, 'min_halo_mass', None)
 
         num_sub_sightlines = self.subsightline_reached(grid=False, halos=True,
                                                         observed=observed, inferred=inferred,
@@ -1165,7 +1183,7 @@ class Sightline():
 
         halos_traversed = {}
         for i in range(num_sub_sightlines):
-            halos_i = self._halos_within(source_halos[i], n_r200)
+            halos_i = self._halos_within(source_halos[i], n_r200, min_mass)
             if halos_i != [None]:
                 for halo in halos_i:
                     if redshift is not None and not (
@@ -1394,7 +1412,8 @@ class Sightline():
         mod.sub_Snapshots = self.sub_Snapshots
 
         # -- Deal with the movement caused by photometric redshifting -- #
-        mod.sub_Halos = self.sub_HalosInferred if halo_mode == 'inferred' else [self._halos_within(h) for h in self.sub_Halos]
+        floor = getattr(self, 'min_halo_mass', None)
+        mod.sub_Halos = self.sub_HalosInferred if halo_mode == 'inferred' else [self._halos_within(h, 1, floor) for h in self.sub_Halos]
 
         mod.sub_DensityIGM = [[] for _ in range(self.num_sub_sightlines)]
         mod.sub_DensityCGM = [[] for _ in range(self.num_sub_sightlines)]

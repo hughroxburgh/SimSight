@@ -867,12 +867,20 @@ class SightlineSim():
 
 
     def model_sightlines(self,sightlines,parallel=False,halo_params='inferred',halo_profile='mnfw',profile_table=None,
-                         igm_background='smooth_truth',density_smooth_mode='linear',density_smooth_kernel=1000,reduce=None):
+                         igm_background='smooth_truth',density_smooth_mode='linear',density_smooth_kernel=1000,reduce=None,
+                         min_halo_mass=None):
         """
         halo_profile  : 'truth' (simulation ionised gas, normalised by GasMassDM), 'mnfw', 'average' (needs profile_table) or another analytic profile
         halo_params   : 'truth' or 'inferred' halo M200c / R200c for a modelled profile (ignored for 'truth')
         profile_table : table for halo_profile='average' -- packaged name (e.g. 'SIMBA'), path, or AverageHaloProfile
+        min_halo_mass : M200c floor [Msun] (e.g. the mass resolution): lighter halos are not halos, in the truth and the
+                        model alike -- their cells are IGM (re-assigned with the spherical method where the floor
+                        changes), they get no halo profile, and halo_info leaves them out. None = every halo.
         """
+
+        for sl in sightlines:
+            if getattr(sl, 'min_halo_mass', None) != min_halo_mass:
+                sl.assign_to_halos(method='sphere', min_mass=min_halo_mass)
 
         from ._inference_class import Inference
 
